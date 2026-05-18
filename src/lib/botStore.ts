@@ -36,9 +36,9 @@ const KEY_ACTIVE = "ownerPortal.activeBot.v1";
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
-export function subscribeBots(fn: Listener) {
+export function subscribeBots(fn: Listener): () => void {
   listeners.add(fn);
-  return () => listeners.delete(fn);
+  return () => { listeners.delete(fn); };
 }
 function emit() {
   listeners.forEach((l) => l());
