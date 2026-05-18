@@ -115,18 +115,17 @@ export function ChessApp() {
   );
 
   const fallbackBotMove = useCallback(() => {
-    const moves = game.moves({ verbose: true }) as Array<{ from: string; to: string; promotion?: string; san: string }>;
-    if (moves.length === 0) return;
-    const pick = moves[Math.floor(Math.random() * moves.length)];
+    const pick = pickBotMove(game, activeBot);
+    if (!pick) return;
     const m = game.move(pick);
     if (m) {
       setHistory((h) => [...h, m.san]);
       setUciHistory((h) => [...h, pick.from + pick.to + (pick.promotion ?? "")]);
       setLastMove({ from: pick.from as Square, to: pick.to as Square });
-      addLog("warn", `Fallback engine played ${m.san}`);
+      addLog("warn", `${activeBot ? activeBot.name : "Fallback engine"} played ${m.san}`);
       force();
     }
-  }, [game, addLog, force]);
+  }, [game, addLog, force, activeBot]);
 
   const requestBotMove = useCallback(
     async (moves: string[]) => {
