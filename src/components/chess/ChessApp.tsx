@@ -303,6 +303,8 @@ export function ChessApp() {
             </div>
           </Card>
 
+          <BotRoster onSelect={(b) => addLog("ok", `Switched active bot to ${b.name}`)} />
+
           {/* Move history */}
           <Card className="bg-card p-3 flex-1 min-h-[200px]">
             <div className="text-sm font-semibold mb-2 px-1">Move History</div>
