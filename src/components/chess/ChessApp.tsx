@@ -363,6 +363,8 @@ export function ChessApp() {
           }
         }}
       />
+
+      <OwnerPortal />
     </div>
   );
 }
