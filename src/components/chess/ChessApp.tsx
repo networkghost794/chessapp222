@@ -39,8 +39,18 @@ export function ChessApp() {
   const [pending, setPending] = useState(false);
   const [promotion, setPromotion] = useState<{ from: Square; to: Square } | null>(null);
   const [configOpen, setConfigOpen] = useState(true);
+  const [activeBot, setActiveBotState] = useState<BotConfig | null>(null);
 
   const game = gameRef.current;
+
+  useEffect(() => {
+    const refresh = () => {
+      const id = getActiveBotId();
+      setActiveBotState(id ? loadBots().find((b) => b.id === id) ?? null : null);
+    };
+    refresh();
+    return subscribeBots(refresh);
+  }, []);
 
   const addLog = useCallback((kind: LogEntry["kind"], text: string) => {
     const ts = new Date().toLocaleTimeString();
