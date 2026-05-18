@@ -2,13 +2,22 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Chess, type Square, type PieceSymbol } from "chess.js";
 import { Board } from "./Board";
 import { PromotionDialog } from "./PromotionDialog";
+import { BotRoster } from "./BotRoster";
+import { OwnerPortal } from "./OwnerPortal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, FlipHorizontal2, Plus, RotateCcw, Terminal, Wifi } from "lucide-react";
+import { ChevronDown, FlipHorizontal2, Plus, RotateCcw, Terminal, User, Wifi } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  getActiveBotId,
+  loadBots,
+  pickBotMove,
+  subscribeBots,
+  type BotConfig,
+} from "@/lib/botStore";
 
 type LogEntry = { kind: "info" | "warn" | "error" | "ok"; text: string; ts: string };
 type ConnStatus = "idle" | "ok" | "error" | "checking";
@@ -30,8 +39,18 @@ export function ChessApp() {
   const [pending, setPending] = useState(false);
   const [promotion, setPromotion] = useState<{ from: Square; to: Square } | null>(null);
   const [configOpen, setConfigOpen] = useState(true);
+  const [activeBot, setActiveBotState] = useState<BotConfig | null>(null);
 
   const game = gameRef.current;
+
+  useEffect(() => {
+    const refresh = () => {
+      const id = getActiveBotId();
+      setActiveBotState(id ? loadBots().find((b) => b.id === id) ?? null : null);
+    };
+    refresh();
+    return subscribeBots(refresh);
+  }, []);
 
   const addLog = useCallback((kind: LogEntry["kind"], text: string) => {
     const ts = new Date().toLocaleTimeString();
@@ -96,18 +115,17 @@ export function ChessApp() {
   );
 
   const fallbackBotMove = useCallback(() => {
-    const moves = game.moves({ verbose: true }) as Array<{ from: string; to: string; promotion?: string; san: string }>;
-    if (moves.length === 0) return;
-    const pick = moves[Math.floor(Math.random() * moves.length)];
+    const pick = pickBotMove(game, activeBot);
+    if (!pick) return;
     const m = game.move(pick);
     if (m) {
       setHistory((h) => [...h, m.san]);
       setUciHistory((h) => [...h, pick.from + pick.to + (pick.promotion ?? "")]);
       setLastMove({ from: pick.from as Square, to: pick.to as Square });
-      addLog("warn", `Fallback engine played ${m.san}`);
+      addLog("warn", `${activeBot ? activeBot.name : "Fallback engine"} played ${m.san}`);
       force();
     }
-  }, [game, addLog, force]);
+  }, [game, addLog, force, activeBot]);
 
   const requestBotMove = useCallback(
     async (moves: string[]) => {
@@ -198,7 +216,27 @@ export function ChessApp() {
 
       <main className="max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-4 md:gap-6">
         {/* Board area */}
-        <section>
+        <section className="space-y-4">
+          {activeBot && (
+            <Card className="bg-card p-3 flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-primary/40">
+                {activeBot.avatar ? (
+                  <img src={activeBot.avatar} alt={activeBot.name} className="w-full h-full object-cover" />
+                ) : (
+                  <User className="w-5 h-5 text-muted-foreground" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold truncate">
+                  {activeBot.name} <span className="text-muted-foreground font-normal">· ELO {activeBot.elo}</span>
+                </div>
+                {activeBot.quote && (
+                  <div className="text-xs text-muted-foreground italic truncate">“{activeBot.quote}”</div>
+                )}
+              </div>
+              <span className="text-[10px] uppercase tracking-wider text-primary">{activeBot.category}</span>
+            </Card>
+          )}
           <Card className="p-4 md:p-6 bg-card">
             <div className="flex items-center justify-between mb-3">
               <div className="text-sm font-medium">{gameStatusText}</div>
@@ -265,6 +303,8 @@ export function ChessApp() {
             </div>
           </Card>
 
+          <BotRoster onSelect={(b) => addLog("ok", `Switched active bot to ${b.name}`)} />
+
           {/* Move history */}
           <Card className="bg-card p-3 flex-1 min-h-[200px]">
             <div className="text-sm font-semibold mb-2 px-1">Move History</div>
@@ -323,6 +363,8 @@ export function ChessApp() {
           }
         }}
       />
+
+      <OwnerPortal />
     </div>
   );
 }
