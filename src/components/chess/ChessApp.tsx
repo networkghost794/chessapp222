@@ -216,7 +216,27 @@ export function ChessApp() {
 
       <main className="max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-4 md:gap-6">
         {/* Board area */}
-        <section>
+        <section className="space-y-4">
+          {activeBot && (
+            <Card className="bg-card p-3 flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-primary/40">
+                {activeBot.avatar ? (
+                  <img src={activeBot.avatar} alt={activeBot.name} className="w-full h-full object-cover" />
+                ) : (
+                  <User className="w-5 h-5 text-muted-foreground" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold truncate">
+                  {activeBot.name} <span className="text-muted-foreground font-normal">· ELO {activeBot.elo}</span>
+                </div>
+                {activeBot.quote && (
+                  <div className="text-xs text-muted-foreground italic truncate">“{activeBot.quote}”</div>
+                )}
+              </div>
+              <span className="text-[10px] uppercase tracking-wider text-primary">{activeBot.category}</span>
+            </Card>
+          )}
           <Card className="p-4 md:p-6 bg-card">
             <div className="flex items-center justify-between mb-3">
               <div className="text-sm font-medium">{gameStatusText}</div>
