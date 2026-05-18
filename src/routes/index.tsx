@@ -1,26 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { ChessApp } from "@/components/chess/ChessApp";
 
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "BotBoard — Play Chess vs Custom AI Bots" },
+      {
+        name: "description",
+        content:
+          "Modern chess arena to spar against your own AI engines. Drag-and-drop board, move history, and a custom bot bridge.",
+      },
+      { property: "og:title", content: "BotBoard — Chess vs Custom AI Bots" },
+      { property: "og:description", content: "Spar against your custom chess engines in a polished dark arena." },
+    ],
+  }),
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. For sites with multiple pages (About, Services, Contact, etc.),
-// create separate route files (about.tsx, services.tsx, contact.tsx) — don't put all pages in this file.
-function PlaceholderIndex() {
-  return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
-  );
-}
-
 function Index() {
-  return <PlaceholderIndex />;
+  return <ChessApp />;
 }
