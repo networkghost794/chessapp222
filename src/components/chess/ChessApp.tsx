@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Chess, type Square, type PieceSymbol } from "chess.js";
+import { Chess, type Square, type PieceSymbol, type Color } from "chess.js";
 import { Board } from "./Board";
 import { PromotionDialog } from "./PromotionDialog";
 import { BotRoster } from "./BotRoster";
@@ -9,7 +9,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, FlipHorizontal2, LogOut, Plus, RotateCcw, Terminal, User, Wifi } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { ChevronDown, FlipHorizontal2, LogOut, Play, Plus, RotateCcw, Terminal, Trophy, User, Wifi } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getActiveBotId,
@@ -23,8 +31,11 @@ import { supabase } from "@/integrations/supabase/client";
 
 type LogEntry = { kind: "info" | "warn" | "error" | "ok"; text: string; ts: string };
 type ConnStatus = "idle" | "ok" | "error" | "checking";
+type ColorChoice = "white" | "black" | "random";
+type BotStats = { wins: number; losses: number; draws: number };
 
 const DEFAULT_ENDPOINT = "http://127.0.0.1:8080/move";
+const EMPTY_STATS: BotStats = { wins: 0, losses: 0, draws: 0 };
 
 export function ChessApp() {
   const { profile, refreshProfile, signOut, user } = useAuth();
@@ -44,6 +55,15 @@ export function ChessApp() {
   const [promotion, setPromotion] = useState<{ from: Square; to: Square } | null>(null);
   const [configOpen, setConfigOpen] = useState(true);
   const [activeBot, setActiveBotState] = useState<BotConfig | null>(null);
+
+  const [colorChoice, setColorChoice] = useState<ColorChoice>("white");
+  const [playerColor, setPlayerColor] = useState<Color>("w");
+  const [botStats, setBotStats] = useState<BotStats>(EMPTY_STATS);
+  const [resultModal, setResultModal] = useState<{ open: boolean; title: string; detail: string }>({
+    open: false,
+    title: "",
+    detail: "",
+  });
 
   const game = gameRef.current;
 
@@ -65,59 +85,22 @@ export function ChessApp() {
     addLog("info", "Engine ready. Configure your bot bridge to begin networked play.");
   }, [addLog]);
 
-  const resetGame = useCallback(() => {
-    gameRef.current = new Chess();
-    setHistory([]);
-    setUciHistory([]);
-    setLastMove(null);
-    setPending(false);
-    setPromotion(null);
-    recordedRef.current = false;
-    addLog("info", "New game started.");
-    force();
-  }, [addLog, force]);
+  // Load bot stats whenever active bot or user changes
+  const loadBotStats = useCallback(async (bot: BotConfig | null) => {
+    if (!user || !bot) { setBotStats(EMPTY_STATS); return; }
+    const { data, error } = await supabase
+      .from("bot_stats")
+      .select("wins,losses,draws")
+      .eq("user_id", user.id)
+      .eq("bot_id", bot.id)
+      .maybeSingle();
+    if (error) { setBotStats(EMPTY_STATS); return; }
+    setBotStats(data ?? EMPTY_STATS);
+  }, [user]);
 
-  const finishMove = useCallback(
-    (from: Square, to: Square, promo?: PieceSymbol) => {
-      const move = game.move({ from, to, promotion: promo as "q" | "r" | "b" | "n" | undefined });
-      if (!move) return false;
-      const uci = from + to + (promo ?? "");
-      setHistory((h) => [...h, move.san]);
-      setUciHistory((h) => [...h, uci]);
-      setLastMove({ from, to });
-      addLog("ok", `You played ${move.san}`);
-      force();
-      // schedule bot
-      setPending(true);
-      setTimeout(() => requestBotMove([...uciHistory, uci]), 250);
-      return true;
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [game, uciHistory],
-  );
+  useEffect(() => { loadBotStats(activeBot); }, [activeBot, loadBotStats]);
 
-  const handleAttemptMove = useCallback(
-    (from: Square, to: Square) => {
-      if (pending) return false;
-      if (game.turn() !== "w") return false;
-      const piece = game.get(from);
-      if (!piece) return false;
-      // detect promotion
-      const isPromotion =
-        piece.type === "p" &&
-        ((piece.color === "w" && to[1] === "8") || (piece.color === "b" && to[1] === "1"));
-      const legal = (game.moves({ square: from, verbose: true }) as Array<{ to: string }>).some(
-        (m) => m.to === to,
-      );
-      if (!legal) return false;
-      if (isPromotion) {
-        setPromotion({ from, to });
-        return true;
-      }
-      return finishMove(from, to);
-    },
-    [game, pending, finishMove],
-  );
+  const requestBotMoveRef = useRef<(moves: string[]) => void>(() => {});
 
   const fallbackBotMove = useCallback(() => {
     const pick = pickBotMove(game, activeBot);
@@ -134,10 +117,7 @@ export function ChessApp() {
 
   const requestBotMove = useCallback(
     async (moves: string[]) => {
-      if (game.isGameOver()) {
-        setPending(false);
-        return;
-      }
+      if (game.isGameOver()) { setPending(false); return; }
       setStatus("checking");
       try {
         const ctrl = new AbortController();
@@ -176,6 +156,86 @@ export function ChessApp() {
     [endpoint, game, addLog, force, fallbackBotMove],
   );
 
+  useEffect(() => { requestBotMoveRef.current = requestBotMove; }, [requestBotMove]);
+
+  const startMatch = useCallback(() => {
+    gameRef.current = new Chess();
+    setHistory([]);
+    setUciHistory([]);
+    setLastMove(null);
+    setPromotion(null);
+    recordedRef.current = false;
+
+    let color: Color = "w";
+    if (colorChoice === "white") color = "w";
+    else if (colorChoice === "black") color = "b";
+    else color = Math.random() < 0.5 ? "w" : "b";
+    setPlayerColor(color);
+    setFlipped(color === "b");
+    addLog("info", `New match — you play ${color === "w" ? "White" : "Black"}.`);
+    force();
+
+    if (color === "b") {
+      // Bot moves first as White
+      setPending(true);
+      setTimeout(() => requestBotMoveRef.current([]), 250);
+    } else {
+      setPending(false);
+    }
+  }, [colorChoice, addLog, force]);
+
+  const resetGame = useCallback(() => {
+    gameRef.current = new Chess();
+    setHistory([]);
+    setUciHistory([]);
+    setLastMove(null);
+    setPending(false);
+    setPromotion(null);
+    recordedRef.current = false;
+    addLog("info", "Board reset.");
+    force();
+  }, [addLog, force]);
+
+  const finishMove = useCallback(
+    (from: Square, to: Square, promo?: PieceSymbol) => {
+      const move = game.move({ from, to, promotion: promo as "q" | "r" | "b" | "n" | undefined });
+      if (!move) return false;
+      const uci = from + to + (promo ?? "");
+      setHistory((h) => [...h, move.san]);
+      setUciHistory((h) => [...h, uci]);
+      setLastMove({ from, to });
+      addLog("ok", `You played ${move.san}`);
+      force();
+      setPending(true);
+      setTimeout(() => requestBotMoveRef.current([...uciHistory, uci]), 250);
+      return true;
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [game, uciHistory],
+  );
+
+  const handleAttemptMove = useCallback(
+    (from: Square, to: Square) => {
+      if (pending) return false;
+      if (game.turn() !== playerColor) return false;
+      const piece = game.get(from);
+      if (!piece || piece.color !== playerColor) return false;
+      const isPromotion =
+        piece.type === "p" &&
+        ((piece.color === "w" && to[1] === "8") || (piece.color === "b" && to[1] === "1"));
+      const legal = (game.moves({ square: from, verbose: true }) as Array<{ to: string }>).some(
+        (m) => m.to === to,
+      );
+      if (!legal) return false;
+      if (isPromotion) {
+        setPromotion({ from, to });
+        return true;
+      }
+      return finishMove(from, to);
+    },
+    [game, pending, finishMove, playerColor],
+  );
+
   const gameStatusText = useMemo(() => {
     if (game.isCheckmate()) return `Checkmate — ${game.turn() === "w" ? "Black" : "White"} wins`;
     if (game.isStalemate()) return "Stalemate";
@@ -190,30 +250,65 @@ export function ChessApp() {
     if (!user || !profile || recordedRef.current) return;
     if (!game.isGameOver()) return;
     recordedRef.current = true;
-    let field: "wins" | "losses" | "draws" = "draws";
+
+    let userField: "wins" | "losses" | "draws" = "draws";
+    let botField: "wins" | "losses" | "draws" = "draws";
     let eloDelta = 0;
+    let title = "Draw";
+    let detail = "The game ended in a draw.";
+
     if (game.isCheckmate()) {
-      // turn() is the side to move (who got mated)
-      if (game.turn() === "b") { field = "wins"; eloDelta = 15; }
-      else { field = "losses"; eloDelta = -15; }
+      const loser = game.turn(); // side that was mated
+      if (loser === playerColor) {
+        userField = "losses"; botField = "wins"; eloDelta = -15;
+        title = "Defeat";
+        detail = `${activeBot?.name ?? "Bot"} delivered checkmate.`;
+      } else {
+        userField = "wins"; botField = "losses"; eloDelta = 15;
+        title = "Victory";
+        detail = `You checkmated ${activeBot?.name ?? "the bot"}!`;
+      }
+    } else if (game.isStalemate()) {
+      detail = "Stalemate — no legal moves.";
     }
-    const update = {
+
+    // Update player profile
+    const profUpdate = {
       wins: profile.wins,
       losses: profile.losses,
       draws: profile.draws,
       elo_rating: Math.max(100, profile.elo_rating + eloDelta),
     };
-    update[field] = update[field] + 1;
-    supabase.from("profiles").update(update).eq("id", user.id).then(({ error }) => {
+    profUpdate[userField] = profUpdate[userField] + 1;
+    supabase.from("profiles").update(profUpdate).eq("id", user.id).then(({ error }) => {
       if (error) addLog("error", `Score sync failed: ${error.message}`);
       else {
-        addLog("ok", `Result saved (${field}${eloDelta ? `, ${eloDelta > 0 ? "+" : ""}${eloDelta} Elo` : ""})`);
+        addLog("ok", `Result saved (${userField}${eloDelta ? `, ${eloDelta > 0 ? "+" : ""}${eloDelta} Elo` : ""})`);
         refreshProfile();
       }
     });
-  }, [history.length, game, user, profile, addLog, refreshProfile]);
 
-  // Pair moves for history
+    // Update bot stats (upsert)
+    if (activeBot) {
+      const next: BotStats = {
+        wins: botStats.wins + (botField === "wins" ? 1 : 0),
+        losses: botStats.losses + (botField === "losses" ? 1 : 0),
+        draws: botStats.draws + (botField === "draws" ? 1 : 0),
+      };
+      setBotStats(next);
+      supabase.from("bot_stats").upsert({
+        user_id: user.id,
+        bot_id: activeBot.id,
+        bot_name: activeBot.name,
+        ...next,
+      }, { onConflict: "user_id,bot_id" }).then(({ error }) => {
+        if (error) addLog("error", `Bot stats sync failed: ${error.message}`);
+      });
+    }
+
+    setResultModal({ open: true, title, detail });
+  }, [history.length, game, user, profile, addLog, refreshProfile, activeBot, playerColor, botStats]);
+
   const moveRows = useMemo(() => {
     const rows: Array<{ n: number; w: string; b?: string }> = [];
     for (let i = 0; i < history.length; i += 2) {
@@ -271,6 +366,11 @@ export function ChessApp() {
                 {activeBot.quote && (
                   <div className="text-xs text-muted-foreground italic truncate">“{activeBot.quote}”</div>
                 )}
+                <div className="text-[11px] text-muted-foreground mt-0.5">
+                  Bot Record — <span className="text-success">Wins: {botStats.wins}</span>
+                  {" | "}<span className="text-destructive">Losses: {botStats.losses}</span>
+                  {" | "}<span>Draws: {botStats.draws}</span>
+                </div>
               </div>
               <span className="text-[10px] uppercase tracking-wider text-primary">{activeBot.category}</span>
             </Card>
@@ -347,10 +447,42 @@ export function ChessApp() {
             </Collapsible>
           </Card>
 
+          {/* Color selector + Play Match */}
+          <Card className="bg-card p-3 space-y-2">
+            <Label className="text-xs text-muted-foreground px-1">Play as</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { v: "white", label: "⚪ White" },
+                { v: "black", label: "⚫ Black" },
+                { v: "random", label: "🔀 Random" },
+              ] as Array<{ v: ColorChoice; label: string }>).map((o) => (
+                <button
+                  key={o.v}
+                  type="button"
+                  onClick={() => setColorChoice(o.v)}
+                  className={cn(
+                    "text-xs font-medium py-2 rounded-md border transition-colors",
+                    colorChoice === o.v
+                      ? "bg-primary/15 border-primary/50 text-primary"
+                      : "bg-secondary/40 border-border/60 text-muted-foreground hover:bg-secondary",
+                  )}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+            <Button
+              onClick={startMatch}
+              className="w-full bg-success text-primary-foreground hover:bg-success/90 font-bold h-11 text-base"
+            >
+              <Play className="w-4 h-4 mr-2" /> PLAY MATCH
+            </Button>
+          </Card>
+
           {/* Controls */}
           <Card className="bg-card p-3">
             <div className="grid grid-cols-3 gap-2">
-              <Button variant="default" size="sm" onClick={resetGame}>
+              <Button variant="default" size="sm" onClick={startMatch}>
                 <Plus className="w-3.5 h-3.5 mr-1" /> New
               </Button>
               <Button variant="secondary" size="sm" onClick={() => setFlipped((f) => !f)}>
@@ -414,7 +546,7 @@ export function ChessApp() {
 
       <PromotionDialog
         open={!!promotion}
-        color="w"
+        color={playerColor}
         onSelect={(p) => {
           if (promotion) {
             finishMove(promotion.from, promotion.to, p);
@@ -422,6 +554,41 @@ export function ChessApp() {
           }
         }}
       />
+
+      <Dialog open={resultModal.open} onOpenChange={(v) => setResultModal((r) => ({ ...r, open: v }))}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <Trophy className={cn("w-5 h-5",
+                resultModal.title === "Victory" && "text-success",
+                resultModal.title === "Defeat" && "text-destructive",
+                resultModal.title === "Draw" && "text-primary",
+              )} />
+              {resultModal.title}
+            </DialogTitle>
+            <DialogDescription>{resultModal.detail}</DialogDescription>
+          </DialogHeader>
+          {activeBot && (
+            <div className="rounded-md bg-secondary/40 px-3 py-2 text-xs text-muted-foreground">
+              <div className="font-semibold text-foreground mb-1">{activeBot.name} — lifetime record</div>
+              <span className="text-success">W {botStats.wins}</span>
+              {" · "}<span className="text-destructive">L {botStats.losses}</span>
+              {" · "}<span>D {botStats.draws}</span>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setResultModal((r) => ({ ...r, open: false }))}>
+              Close
+            </Button>
+            <Button
+              onClick={() => { setResultModal((r) => ({ ...r, open: false })); startMatch(); }}
+              className="bg-success text-primary-foreground hover:bg-success/90"
+            >
+              <Play className="w-4 h-4 mr-1" /> Play again
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <OwnerPortal />
     </div>
