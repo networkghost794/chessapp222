@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, FlipHorizontal2, Plus, RotateCcw, Terminal, User, Wifi } from "lucide-react";
+import { ChevronDown, FlipHorizontal2, LogOut, Plus, RotateCcw, Terminal, User, Wifi } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getActiveBotId,
@@ -18,6 +18,8 @@ import {
   subscribeBots,
   type BotConfig,
 } from "@/lib/botStore";
+import { useAuth } from "@/lib/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
 type LogEntry = { kind: "info" | "warn" | "error" | "ok"; text: string; ts: string };
 type ConnStatus = "idle" | "ok" | "error" | "checking";
@@ -25,9 +27,11 @@ type ConnStatus = "idle" | "ok" | "error" | "checking";
 const DEFAULT_ENDPOINT = "http://127.0.0.1:8080/move";
 
 export function ChessApp() {
+  const { profile, refreshProfile, signOut, user } = useAuth();
   const gameRef = useRef(new Chess());
   const [, setTick] = useState(0);
   const force = useCallback(() => setTick((t) => t + 1), []);
+  const recordedRef = useRef(false);
 
   const [flipped, setFlipped] = useState(false);
   const [endpoint, setEndpoint] = useState(DEFAULT_ENDPOINT);
