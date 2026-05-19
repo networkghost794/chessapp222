@@ -1,5 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ChessApp } from "@/components/chess/ChessApp";
+import { AuthProvider, useAuth } from "@/lib/useAuth";
+import { AuthScreen } from "@/components/chess/AuthScreen";
+import { PlacementTest } from "@/components/chess/PlacementTest";
+import { Toaster } from "@/components/ui/sonner";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -17,6 +21,29 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
+function Gate() {
+  const { user, profile, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="min-h-screen grid place-items-center text-sm text-muted-foreground">
+        Loading…
+      </div>
+    );
+  }
+  if (!user) return <AuthScreen />;
+  return (
+    <>
+      <ChessApp />
+      <PlacementTest open={!!profile && !profile.placement_done} />
+    </>
+  );
+}
+
 function Index() {
-  return <ChessApp />;
+  return (
+    <AuthProvider>
+      <Gate />
+      <Toaster richColors theme="dark" />
+    </AuthProvider>
+  );
 }
