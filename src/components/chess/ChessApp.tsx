@@ -185,6 +185,34 @@ export function ChessApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [history.length, game]);
 
+  // Record result when the game ends
+  useEffect(() => {
+    if (!user || !profile || recordedRef.current) return;
+    if (!game.isGameOver()) return;
+    recordedRef.current = true;
+    let field: "wins" | "losses" | "draws" = "draws";
+    let eloDelta = 0;
+    if (game.isCheckmate()) {
+      // turn() is the side to move (who got mated)
+      if (game.turn() === "b") { field = "wins"; eloDelta = 15; }
+      else { field = "losses"; eloDelta = -15; }
+    }
+    const update: Record<string, number> = {
+      wins: profile.wins,
+      losses: profile.losses,
+      draws: profile.draws,
+      elo_rating: Math.max(100, profile.elo_rating + eloDelta),
+    };
+    update[field] = (update[field] as number) + 1;
+    supabase.from("profiles").update(update).eq("id", user.id).then(({ error }) => {
+      if (error) addLog("error", `Score sync failed: ${error.message}`);
+      else {
+        addLog("ok", `Result saved (${field}${eloDelta ? `, ${eloDelta > 0 ? "+" : ""}${eloDelta} Elo` : ""})`);
+        refreshProfile();
+      }
+    });
+  }, [history.length, game, user, profile, addLog, refreshProfile]);
+
   // Pair moves for history
   const moveRows = useMemo(() => {
     const rows: Array<{ n: number; w: string; b?: string }> = [];
