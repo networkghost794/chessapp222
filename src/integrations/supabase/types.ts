@@ -14,7 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          draws: number
+          elo_rating: number
+          id: string
+          losses: number
+          placement_done: boolean
+          updated_at: string
+          username: string
+          wins: number
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          draws?: number
+          elo_rating?: number
+          id: string
+          losses?: number
+          placement_done?: boolean
+          updated_at?: string
+          username: string
+          wins?: number
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          draws?: number
+          elo_rating?: number
+          id?: string
+          losses?: number
+          placement_done?: boolean
+          updated_at?: string
+          username?: string
+          wins?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
