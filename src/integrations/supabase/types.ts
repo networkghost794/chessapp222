@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      bot_stats: {
+        Row: {
+          bot_id: string
+          bot_name: string
+          created_at: string
+          draws: number
+          id: string
+          losses: number
+          updated_at: string
+          user_id: string
+          wins: number
+        }
+        Insert: {
+          bot_id: string
+          bot_name: string
+          created_at?: string
+          draws?: number
+          id?: string
+          losses?: number
+          updated_at?: string
+          user_id: string
+          wins?: number
+        }
+        Update: {
+          bot_id?: string
+          bot_name?: string
+          created_at?: string
+          draws?: number
+          id?: string
+          losses?: number
+          updated_at?: string
+          user_id?: string
+          wins?: number
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
