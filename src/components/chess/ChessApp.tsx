@@ -288,6 +288,27 @@ export function ChessApp() {
               onAttemptMove={handleAttemptMove}
             />
           </Card>
+          {profile && (
+            <Card className="bg-card p-3 flex items-center gap-3">
+              <div className="w-11 h-11 rounded-full bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-primary/40">
+                {profile.avatar_url ? (
+                  <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
+                ) : (
+                  <User className="w-5 h-5 text-muted-foreground" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold truncate">{profile.username}</div>
+                <div className="text-[11px] text-muted-foreground">
+                  {profile.wins}W · {profile.losses}L · {profile.draws}D
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Elo</div>
+                <div className="text-lg font-black text-primary leading-none">{profile.elo_rating}</div>
+              </div>
+            </Card>
+          )}
         </section>
 
         {/* Side panel */}
