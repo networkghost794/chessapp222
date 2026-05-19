@@ -197,13 +197,13 @@ export function ChessApp() {
       if (game.turn() === "b") { field = "wins"; eloDelta = 15; }
       else { field = "losses"; eloDelta = -15; }
     }
-    const update: Record<string, number> = {
+    const update = {
       wins: profile.wins,
       losses: profile.losses,
       draws: profile.draws,
       elo_rating: Math.max(100, profile.elo_rating + eloDelta),
     };
-    update[field] = (update[field] as number) + 1;
+    update[field] = update[field] + 1;
     supabase.from("profiles").update(update).eq("id", user.id).then(({ error }) => {
       if (error) addLog("error", `Score sync failed: ${error.message}`);
       else {
