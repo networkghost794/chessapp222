@@ -72,6 +72,7 @@ export function ChessApp() {
     setLastMove(null);
     setPending(false);
     setPromotion(null);
+    recordedRef.current = false;
     addLog("info", "New game started.");
     force();
   }, [addLog, force]);
