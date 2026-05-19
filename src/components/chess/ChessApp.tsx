@@ -241,9 +241,14 @@ export function ChessApp() {
             <p className="text-xs text-muted-foreground">Custom engine sparring arena</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span className={cn("w-2 h-2 rounded-full", statusDot)} />
           <span>{status === "ok" ? "Engine online" : status === "error" ? "Engine offline" : status === "checking" ? "Contacting engine" : "Standby"}</span>
+          {profile && (
+            <Button variant="ghost" size="sm" onClick={() => signOut()} className="h-7 px-2 text-xs">
+              <LogOut className="w-3.5 h-3.5 mr-1" /> Sign out
+            </Button>
+          )}
         </div>
       </header>
 
