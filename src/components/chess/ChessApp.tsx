@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, FlipHorizontal2, Plus, RotateCcw, Terminal, User, Wifi } from "lucide-react";
+import { ChevronDown, FlipHorizontal2, LogOut, Plus, RotateCcw, Terminal, User, Wifi } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getActiveBotId,
@@ -18,6 +18,8 @@ import {
   subscribeBots,
   type BotConfig,
 } from "@/lib/botStore";
+import { useAuth } from "@/lib/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
 type LogEntry = { kind: "info" | "warn" | "error" | "ok"; text: string; ts: string };
 type ConnStatus = "idle" | "ok" | "error" | "checking";
@@ -25,9 +27,11 @@ type ConnStatus = "idle" | "ok" | "error" | "checking";
 const DEFAULT_ENDPOINT = "http://127.0.0.1:8080/move";
 
 export function ChessApp() {
+  const { profile, refreshProfile, signOut, user } = useAuth();
   const gameRef = useRef(new Chess());
   const [, setTick] = useState(0);
   const force = useCallback(() => setTick((t) => t + 1), []);
+  const recordedRef = useRef(false);
 
   const [flipped, setFlipped] = useState(false);
   const [endpoint, setEndpoint] = useState(DEFAULT_ENDPOINT);
@@ -68,6 +72,7 @@ export function ChessApp() {
     setLastMove(null);
     setPending(false);
     setPromotion(null);
+    recordedRef.current = false;
     addLog("info", "New game started.");
     force();
   }, [addLog, force]);
@@ -180,6 +185,34 @@ export function ChessApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [history.length, game]);
 
+  // Record result when the game ends
+  useEffect(() => {
+    if (!user || !profile || recordedRef.current) return;
+    if (!game.isGameOver()) return;
+    recordedRef.current = true;
+    let field: "wins" | "losses" | "draws" = "draws";
+    let eloDelta = 0;
+    if (game.isCheckmate()) {
+      // turn() is the side to move (who got mated)
+      if (game.turn() === "b") { field = "wins"; eloDelta = 15; }
+      else { field = "losses"; eloDelta = -15; }
+    }
+    const update = {
+      wins: profile.wins,
+      losses: profile.losses,
+      draws: profile.draws,
+      elo_rating: Math.max(100, profile.elo_rating + eloDelta),
+    };
+    update[field] = update[field] + 1;
+    supabase.from("profiles").update(update).eq("id", user.id).then(({ error }) => {
+      if (error) addLog("error", `Score sync failed: ${error.message}`);
+      else {
+        addLog("ok", `Result saved (${field}${eloDelta ? `, ${eloDelta > 0 ? "+" : ""}${eloDelta} Elo` : ""})`);
+        refreshProfile();
+      }
+    });
+  }, [history.length, game, user, profile, addLog, refreshProfile]);
+
   // Pair moves for history
   const moveRows = useMemo(() => {
     const rows: Array<{ n: number; w: string; b?: string }> = [];
@@ -208,9 +241,14 @@ export function ChessApp() {
             <p className="text-xs text-muted-foreground">Custom engine sparring arena</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span className={cn("w-2 h-2 rounded-full", statusDot)} />
           <span>{status === "ok" ? "Engine online" : status === "error" ? "Engine offline" : status === "checking" ? "Contacting engine" : "Standby"}</span>
+          {profile && (
+            <Button variant="ghost" size="sm" onClick={() => signOut()} className="h-7 px-2 text-xs">
+              <LogOut className="w-3.5 h-3.5 mr-1" /> Sign out
+            </Button>
+          )}
         </div>
       </header>
 
@@ -250,6 +288,27 @@ export function ChessApp() {
               onAttemptMove={handleAttemptMove}
             />
           </Card>
+          {profile && (
+            <Card className="bg-card p-3 flex items-center gap-3">
+              <div className="w-11 h-11 rounded-full bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-primary/40">
+                {profile.avatar_url ? (
+                  <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
+                ) : (
+                  <User className="w-5 h-5 text-muted-foreground" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold truncate">{profile.username}</div>
+                <div className="text-[11px] text-muted-foreground">
+                  {profile.wins}W · {profile.losses}L · {profile.draws}D
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Elo</div>
+                <div className="text-lg font-black text-primary leading-none">{profile.elo_rating}</div>
+              </div>
+            </Card>
+          )}
         </section>
 
         {/* Side panel */}
