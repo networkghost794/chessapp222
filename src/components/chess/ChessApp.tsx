@@ -71,13 +71,19 @@ export function ChessApp() {
 
   const game = gameRef.current;
 
+  const [bathroomOpen, setBathroomOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [resignedFlag, setResignedFlag] = useState(false);
+
   useEffect(() => {
     const refresh = () => {
       const id = getActiveBotId();
       setActiveBotState(id ? loadBots().find((b) => b.id === id) ?? null : null);
     };
     refresh();
-    return subscribeBots(refresh);
+    const unsub = subscribeBots(refresh);
+    refreshFromCloud();
+    return unsub;
   }, []);
 
   const addLog = useCallback((kind: LogEntry["kind"], text: string) => {
