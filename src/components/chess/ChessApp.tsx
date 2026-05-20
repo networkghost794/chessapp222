@@ -425,11 +425,19 @@ export function ChessApp() {
             <Board
               game={game}
               flipped={flipped}
-              disabled={pending || game.isGameOver()}
+              disabled={pending || game.isGameOver() || bathroomOpen || resignedFlag}
               lastMove={lastMove}
               onAttemptMove={handleAttemptMove}
             />
           </Card>
+          <Button
+            onClick={resignMatch}
+            variant="destructive"
+            disabled={game.isGameOver() || resignedFlag || history.length === 0}
+            className="w-full font-bold"
+          >
+            <Flag className="w-4 h-4 mr-2" /> 🏳️ Resign Match
+          </Button>
           {profile && (
             <Card className="bg-card p-3 flex items-center gap-3">
               <div className="w-11 h-11 rounded-full bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-primary/40">
