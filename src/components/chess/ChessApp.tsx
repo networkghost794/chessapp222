@@ -17,17 +17,21 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ChevronDown, FlipHorizontal2, LogOut, Play, Plus, RotateCcw, Terminal, Trophy, User, Wifi } from "lucide-react";
+import { ChevronDown, Flag, FlipHorizontal2, LogOut, Play, Plus, RotateCcw, Settings, Terminal, Trophy, User, Wifi } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getActiveBotId,
+  incrementBotLifetime,
   loadBots,
   pickBotMove,
+  refreshFromCloud,
   subscribeBots,
   type BotConfig,
 } from "@/lib/botStore";
 import { useAuth } from "@/lib/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { BathroomBreak } from "./BathroomBreak";
+import { ProfileSettings } from "./ProfileSettings";
 
 type LogEntry = { kind: "info" | "warn" | "error" | "ok"; text: string; ts: string };
 type ConnStatus = "idle" | "ok" | "error" | "checking";
@@ -67,13 +71,19 @@ export function ChessApp() {
 
   const game = gameRef.current;
 
+  const [bathroomOpen, setBathroomOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [resignedFlag, setResignedFlag] = useState(false);
+
   useEffect(() => {
     const refresh = () => {
       const id = getActiveBotId();
       setActiveBotState(id ? loadBots().find((b) => b.id === id) ?? null : null);
     };
     refresh();
-    return subscribeBots(refresh);
+    const unsub = subscribeBots(refresh);
+    refreshFromCloud();
+    return unsub;
   }, []);
 
   const addLog = useCallback((kind: LogEntry["kind"], text: string) => {
@@ -165,6 +175,7 @@ export function ChessApp() {
     setLastMove(null);
     setPromotion(null);
     recordedRef.current = false;
+    setResignedFlag(false);
 
     let color: Color = "w";
     if (colorChoice === "white") color = "w";
@@ -176,7 +187,6 @@ export function ChessApp() {
     force();
 
     if (color === "b") {
-      // Bot moves first as White
       setPending(true);
       setTimeout(() => requestBotMoveRef.current([]), 250);
     } else {
@@ -192,6 +202,7 @@ export function ChessApp() {
     setPending(false);
     setPromotion(null);
     recordedRef.current = false;
+    setResignedFlag(false);
     addLog("info", "Board reset.");
     force();
   }, [addLog, force]);
@@ -245,10 +256,22 @@ export function ChessApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [history.length, game]);
 
-  // Record result when the game ends
+  const resignMatch = useCallback(() => {
+    if (recordedRef.current || game.isGameOver()) return;
+    if (history.length === 0) {
+      addLog("warn", "Nothing to resign — start a match first.");
+      return;
+    }
+    setPending(false);
+    setResignedFlag(true);
+    addLog("warn", `You resigned. ${activeBot?.name ?? "Bot"} wins.`);
+  }, [game, history.length, addLog, activeBot]);
+
+  // Record result when the game ends (or on resign)
   useEffect(() => {
     if (!user || !profile || recordedRef.current) return;
-    if (!game.isGameOver()) return;
+    const over = game.isGameOver() || resignedFlag;
+    if (!over) return;
     recordedRef.current = true;
 
     let userField: "wins" | "losses" | "draws" = "draws";
@@ -257,8 +280,12 @@ export function ChessApp() {
     let title = "Draw";
     let detail = "The game ended in a draw.";
 
-    if (game.isCheckmate()) {
-      const loser = game.turn(); // side that was mated
+    if (resignedFlag) {
+      userField = "losses"; botField = "wins"; eloDelta = -15;
+      title = "Defeat";
+      detail = `You resigned — ${activeBot?.name ?? "the bot"} wins.`;
+    } else if (game.isCheckmate()) {
+      const loser = game.turn();
       if (loser === playerColor) {
         userField = "losses"; botField = "wins"; eloDelta = -15;
         title = "Defeat";
@@ -272,7 +299,6 @@ export function ChessApp() {
       detail = "Stalemate — no legal moves.";
     }
 
-    // Update player profile
     const profUpdate = {
       wins: profile.wins,
       losses: profile.losses,
@@ -288,7 +314,6 @@ export function ChessApp() {
       }
     });
 
-    // Update bot stats (upsert)
     if (activeBot) {
       const next: BotStats = {
         wins: botStats.wins + (botField === "wins" ? 1 : 0),
@@ -304,10 +329,13 @@ export function ChessApp() {
       }, { onConflict: "user_id,bot_id" }).then(({ error }) => {
         if (error) addLog("error", `Bot stats sync failed: ${error.message}`);
       });
+      // Global lifetime counters on the public custom_bots row
+      if (botField === "wins") incrementBotLifetime(activeBot.id, 1, 0);
+      else if (botField === "losses") incrementBotLifetime(activeBot.id, 0, 1);
     }
 
     setResultModal({ open: true, title, detail });
-  }, [history.length, game, user, profile, addLog, refreshProfile, activeBot, playerColor, botStats]);
+  }, [history.length, game, user, profile, addLog, refreshProfile, activeBot, playerColor, botStats, resignedFlag]);
 
   const moveRows = useMemo(() => {
     const rows: Array<{ n: number; w: string; b?: string }> = [];
@@ -328,6 +356,15 @@ export function ChessApp() {
     <div className="min-h-screen w-full px-3 md:px-6 py-4 md:py-6">
       <header className="max-w-[1400px] mx-auto flex items-center justify-between mb-4 md:mb-6">
         <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setBathroomOpen(true)}
+            className="h-9 px-2 text-lg hover:bg-secondary/60"
+            title="Bathroom Break"
+          >
+            🚽 <span className="hidden md:inline text-xs ml-1 font-semibold">Bathroom Break</span>
+          </Button>
           <div className="w-9 h-9 rounded-lg bg-primary/15 grid place-items-center ring-1 ring-primary/30">
             <span className="text-primary text-lg font-black">♞</span>
           </div>
@@ -340,9 +377,14 @@ export function ChessApp() {
           <span className={cn("w-2 h-2 rounded-full", statusDot)} />
           <span>{status === "ok" ? "Engine online" : status === "error" ? "Engine offline" : status === "checking" ? "Contacting engine" : "Standby"}</span>
           {profile && (
-            <Button variant="ghost" size="sm" onClick={() => signOut()} className="h-7 px-2 text-xs">
-              <LogOut className="w-3.5 h-3.5 mr-1" /> Sign out
-            </Button>
+            <>
+              <Button variant="ghost" size="sm" onClick={() => setProfileOpen(true)} className="h-7 px-2 text-xs">
+                <Settings className="w-3.5 h-3.5 mr-1" /> Profile
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => signOut()} className="h-7 px-2 text-xs">
+                <LogOut className="w-3.5 h-3.5 mr-1" /> Sign out
+              </Button>
+            </>
           )}
         </div>
       </header>
@@ -383,11 +425,19 @@ export function ChessApp() {
             <Board
               game={game}
               flipped={flipped}
-              disabled={pending || game.isGameOver()}
+              disabled={pending || game.isGameOver() || bathroomOpen || resignedFlag}
               lastMove={lastMove}
               onAttemptMove={handleAttemptMove}
             />
           </Card>
+          <Button
+            onClick={resignMatch}
+            variant="destructive"
+            disabled={game.isGameOver() || resignedFlag || history.length === 0}
+            className="w-full font-bold"
+          >
+            <Flag className="w-4 h-4 mr-2" /> 🏳️ Resign Match
+          </Button>
           {profile && (
             <Card className="bg-card p-3 flex items-center gap-3">
               <div className="w-11 h-11 rounded-full bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-primary/40">
@@ -398,7 +448,18 @@ export function ChessApp() {
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold truncate">{profile.username}</div>
+                <div className="text-sm font-semibold truncate flex items-center gap-1.5">
+                  {profile.profile_icon && <span className="text-base leading-none">{profile.profile_icon}</span>}
+                  <span className="truncate">{profile.username}</span>
+                  {profile.title_badge && (
+                    <span className={cn(
+                      "text-[10px] font-bold px-1.5 py-0.5 rounded",
+                      profile.title_badge.includes("CRTR")
+                        ? "bg-gradient-to-r from-amber-500/30 to-yellow-300/20 text-amber-300 ring-1 ring-amber-400/50"
+                        : "bg-primary/20 text-primary ring-1 ring-primary/40",
+                    )}>{profile.title_badge}</span>
+                  )}
+                </div>
                 <div className="text-[11px] text-muted-foreground">
                   {profile.wins}W · {profile.losses}L · {profile.draws}D
                 </div>
@@ -591,6 +652,9 @@ export function ChessApp() {
       </Dialog>
 
       <OwnerPortal />
+
+      <BathroomBreak open={bathroomOpen} onClose={() => setBathroomOpen(false)} />
+      <ProfileSettings open={profileOpen} onOpenChange={setProfileOpen} />
     </div>
   );
 }
