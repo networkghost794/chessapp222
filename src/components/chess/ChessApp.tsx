@@ -255,10 +255,22 @@ export function ChessApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [history.length, game]);
 
-  // Record result when the game ends
+  const resignMatch = useCallback(() => {
+    if (recordedRef.current || game.isGameOver()) return;
+    if (history.length === 0) {
+      addLog("warn", "Nothing to resign — start a match first.");
+      return;
+    }
+    setPending(false);
+    setResignedFlag(true);
+    addLog("warn", `You resigned. ${activeBot?.name ?? "Bot"} wins.`);
+  }, [game, history.length, addLog, activeBot]);
+
+  // Record result when the game ends (or on resign)
   useEffect(() => {
     if (!user || !profile || recordedRef.current) return;
-    if (!game.isGameOver()) return;
+    const over = game.isGameOver() || resignedFlag;
+    if (!over) return;
     recordedRef.current = true;
 
     let userField: "wins" | "losses" | "draws" = "draws";
@@ -267,8 +279,12 @@ export function ChessApp() {
     let title = "Draw";
     let detail = "The game ended in a draw.";
 
-    if (game.isCheckmate()) {
-      const loser = game.turn(); // side that was mated
+    if (resignedFlag) {
+      userField = "losses"; botField = "wins"; eloDelta = -15;
+      title = "Defeat";
+      detail = `You resigned — ${activeBot?.name ?? "the bot"} wins.`;
+    } else if (game.isCheckmate()) {
+      const loser = game.turn();
       if (loser === playerColor) {
         userField = "losses"; botField = "wins"; eloDelta = -15;
         title = "Defeat";
@@ -282,7 +298,6 @@ export function ChessApp() {
       detail = "Stalemate — no legal moves.";
     }
 
-    // Update player profile
     const profUpdate = {
       wins: profile.wins,
       losses: profile.losses,
@@ -298,7 +313,6 @@ export function ChessApp() {
       }
     });
 
-    // Update bot stats (upsert)
     if (activeBot) {
       const next: BotStats = {
         wins: botStats.wins + (botField === "wins" ? 1 : 0),
@@ -314,10 +328,13 @@ export function ChessApp() {
       }, { onConflict: "user_id,bot_id" }).then(({ error }) => {
         if (error) addLog("error", `Bot stats sync failed: ${error.message}`);
       });
+      // Global lifetime counters on the public custom_bots row
+      if (botField === "wins") incrementBotLifetime(activeBot.id, 1, 0);
+      else if (botField === "losses") incrementBotLifetime(activeBot.id, 0, 1);
     }
 
     setResultModal({ open: true, title, detail });
-  }, [history.length, game, user, profile, addLog, refreshProfile, activeBot, playerColor, botStats]);
+  }, [history.length, game, user, profile, addLog, refreshProfile, activeBot, playerColor, botStats, resignedFlag]);
 
   const moveRows = useMemo(() => {
     const rows: Array<{ n: number; w: string; b?: string }> = [];
