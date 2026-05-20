@@ -23,7 +23,7 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, Lock, Rocket, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { saveBot, defaultPhase, type BotConfig, type PhaseConfig, type Strength } from "@/lib/botStore";
+import { publishBot, defaultPhase, type PhaseConfig, type Strength } from "@/lib/botStore";
 
 const PIN = "774152";
 const STRENGTHS: { value: Strength; label: string }[] = [
