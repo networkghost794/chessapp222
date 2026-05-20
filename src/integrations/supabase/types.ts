@@ -50,6 +50,57 @@ export type Database = {
         }
         Relationships: []
       }
+      custom_bots: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          elo: number
+          endgame_settings: Json
+          id: string
+          lifetime_losses: number
+          lifetime_wins: number
+          middlegame_settings: Json
+          name: string
+          opening_settings: Json
+          profile_pic_url: string | null
+          quote: string
+          tier: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          elo?: number
+          endgame_settings?: Json
+          id?: string
+          lifetime_losses?: number
+          lifetime_wins?: number
+          middlegame_settings?: Json
+          name: string
+          opening_settings?: Json
+          profile_pic_url?: string | null
+          quote?: string
+          tier?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          elo?: number
+          endgame_settings?: Json
+          id?: string
+          lifetime_losses?: number
+          lifetime_wins?: number
+          middlegame_settings?: Json
+          name?: string
+          opening_settings?: Json
+          profile_pic_url?: string | null
+          quote?: string
+          tier?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -59,6 +110,8 @@ export type Database = {
           id: string
           losses: number
           placement_done: boolean
+          profile_icon: string | null
+          title_badge: string | null
           updated_at: string
           username: string
           wins: number
@@ -71,6 +124,8 @@ export type Database = {
           id: string
           losses?: number
           placement_done?: boolean
+          profile_icon?: string | null
+          title_badge?: string | null
           updated_at?: string
           username: string
           wins?: number
@@ -83,6 +138,8 @@ export type Database = {
           id?: string
           losses?: number
           placement_done?: boolean
+          profile_icon?: string | null
+          title_badge?: string | null
           updated_at?: string
           username?: string
           wins?: number
@@ -94,7 +151,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      increment_bot_lifetime: {
+        Args: { _bot_id: string; _losses: number; _wins: number }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
