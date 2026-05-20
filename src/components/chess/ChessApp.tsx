@@ -175,6 +175,7 @@ export function ChessApp() {
     setLastMove(null);
     setPromotion(null);
     recordedRef.current = false;
+    setResignedFlag(false);
 
     let color: Color = "w";
     if (colorChoice === "white") color = "w";
@@ -186,7 +187,6 @@ export function ChessApp() {
     force();
 
     if (color === "b") {
-      // Bot moves first as White
       setPending(true);
       setTimeout(() => requestBotMoveRef.current([]), 250);
     } else {
@@ -202,6 +202,7 @@ export function ChessApp() {
     setPending(false);
     setPromotion(null);
     recordedRef.current = false;
+    setResignedFlag(false);
     addLog("info", "Board reset.");
     force();
   }, [addLog, force]);
