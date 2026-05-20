@@ -101,6 +101,9 @@ export function OwnerPortal() {
   const [bookText, setBookText] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const pgnRef = useRef<HTMLInputElement>(null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
 
   useEffect(() => {
     if (unlocked && !open) setOpen(true);
@@ -119,6 +122,7 @@ export function OwnerPortal() {
 
   const onAvatarFile = (f?: File) => {
     if (!f) return;
+    setAvatarFile(f);
     const r = new FileReader();
     r.onload = () => setAvatar(typeof r.result === "string" ? r.result : undefined);
     r.readAsDataURL(f);
@@ -131,32 +135,32 @@ export function OwnerPortal() {
     r.readAsText(f);
   };
 
-  const publish = () => {
-    if (!name.trim()) return;
-    const bot: BotConfig = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      name: name.trim(),
-      elo: Number(elo) || 1500,
-      avatar,
-      quote: quote.trim(),
-      category,
-      middlegame,
-      endgame,
-      opening: { enabled: bookEnabled, maxDepth: Number(bookMaxDepth) || 0, book: bookText },
-      createdAt: Date.now(),
-    };
-    saveBot(bot);
-    // reset minimally
-    setName("");
-    setQuote("");
-    setAvatar(undefined);
-    setElo(1500);
-    setMiddlegame(defaultPhase());
-    setEndgame(defaultPhase());
-    setBookEnabled(false);
-    setBookText("");
-    setBookMaxDepth(8);
-    setOpen(false);
+  const publish = async () => {
+    if (!name.trim() || publishing) return;
+    setPublishing(true);
+    setPublishError(null);
+    try {
+      await publishBot({
+        name: name.trim(),
+        elo: Number(elo) || 1500,
+        avatarFile,
+        avatarDataUrl: avatar,
+        quote: quote.trim(),
+        category,
+        middlegame,
+        endgame,
+        opening: { enabled: bookEnabled, maxDepth: Number(bookMaxDepth) || 0, book: bookText },
+      });
+      setName(""); setQuote(""); setAvatar(undefined); setAvatarFile(null);
+      setElo(1500);
+      setMiddlegame(defaultPhase()); setEndgame(defaultPhase());
+      setBookEnabled(false); setBookText(""); setBookMaxDepth(8);
+      setOpen(false);
+    } catch (e) {
+      setPublishError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPublishing(false);
+    }
   };
 
   return (
