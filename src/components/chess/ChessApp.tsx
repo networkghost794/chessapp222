@@ -356,6 +356,15 @@ export function ChessApp() {
     <div className="min-h-screen w-full px-3 md:px-6 py-4 md:py-6">
       <header className="max-w-[1400px] mx-auto flex items-center justify-between mb-4 md:mb-6">
         <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setBathroomOpen(true)}
+            className="h-9 px-2 text-lg hover:bg-secondary/60"
+            title="Bathroom Break"
+          >
+            🚽 <span className="hidden md:inline text-xs ml-1 font-semibold">Bathroom Break</span>
+          </Button>
           <div className="w-9 h-9 rounded-lg bg-primary/15 grid place-items-center ring-1 ring-primary/30">
             <span className="text-primary text-lg font-black">♞</span>
           </div>
@@ -368,9 +377,14 @@ export function ChessApp() {
           <span className={cn("w-2 h-2 rounded-full", statusDot)} />
           <span>{status === "ok" ? "Engine online" : status === "error" ? "Engine offline" : status === "checking" ? "Contacting engine" : "Standby"}</span>
           {profile && (
-            <Button variant="ghost" size="sm" onClick={() => signOut()} className="h-7 px-2 text-xs">
-              <LogOut className="w-3.5 h-3.5 mr-1" /> Sign out
-            </Button>
+            <>
+              <Button variant="ghost" size="sm" onClick={() => setProfileOpen(true)} className="h-7 px-2 text-xs">
+                <Settings className="w-3.5 h-3.5 mr-1" /> Profile
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => signOut()} className="h-7 px-2 text-xs">
+                <LogOut className="w-3.5 h-3.5 mr-1" /> Sign out
+              </Button>
+            </>
           )}
         </div>
       </header>
