@@ -17,17 +17,21 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ChevronDown, FlipHorizontal2, LogOut, Play, Plus, RotateCcw, Terminal, Trophy, User, Wifi } from "lucide-react";
+import { ChevronDown, Flag, FlipHorizontal2, LogOut, Play, Plus, RotateCcw, Settings, Terminal, Trophy, User, Wifi } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getActiveBotId,
+  incrementBotLifetime,
   loadBots,
   pickBotMove,
+  refreshFromCloud,
   subscribeBots,
   type BotConfig,
 } from "@/lib/botStore";
 import { useAuth } from "@/lib/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { BathroomBreak } from "./BathroomBreak";
+import { ProfileSettings } from "./ProfileSettings";
 
 type LogEntry = { kind: "info" | "warn" | "error" | "ok"; text: string; ts: string };
 type ConnStatus = "idle" | "ok" | "error" | "checking";
