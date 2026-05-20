@@ -113,9 +113,12 @@ export async function publishBot(input: {
     profile_pic_url: avatarUrl ?? null,
     quote: input.quote,
     tier: input.category,
-    middlegame_settings: input.middlegame as unknown as Record<string, unknown>,
-    endgame_settings: input.endgame as unknown as Record<string, unknown>,
-    opening_settings: input.opening as unknown as Record<string, unknown>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    middlegame_settings: input.middlegame as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    endgame_settings: input.endgame as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    opening_settings: input.opening as any,
     created_by: uid,
   }).select("*").single();
   if (error) throw error;
