@@ -262,12 +262,14 @@ export function OwnerPortal() {
                   </TabsContent>
                 </Tabs>
 
-                <div className="flex justify-end pt-2">
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  {publishError && <span className="text-xs text-destructive">{publishError}</span>}
                   <Button
                     onClick={publish}
+                    disabled={publishing}
                     className="bg-success text-primary-foreground hover:bg-success/90 font-bold"
                   >
-                    <Rocket className="w-4 h-4 mr-2" /> Publish Bot
+                    <Rocket className="w-4 h-4 mr-2" /> {publishing ? "Publishing…" : "Publish Bot"}
                   </Button>
                 </div>
               </div>
