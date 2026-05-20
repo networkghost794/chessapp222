@@ -448,7 +448,18 @@ export function ChessApp() {
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold truncate">{profile.username}</div>
+                <div className="text-sm font-semibold truncate flex items-center gap-1.5">
+                  {profile.profile_icon && <span className="text-base leading-none">{profile.profile_icon}</span>}
+                  <span className="truncate">{profile.username}</span>
+                  {profile.title_badge && (
+                    <span className={cn(
+                      "text-[10px] font-bold px-1.5 py-0.5 rounded",
+                      profile.title_badge.includes("CRTR")
+                        ? "bg-gradient-to-r from-amber-500/30 to-yellow-300/20 text-amber-300 ring-1 ring-amber-400/50"
+                        : "bg-primary/20 text-primary ring-1 ring-primary/40",
+                    )}>{profile.title_badge}</span>
+                  )}
+                </div>
                 <div className="text-[11px] text-muted-foreground">
                   {profile.wins}W · {profile.losses}L · {profile.draws}D
                 </div>
