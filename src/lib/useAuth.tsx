@@ -11,6 +11,8 @@ export type Profile = {
   losses: number;
   draws: number;
   placement_done: boolean;
+  profile_icon?: string | null;
+  title_badge?: string | null;
 };
 
 type Ctx = {
