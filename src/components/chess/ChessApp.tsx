@@ -5,7 +5,7 @@ import { PromotionDialog } from "./PromotionDialog";
 import { BotRoster } from "./BotRoster";
 import { OwnerPortal } from "./OwnerPortal";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
