@@ -68,7 +68,7 @@ function rowToBot(r: Record<string, unknown>): BotConfig {
     category: (r.tier === "Master" ? "Master" : "Intermediate"),
     middlegame: { ...defaultPhase(), ...mg },
     endgame: { ...defaultPhase(), ...eg },
-    opening: { enabled: !!op.enabled, maxDepth: Number(op.maxDepth ?? 0), book: String(op.book ?? "") },
+    opening: { enabled: !!op.enabled, bookBin: op.bookBin ? String(op.bookBin) : undefined, bookName: op.bookName ? String(op.bookName) : undefined },
     createdAt: r.created_at ? new Date(String(r.created_at)).getTime() : Date.now(),
     createdBy: (r.created_by as string) ?? null,
     lifetimeWins: Number(r.lifetime_wins ?? 0),
