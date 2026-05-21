@@ -24,6 +24,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ChevronDown, Lock, Rocket, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { publishBot, defaultPhase, type PhaseConfig, type Strength } from "@/lib/botStore";
+import { bytesToBase64 } from "@/lib/polyglot";
 
 const PIN = "774152";
 const STRENGTHS: { value: Strength; label: string }[] = [
@@ -97,10 +98,11 @@ export function OwnerPortal() {
   const [middlegame, setMiddlegame] = useState<PhaseConfig>(defaultPhase());
   const [endgame, setEndgame] = useState<PhaseConfig>(defaultPhase());
   const [bookEnabled, setBookEnabled] = useState(false);
-  const [bookMaxDepth, setBookMaxDepth] = useState(8);
-  const [bookText, setBookText] = useState("");
+  const [bookBin, setBookBin] = useState<string | undefined>(undefined);
+  const [bookName, setBookName] = useState<string | undefined>(undefined);
+  const [bookSize, setBookSize] = useState<number>(0);
   const fileRef = useRef<HTMLInputElement>(null);
-  const pgnRef = useRef<HTMLInputElement>(null);
+  const binRef = useRef<HTMLInputElement>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
@@ -128,11 +130,17 @@ export function OwnerPortal() {
     r.readAsDataURL(f);
   };
 
-  const onPgnFile = (f?: File) => {
+  const onBinFile = (f?: File) => {
     if (!f) return;
     const r = new FileReader();
-    r.onload = () => setBookText(typeof r.result === "string" ? r.result : "");
-    r.readAsText(f);
+    r.onload = () => {
+      const ab = r.result as ArrayBuffer;
+      const bytes = new Uint8Array(ab);
+      setBookBin(bytesToBase64(bytes));
+      setBookName(f.name);
+      setBookSize(bytes.byteLength);
+    };
+    r.readAsArrayBuffer(f);
   };
 
   const publish = async () => {
@@ -149,12 +157,12 @@ export function OwnerPortal() {
         category,
         middlegame,
         endgame,
-        opening: { enabled: bookEnabled, maxDepth: Number(bookMaxDepth) || 0, book: bookText },
+        opening: { enabled: bookEnabled, bookBin, bookName },
       });
       setName(""); setQuote(""); setAvatar(undefined); setAvatarFile(null);
       setElo(1500);
       setMiddlegame(defaultPhase()); setEndgame(defaultPhase());
-      setBookEnabled(false); setBookText(""); setBookMaxDepth(8);
+      setBookEnabled(false); setBookBin(undefined); setBookName(undefined); setBookSize(0);
       setOpen(false);
     } catch (e) {
       setPublishError(e instanceof Error ? e.message : String(e));
@@ -243,21 +251,21 @@ export function OwnerPortal() {
                       <Label htmlFor="actBook" className="text-sm cursor-pointer">Activate Book</Label>
                     </div>
                     <div>
-                      <Label className="text-xs">PGN / Book file</Label>
+                      <Label className="text-xs">Polyglot Book (.bin)</Label>
                       <div className="flex items-center gap-2 mt-1">
-                        <input ref={pgnRef} type="file" accept=".pgn,.txt,text/plain" className="hidden"
-                          onChange={(e) => onPgnFile(e.target.files?.[0])} />
-                        <Button type="button" size="sm" variant="secondary" onClick={() => pgnRef.current?.click()}>
-                          <Upload className="w-3.5 h-3.5 mr-1" /> Upload PGN
+                        <input ref={binRef} type="file" accept=".bin,application/octet-stream" className="hidden"
+                          onChange={(e) => onBinFile(e.target.files?.[0])} />
+                        <Button type="button" size="sm" variant="secondary" onClick={() => binRef.current?.click()}>
+                          <Upload className="w-3.5 h-3.5 mr-1" /> Upload .bin
                         </Button>
-                        <span className="text-xs text-muted-foreground">{bookText ? `${bookText.length} chars loaded` : "no file"}</span>
+                        <span className="text-xs text-muted-foreground truncate">
+                          {bookName ? `${bookName} · ${(bookSize / 1024).toFixed(1)} KB` : "no file"}
+                        </span>
                       </div>
-                      <Textarea className="mt-2 font-mono text-xs" rows={4} value={bookText}
-                        onChange={(e) => setBookText(e.target.value)} placeholder="Or paste PGN/move list here…" />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Max depth (full moves)</Label>
-                      <Input type="number" value={bookMaxDepth} onChange={(e) => setBookMaxDepth(Number(e.target.value))} />
+                      <p className="text-[11px] text-muted-foreground mt-1.5">
+                        Accepts Polyglot-format binary opening books (e.g. Lucas Chess exports). The bot will
+                        consult this book each move until it leaves known theory, then hand off to the engine.
+                      </p>
                     </div>
                   </TabsContent>
                 </Tabs>

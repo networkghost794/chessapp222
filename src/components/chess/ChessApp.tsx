@@ -5,7 +5,7 @@ import { PromotionDialog } from "./PromotionDialog";
 import { BotRoster } from "./BotRoster";
 import { OwnerPortal } from "./OwnerPortal";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -20,10 +20,10 @@ import {
 import { ChevronDown, Flag, FlipHorizontal2, LogOut, Play, Plus, RotateCcw, Settings, Terminal, Trophy, User, Wifi } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
+  chooseBotMove,
   getActiveBotId,
   incrementBotLifetime,
   loadBots,
-  pickBotMove,
   refreshFromCloud,
   subscribeBots,
   type BotConfig,
@@ -38,7 +38,6 @@ type ConnStatus = "idle" | "ok" | "error" | "checking";
 type ColorChoice = "white" | "black" | "random";
 type BotStats = { wins: number; losses: number; draws: number };
 
-const DEFAULT_ENDPOINT = "http://127.0.0.1:8080/move";
 const EMPTY_STATS: BotStats = { wins: 0, losses: 0, draws: 0 };
 
 export function ChessApp() {
@@ -49,7 +48,6 @@ export function ChessApp() {
   const recordedRef = useRef(false);
 
   const [flipped, setFlipped] = useState(false);
-  const [endpoint, setEndpoint] = useState(DEFAULT_ENDPOINT);
   const [status, setStatus] = useState<ConnStatus>("idle");
   const [log, setLog] = useState<LogEntry[]>([]);
   const [history, setHistory] = useState<string[]>([]);
@@ -92,7 +90,7 @@ export function ChessApp() {
   }, []);
 
   useEffect(() => {
-    addLog("info", "Engine ready. Configure your bot bridge to begin networked play.");
+    addLog("info", "Native Stockfish engine ready (Web Worker, no network).");
   }, [addLog]);
 
   // Load bot stats whenever active bot or user changes
@@ -110,60 +108,39 @@ export function ChessApp() {
 
   useEffect(() => { loadBotStats(activeBot); }, [activeBot, loadBotStats]);
 
-  const requestBotMoveRef = useRef<(moves: string[]) => void>(() => {});
-
-  const fallbackBotMove = useCallback(() => {
-    const pick = pickBotMove(game, activeBot);
-    if (!pick) return;
-    const m = game.move(pick);
-    if (m) {
-      setHistory((h) => [...h, m.san]);
-      setUciHistory((h) => [...h, pick.from + pick.to + (pick.promotion ?? "")]);
-      setLastMove({ from: pick.from as Square, to: pick.to as Square });
-      addLog("warn", `${activeBot ? activeBot.name : "Fallback engine"} played ${m.san}`);
-      force();
-    }
-  }, [game, addLog, force, activeBot]);
+  const requestBotMoveRef = useRef<() => void>(() => {});
 
   const requestBotMove = useCallback(
-    async (moves: string[]) => {
+    async () => {
       if (game.isGameOver()) { setPending(false); return; }
       setStatus("checking");
       try {
-        const ctrl = new AbortController();
-        const tid = setTimeout(() => ctrl.abort(), 5000);
-        const res = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ moves }),
-          signal: ctrl.signal,
+        const result = await chooseBotMove(game, activeBot);
+        if (!result) { setPending(false); return; }
+        const { move: pick, source } = result;
+        const m = game.move({
+          from: pick.from as Square,
+          to: pick.to as Square,
+          promotion: pick.promotion as "q" | "r" | "b" | "n" | undefined,
         });
-        clearTimeout(tid);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = (await res.json()) as { bot_move?: string };
-        if (!data.bot_move) throw new Error("Missing bot_move in response");
-        const uci = data.bot_move;
-        const from = uci.slice(0, 2) as Square;
-        const to = uci.slice(2, 4) as Square;
-        const promo = uci.length >= 5 ? (uci[4] as "q" | "r" | "b" | "n") : undefined;
-        const m = game.move({ from, to, promotion: promo });
-        if (!m) throw new Error(`Engine returned illegal move ${uci}`);
+        if (!m) throw new Error(`Illegal engine move ${pick.from}${pick.to}`);
         setHistory((h) => [...h, m.san]);
-        setUciHistory((h) => [...h, uci]);
-        setLastMove({ from, to });
-        setStatus("ok");
-        addLog("ok", `Bot played ${m.san} (engine)`);
+        setUciHistory((h) => [...h, pick.from + pick.to + (pick.promotion ?? "")]);
+        setLastMove({ from: pick.from as Square, to: pick.to as Square });
+        setStatus(source === "fallback" ? "error" : "ok");
+        if (source === "book") addLog("ok", `${activeBot?.name ?? "Bot"} played ${m.san} (book)`);
+        else if (source === "engine") addLog("ok", `${activeBot?.name ?? "Bot"} played ${m.san} (Stockfish)`);
+        else addLog("warn", `${activeBot?.name ?? "Bot"} played ${m.san} (fallback heuristic)`);
         force();
       } catch (err) {
         setStatus("error");
         const msg = err instanceof Error ? err.message : String(err);
-        addLog("warn", `Engine unreachable (${msg}). Using local fallback.`);
-        fallbackBotMove();
+        addLog("error", `Engine error: ${msg}`);
       } finally {
         setPending(false);
       }
     },
-    [endpoint, game, addLog, force, fallbackBotMove],
+    [game, addLog, force, activeBot],
   );
 
   useEffect(() => { requestBotMoveRef.current = requestBotMove; }, [requestBotMove]);
@@ -188,7 +165,7 @@ export function ChessApp() {
 
     if (color === "b") {
       setPending(true);
-      setTimeout(() => requestBotMoveRef.current([]), 250);
+      setTimeout(() => requestBotMoveRef.current(), 250);
     } else {
       setPending(false);
     }
@@ -218,7 +195,7 @@ export function ChessApp() {
       addLog("ok", `You played ${move.san}`);
       force();
       setPending(true);
-      setTimeout(() => requestBotMoveRef.current([...uciHistory, uci]), 250);
+      setTimeout(() => requestBotMoveRef.current(), 250);
       return true;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -481,7 +458,7 @@ export function ChessApp() {
                 <button className="w-full flex items-center justify-between px-4 py-3 text-left">
                   <div className="flex items-center gap-2">
                     <Wifi className="w-4 h-4 text-primary" />
-                    <span className="text-sm font-semibold">Custom Bot Bridge</span>
+                    <span className="text-sm font-semibold">Native Engine</span>
                     <span className={cn("ml-1 w-2 h-2 rounded-full", statusDot)} />
                   </div>
                   <ChevronDown className={cn("w-4 h-4 transition-transform", configOpen && "rotate-180")} />
@@ -489,19 +466,11 @@ export function ChessApp() {
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <div className="px-4 pb-4 space-y-2">
-                  <Label htmlFor="endpoint" className="text-xs text-muted-foreground">
-                    Local Engine Endpoint URL
-                  </Label>
-                  <Input
-                    id="endpoint"
-                    value={endpoint}
-                    onChange={(e) => setEndpoint(e.target.value)}
-                    placeholder="http://127.0.0.1:8080/move"
-                    className="font-mono text-xs"
-                  />
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    POST {`{"moves":[...]}`} → expects {`{"bot_move":"e7e5"}`}. Falls back to local
-                    random-legal engine on failure.
+                    Stockfish runs locally inside a browser Web Worker — no network, no timeouts.
+                    Each move is first looked up in the bot&apos;s Polyglot <code>.bin</code> opening
+                    book (if uploaded). Once book theory is exhausted, the engine returns its top
+                    candidates and the bot&apos;s slider weights pick from them.
                   </p>
                 </div>
               </CollapsibleContent>

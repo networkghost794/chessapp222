@@ -1,5 +1,9 @@
 import type { Chess } from "chess.js";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  base64ToBytes, lookupPolyglot, pickWeighted, polyglotHash, polyglotMoveToUci,
+} from "./polyglot";
+import { analyseTopMoves } from "./stockfishEngine";
 
 export type Strength = "best" | "proportional" | "uniform" | "player";
 
@@ -11,6 +15,14 @@ export type PhaseConfig = {
   capture: number;
 };
 
+export type OpeningConfig = {
+  enabled: boolean;
+  /** Polyglot binary book stored as base64. */
+  bookBin?: string;
+  /** Original .bin file name for display. */
+  bookName?: string;
+};
+
 export type BotConfig = {
   id: string;
   name: string;
@@ -20,7 +32,7 @@ export type BotConfig = {
   category: "Intermediate" | "Master";
   middlegame: PhaseConfig;
   endgame: PhaseConfig;
-  opening: { enabled: boolean; maxDepth: number; book: string };
+  opening: OpeningConfig;
   createdAt: number;
   createdBy?: string | null;
   lifetimeWins?: number;
@@ -56,7 +68,7 @@ function rowToBot(r: Record<string, unknown>): BotConfig {
     category: (r.tier === "Master" ? "Master" : "Intermediate"),
     middlegame: { ...defaultPhase(), ...mg },
     endgame: { ...defaultPhase(), ...eg },
-    opening: { enabled: !!op.enabled, maxDepth: Number(op.maxDepth ?? 0), book: String(op.book ?? "") },
+    opening: { enabled: !!op.enabled, bookBin: op.bookBin ? String(op.bookBin) : undefined, bookName: op.bookName ? String(op.bookName) : undefined },
     createdAt: r.created_at ? new Date(String(r.created_at)).getTime() : Date.now(),
     createdBy: (r.created_by as string) ?? null,
     lifetimeWins: Number(r.lifetime_wins ?? 0),
@@ -87,7 +99,7 @@ export async function publishBot(input: {
   category: "Intermediate" | "Master";
   middlegame: PhaseConfig;
   endgame: PhaseConfig;
-  opening: { enabled: boolean; maxDepth: number; book: string };
+  opening: OpeningConfig;
 }): Promise<BotConfig | null> {
   const { data: userData } = await supabase.auth.getUser();
   const uid = userData.user?.id;
@@ -189,43 +201,27 @@ function scoreMove(game: Chess, m: VerboseMove, cfg: PhaseConfig): number {
   return Math.max(0.001, s);
 }
 
-export function pickBotMove(
-  game: Chess,
-  bot: BotConfig | null,
-): { from: string; to: string; promotion?: string; san: string } | null {
+export type EngineMove = { from: string; to: string; promotion?: string; san: string };
+
+function findLegalMove(game: Chess, uci: string): EngineMove | null {
+  const from = uci.slice(0, 2);
+  const to = uci.slice(2, 4);
+  const promo = uci.length >= 5 ? uci[4] : undefined;
+  const moves = game.moves({ verbose: true }) as VerboseMove[];
+  return moves.find((m) => m.from === from && m.to === to && (promo ? m.promotion === promo : !m.promotion)) ?? null;
+}
+
+export function pickBotMove(game: Chess, bot: BotConfig | null): EngineMove | null {
   const moves = game.moves({ verbose: true }) as VerboseMove[];
   if (moves.length === 0) return null;
   if (!bot) return moves[Math.floor(Math.random() * moves.length)];
-
-  // Strict opening book up to maxDepth full moves
-  if (bot.opening.enabled && bot.opening.book) {
-    const ply = game.history().length;
-    if (ply < bot.opening.maxDepth * 2) {
-      const tokens = bot.opening.book
-        .replace(/\{[^}]*\}/g, " ")
-        .replace(/\([^)]*\)/g, " ")
-        .split(/\s+/)
-        .filter((t) => t && !/^\d+\.+$/.test(t) && !/^(1-0|0-1|1\/2-1\/2|\*)$/.test(t));
-      const candidate = tokens[ply];
-      if (candidate) {
-        const norm = candidate.replace(/[+#]/g, "");
-        const found = moves.find((m) => m.san === candidate || m.san.replace(/[+#]/g, "") === norm);
-        if (found) return found;
-      }
-    }
-  }
-
   const cfg = isEndgame(game) ? bot.endgame : bot.middlegame;
-
-  // "player"/custom-uploaded weights: strictly weighted random selection
   if (cfg.strength === "uniform") return moves[Math.floor(Math.random() * moves.length)];
-
   const scored = moves.map((m) => ({ m, s: scoreMove(game, m, cfg) }));
   if (cfg.strength === "best") {
     scored.sort((a, b) => b.s - a.s);
     return scored[0].m;
   }
-  // proportional + player → weighted random by user-uploaded multi-variable weights
   const total = scored.reduce((a, b) => a + b.s, 0);
   let r = Math.random() * total;
   for (const x of scored) {
@@ -233,6 +229,70 @@ export function pickBotMove(
     if (r <= 0) return x.m;
   }
   return scored[scored.length - 1].m;
+}
+
+/**
+ * Async engine pick. 1) Polyglot opening book lookup. 2) Stockfish top-K moves
+ * filtered by the bot's slider weights. 3) Sync fallback on engine failure.
+ */
+export async function chooseBotMove(
+  game: Chess,
+  bot: BotConfig | null,
+): Promise<{ move: EngineMove; source: "book" | "engine" | "fallback" } | null> {
+  const legal = game.moves({ verbose: true }) as VerboseMove[];
+  if (legal.length === 0) return null;
+
+  // 1) Polyglot opening book
+  if (bot?.opening.enabled && bot.opening.bookBin) {
+    try {
+      const book = base64ToBytes(bot.opening.bookBin);
+      const key = polyglotHash(game);
+      const entries = lookupPolyglot(book, key);
+      if (entries.length > 0) {
+        const chosen = pickWeighted(entries);
+        if (chosen) {
+          const uci = polyglotMoveToUci(game, chosen.move);
+          const found = findLegalMove(game, uci);
+          if (found) return { move: found, source: "book" };
+        }
+      }
+    } catch (e) {
+      console.warn("[botStore] polyglot lookup failed:", e);
+    }
+  }
+
+  // 2) Stockfish top-K, then weight-filter
+  if (bot) {
+    try {
+      const cfg = isEndgame(game) ? bot.endgame : bot.middlegame;
+      const multipv = Math.min(legal.length, 6);
+      const depth = bot.category === "Master" ? 14 : 10;
+      const top = await analyseTopMoves(game.fen(), { multipv, depth, elo: bot.elo });
+      const candidates: { vm: VerboseMove; base: number }[] = [];
+      top.forEach((tm, idx) => {
+        const vm = legal.find((m) => m.from === tm.uci.slice(0, 2) && m.to === tm.uci.slice(2, 4)
+          && ((tm.uci.length >= 5 ? tm.uci[4] : undefined) === m.promotion || (!m.promotion && tm.uci.length < 5)));
+        if (vm) candidates.push({ vm, base: top.length - idx });
+      });
+      if (candidates.length > 0) {
+        if (cfg.strength === "best") return { move: candidates[0].vm, source: "engine" };
+        const scored = candidates.map((c) => ({ m: c.vm, s: c.base * scoreMove(game, c.vm, cfg) }));
+        const total = scored.reduce((a, b) => a + b.s, 0);
+        let r = Math.random() * total;
+        for (const x of scored) {
+          r -= x.s;
+          if (r <= 0) return { move: x.m, source: "engine" };
+        }
+        return { move: scored[scored.length - 1].m, source: "engine" };
+      }
+    } catch (e) {
+      console.warn("[botStore] stockfish unavailable:", e);
+    }
+  }
+
+  // 3) Fallback heuristic
+  const pick = pickBotMove(game, bot);
+  return pick ? { move: pick, source: "fallback" } : null;
 }
 
 export const defaultPhase = (): PhaseConfig => ({
