@@ -165,7 +165,7 @@ export function ChessApp() {
 
     if (color === "b") {
       setPending(true);
-      setTimeout(() => requestBotMoveRef.current([]), 250);
+      setTimeout(() => requestBotMoveRef.current(), 250);
     } else {
       setPending(false);
     }
