@@ -195,7 +195,7 @@ export function ChessApp() {
       addLog("ok", `You played ${move.san}`);
       force();
       setPending(true);
-      setTimeout(() => requestBotMoveRef.current([...uciHistory, uci]), 250);
+      setTimeout(() => requestBotMoveRef.current(), 250);
       return true;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
