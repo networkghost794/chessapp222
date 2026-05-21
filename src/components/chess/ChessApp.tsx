@@ -90,7 +90,7 @@ export function ChessApp() {
   }, []);
 
   useEffect(() => {
-    addLog("info", "Engine ready. Configure your bot bridge to begin networked play.");
+    addLog("info", "Native Stockfish engine ready (Web Worker, no network).");
   }, [addLog]);
 
   // Load bot stats whenever active bot or user changes
