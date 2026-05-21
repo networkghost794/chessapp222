@@ -1,5 +1,9 @@
 import type { Chess } from "chess.js";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  base64ToBytes, lookupPolyglot, pickWeighted, polyglotHash, polyglotMoveToUci,
+} from "./polyglot";
+import { analyseTopMoves } from "./stockfishEngine";
 
 export type Strength = "best" | "proportional" | "uniform" | "player";
 
@@ -11,6 +15,14 @@ export type PhaseConfig = {
   capture: number;
 };
 
+export type OpeningConfig = {
+  enabled: boolean;
+  /** Polyglot binary book stored as base64. */
+  bookBin?: string;
+  /** Original .bin file name for display. */
+  bookName?: string;
+};
+
 export type BotConfig = {
   id: string;
   name: string;
@@ -20,7 +32,7 @@ export type BotConfig = {
   category: "Intermediate" | "Master";
   middlegame: PhaseConfig;
   endgame: PhaseConfig;
-  opening: { enabled: boolean; maxDepth: number; book: string };
+  opening: OpeningConfig;
   createdAt: number;
   createdBy?: string | null;
   lifetimeWins?: number;
