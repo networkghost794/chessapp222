@@ -48,7 +48,6 @@ export function ChessApp() {
   const recordedRef = useRef(false);
 
   const [flipped, setFlipped] = useState(false);
-  const [endpoint, setEndpoint] = useState(DEFAULT_ENDPOINT);
   const [status, setStatus] = useState<ConnStatus>("idle");
   const [log, setLog] = useState<LogEntry[]>([]);
   const [history, setHistory] = useState<string[]>([]);
