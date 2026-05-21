@@ -99,7 +99,7 @@ export async function publishBot(input: {
   category: "Intermediate" | "Master";
   middlegame: PhaseConfig;
   endgame: PhaseConfig;
-  opening: { enabled: boolean; maxDepth: number; book: string };
+  opening: OpeningConfig;
 }): Promise<BotConfig | null> {
   const { data: userData } = await supabase.auth.getUser();
   const uid = userData.user?.id;
