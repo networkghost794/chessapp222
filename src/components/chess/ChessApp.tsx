@@ -458,7 +458,7 @@ export function ChessApp() {
                 <button className="w-full flex items-center justify-between px-4 py-3 text-left">
                   <div className="flex items-center gap-2">
                     <Wifi className="w-4 h-4 text-primary" />
-                    <span className="text-sm font-semibold">Custom Bot Bridge</span>
+                    <span className="text-sm font-semibold">Native Engine</span>
                     <span className={cn("ml-1 w-2 h-2 rounded-full", statusDot)} />
                   </div>
                   <ChevronDown className={cn("w-4 h-4 transition-transform", configOpen && "rotate-180")} />
@@ -466,19 +466,11 @@ export function ChessApp() {
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <div className="px-4 pb-4 space-y-2">
-                  <Label htmlFor="endpoint" className="text-xs text-muted-foreground">
-                    Local Engine Endpoint URL
-                  </Label>
-                  <Input
-                    id="endpoint"
-                    value={endpoint}
-                    onChange={(e) => setEndpoint(e.target.value)}
-                    placeholder="http://127.0.0.1:8080/move"
-                    className="font-mono text-xs"
-                  />
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    POST {`{"moves":[...]}`} → expects {`{"bot_move":"e7e5"}`}. Falls back to local
-                    random-legal engine on failure.
+                    Stockfish runs locally inside a browser Web Worker — no network, no timeouts.
+                    Each move is first looked up in the bot&apos;s Polyglot <code>.bin</code> opening
+                    book (if uploaded). Once book theory is exhausted, the engine returns its top
+                    candidates and the bot&apos;s slider weights pick from them.
                   </p>
                 </div>
               </CollapsibleContent>
