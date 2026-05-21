@@ -130,11 +130,17 @@ export function OwnerPortal() {
     r.readAsDataURL(f);
   };
 
-  const onPgnFile = (f?: File) => {
+  const onBinFile = (f?: File) => {
     if (!f) return;
     const r = new FileReader();
-    r.onload = () => setBookText(typeof r.result === "string" ? r.result : "");
-    r.readAsText(f);
+    r.onload = () => {
+      const ab = r.result as ArrayBuffer;
+      const bytes = new Uint8Array(ab);
+      setBookBin(bytesToBase64(bytes));
+      setBookName(f.name);
+      setBookSize(bytes.byteLength);
+    };
+    r.readAsArrayBuffer(f);
   };
 
   const publish = async () => {
@@ -151,12 +157,12 @@ export function OwnerPortal() {
         category,
         middlegame,
         endgame,
-        opening: { enabled: bookEnabled, maxDepth: Number(bookMaxDepth) || 0, book: bookText },
+        opening: { enabled: bookEnabled, bookBin, bookName },
       });
       setName(""); setQuote(""); setAvatar(undefined); setAvatarFile(null);
       setElo(1500);
       setMiddlegame(defaultPhase()); setEndgame(defaultPhase());
-      setBookEnabled(false); setBookText(""); setBookMaxDepth(8);
+      setBookEnabled(false); setBookBin(undefined); setBookName(undefined); setBookSize(0);
       setOpen(false);
     } catch (e) {
       setPublishError(e instanceof Error ? e.message : String(e));
