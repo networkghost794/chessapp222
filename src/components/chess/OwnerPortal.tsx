@@ -251,21 +251,21 @@ export function OwnerPortal() {
                       <Label htmlFor="actBook" className="text-sm cursor-pointer">Activate Book</Label>
                     </div>
                     <div>
-                      <Label className="text-xs">PGN / Book file</Label>
+                      <Label className="text-xs">Polyglot Book (.bin)</Label>
                       <div className="flex items-center gap-2 mt-1">
-                        <input ref={pgnRef} type="file" accept=".pgn,.txt,text/plain" className="hidden"
-                          onChange={(e) => onPgnFile(e.target.files?.[0])} />
-                        <Button type="button" size="sm" variant="secondary" onClick={() => pgnRef.current?.click()}>
-                          <Upload className="w-3.5 h-3.5 mr-1" /> Upload PGN
+                        <input ref={binRef} type="file" accept=".bin,application/octet-stream" className="hidden"
+                          onChange={(e) => onBinFile(e.target.files?.[0])} />
+                        <Button type="button" size="sm" variant="secondary" onClick={() => binRef.current?.click()}>
+                          <Upload className="w-3.5 h-3.5 mr-1" /> Upload .bin
                         </Button>
-                        <span className="text-xs text-muted-foreground">{bookText ? `${bookText.length} chars loaded` : "no file"}</span>
+                        <span className="text-xs text-muted-foreground truncate">
+                          {bookName ? `${bookName} · ${(bookSize / 1024).toFixed(1)} KB` : "no file"}
+                        </span>
                       </div>
-                      <Textarea className="mt-2 font-mono text-xs" rows={4} value={bookText}
-                        onChange={(e) => setBookText(e.target.value)} placeholder="Or paste PGN/move list here…" />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Max depth (full moves)</Label>
-                      <Input type="number" value={bookMaxDepth} onChange={(e) => setBookMaxDepth(Number(e.target.value))} />
+                      <p className="text-[11px] text-muted-foreground mt-1.5">
+                        Accepts Polyglot-format binary opening books (e.g. Lucas Chess exports). The bot will
+                        consult this book each move until it leaves known theory, then hand off to the engine.
+                      </p>
                     </div>
                   </TabsContent>
                 </Tabs>
