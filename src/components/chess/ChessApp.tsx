@@ -108,60 +108,39 @@ export function ChessApp() {
 
   useEffect(() => { loadBotStats(activeBot); }, [activeBot, loadBotStats]);
 
-  const requestBotMoveRef = useRef<(moves: string[]) => void>(() => {});
-
-  const fallbackBotMove = useCallback(() => {
-    const pick = pickBotMove(game, activeBot);
-    if (!pick) return;
-    const m = game.move(pick);
-    if (m) {
-      setHistory((h) => [...h, m.san]);
-      setUciHistory((h) => [...h, pick.from + pick.to + (pick.promotion ?? "")]);
-      setLastMove({ from: pick.from as Square, to: pick.to as Square });
-      addLog("warn", `${activeBot ? activeBot.name : "Fallback engine"} played ${m.san}`);
-      force();
-    }
-  }, [game, addLog, force, activeBot]);
+  const requestBotMoveRef = useRef<() => void>(() => {});
 
   const requestBotMove = useCallback(
-    async (moves: string[]) => {
+    async () => {
       if (game.isGameOver()) { setPending(false); return; }
       setStatus("checking");
       try {
-        const ctrl = new AbortController();
-        const tid = setTimeout(() => ctrl.abort(), 5000);
-        const res = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ moves }),
-          signal: ctrl.signal,
+        const result = await chooseBotMove(game, activeBot);
+        if (!result) { setPending(false); return; }
+        const { move: pick, source } = result;
+        const m = game.move({
+          from: pick.from as Square,
+          to: pick.to as Square,
+          promotion: pick.promotion as "q" | "r" | "b" | "n" | undefined,
         });
-        clearTimeout(tid);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = (await res.json()) as { bot_move?: string };
-        if (!data.bot_move) throw new Error("Missing bot_move in response");
-        const uci = data.bot_move;
-        const from = uci.slice(0, 2) as Square;
-        const to = uci.slice(2, 4) as Square;
-        const promo = uci.length >= 5 ? (uci[4] as "q" | "r" | "b" | "n") : undefined;
-        const m = game.move({ from, to, promotion: promo });
-        if (!m) throw new Error(`Engine returned illegal move ${uci}`);
+        if (!m) throw new Error(`Illegal engine move ${pick.from}${pick.to}`);
         setHistory((h) => [...h, m.san]);
-        setUciHistory((h) => [...h, uci]);
-        setLastMove({ from, to });
-        setStatus("ok");
-        addLog("ok", `Bot played ${m.san} (engine)`);
+        setUciHistory((h) => [...h, pick.from + pick.to + (pick.promotion ?? "")]);
+        setLastMove({ from: pick.from as Square, to: pick.to as Square });
+        setStatus(source === "fallback" ? "error" : "ok");
+        if (source === "book") addLog("ok", `${activeBot?.name ?? "Bot"} played ${m.san} (book)`);
+        else if (source === "engine") addLog("ok", `${activeBot?.name ?? "Bot"} played ${m.san} (Stockfish)`);
+        else addLog("warn", `${activeBot?.name ?? "Bot"} played ${m.san} (fallback heuristic)`);
         force();
       } catch (err) {
         setStatus("error");
         const msg = err instanceof Error ? err.message : String(err);
-        addLog("warn", `Engine unreachable (${msg}). Using local fallback.`);
-        fallbackBotMove();
+        addLog("error", `Engine error: ${msg}`);
       } finally {
         setPending(false);
       }
     },
-    [endpoint, game, addLog, force, fallbackBotMove],
+    [game, addLog, force, activeBot],
   );
 
   useEffect(() => { requestBotMoveRef.current = requestBotMove; }, [requestBotMove]);
