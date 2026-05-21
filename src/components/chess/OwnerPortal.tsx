@@ -98,10 +98,11 @@ export function OwnerPortal() {
   const [middlegame, setMiddlegame] = useState<PhaseConfig>(defaultPhase());
   const [endgame, setEndgame] = useState<PhaseConfig>(defaultPhase());
   const [bookEnabled, setBookEnabled] = useState(false);
-  const [bookMaxDepth, setBookMaxDepth] = useState(8);
-  const [bookText, setBookText] = useState("");
+  const [bookBin, setBookBin] = useState<string | undefined>(undefined);
+  const [bookName, setBookName] = useState<string | undefined>(undefined);
+  const [bookSize, setBookSize] = useState<number>(0);
   const fileRef = useRef<HTMLInputElement>(null);
-  const pgnRef = useRef<HTMLInputElement>(null);
+  const binRef = useRef<HTMLInputElement>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
