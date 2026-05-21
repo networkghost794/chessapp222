@@ -20,10 +20,10 @@ import {
 import { ChevronDown, Flag, FlipHorizontal2, LogOut, Play, Plus, RotateCcw, Settings, Terminal, Trophy, User, Wifi } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
+  chooseBotMove,
   getActiveBotId,
   incrementBotLifetime,
   loadBots,
-  pickBotMove,
   refreshFromCloud,
   subscribeBots,
   type BotConfig,
@@ -38,7 +38,6 @@ type ConnStatus = "idle" | "ok" | "error" | "checking";
 type ColorChoice = "white" | "black" | "random";
 type BotStats = { wins: number; losses: number; draws: number };
 
-const DEFAULT_ENDPOINT = "http://127.0.0.1:8080/move";
 const EMPTY_STATS: BotStats = { wins: 0, losses: 0, draws: 0 };
 
 export function ChessApp() {
