@@ -23,61 +23,76 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, Lock, Rocket, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { publishBot, defaultPhase, type PhaseConfig, type Strength } from "@/lib/botStore";
+import {
+  publishBot,
+  defaultPhase,
+  defaultErrorRules,
+  defaultOpening,
+  defaultEndgameTrigger,
+  defaultMoveStyle,
+  DEFAULT_BUCKET_MAP,
+  STRENGTH_LABELS,
+  type PhaseConfig,
+  type StrengthBucket,
+  type MoveStyle,
+  type ErrorRules,
+  type OpeningConfig,
+  type EndgameTrigger,
+  type BucketMap,
+} from "@/lib/botStore";
 import { bytesToBase64 } from "@/lib/polyglot";
 
 const PIN = "774152";
-const STRENGTHS: { value: Strength; label: string }[] = [
-  { value: "best", label: "Best move" },
-  { value: "proportional", label: "Proportional random" },
-  { value: "uniform", label: "Uniform random" },
-  { value: "player", label: "Selected by the player" },
+
+const STYLE_LABELS: Array<[keyof MoveStyle, string]> = [
+  ["pawnAdvance", "Pawn advance %"],
+  ["pieceDevelopment", "Piece development %"],
+  ["capture", "Capture %"],
+  ["check", "Check %"],
+  ["kingSafety", "King safety %"],
+  ["positional", "Positional improvement %"],
 ];
 
-function PhaseEditor({
-  value,
-  onChange,
-}: {
-  value: PhaseConfig;
-  onChange: (v: PhaseConfig) => void;
-}) {
-  const sliders: Array<[keyof PhaseConfig, string]> = [
-    ["pawnMove", "To move a pawn"],
-    ["advance", "Advance piece"],
-    ["check", "Make check"],
-    ["capture", "Capture"],
-  ];
+function StyleEditor({ value, onChange }: { value: MoveStyle; onChange: (v: MoveStyle) => void }) {
   return (
     <div className="space-y-4">
-      <div>
-        <Label className="text-xs text-muted-foreground">Strength</Label>
-        <Select
-          value={value.strength}
-          onValueChange={(v) => onChange({ ...value, strength: v as Strength })}
-        >
-          <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {STRENGTHS.map((s) => (
-              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      {sliders.map(([key, label]) => (
+      {STYLE_LABELS.map(([key, label]) => (
         <div key={key}>
           <div className="flex items-center justify-between mb-1">
             <Label className="text-xs text-muted-foreground">{label}</Label>
-            <span className="text-xs font-mono">{value[key] as number}</span>
+            <span className="text-xs font-mono">{value[key]}</span>
           </div>
           <Slider
             min={0}
             max={100}
             step={1}
-            value={[value[key] as number]}
+            value={[value[key]]}
             onValueChange={([v]) => onChange({ ...value, [key]: v })}
           />
         </div>
       ))}
+    </div>
+  );
+}
+
+function PhaseEditor({ value, onChange }: { value: PhaseConfig; onChange: (v: PhaseConfig) => void }) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <Label className="text-xs text-muted-foreground">Strength bucket</Label>
+        <Select
+          value={value.strength}
+          onValueChange={(v) => onChange({ ...value, strength: v as StrengthBucket })}
+        >
+          <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {STRENGTH_LABELS.map((s) => (
+              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <StyleEditor value={value.style} onChange={(style) => onChange({ ...value, style })} />
     </div>
   );
 }
@@ -96,10 +111,12 @@ export function OwnerPortal() {
   const [quote, setQuote] = useState("");
   const [category, setCategory] = useState<"Intermediate" | "Master">("Intermediate");
   const [middlegame, setMiddlegame] = useState<PhaseConfig>(defaultPhase());
-  const [endgame, setEndgame] = useState<PhaseConfig>(defaultPhase());
-  const [bookEnabled, setBookEnabled] = useState(false);
-  const [bookBin, setBookBin] = useState<string | undefined>(undefined);
-  const [bookName, setBookName] = useState<string | undefined>(undefined);
+  const [endgame, setEndgame] = useState<PhaseConfig>(() => ({ ...defaultPhase(), style: defaultMoveStyle() }));
+  const [errorRules, setErrorRules] = useState<ErrorRules>(defaultErrorRules());
+  const [endgameTrigger, setEndgameTrigger] = useState<EndgameTrigger>(defaultEndgameTrigger());
+  const [bucketMap, setBucketMap] = useState<BucketMap>({ ...DEFAULT_BUCKET_MAP });
+
+  const [opening, setOpening] = useState<OpeningConfig>(defaultOpening());
   const [bookSize, setBookSize] = useState<number>(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const binRef = useRef<HTMLInputElement>(null);
@@ -136,8 +153,7 @@ export function OwnerPortal() {
     r.onload = () => {
       const ab = r.result as ArrayBuffer;
       const bytes = new Uint8Array(ab);
-      setBookBin(bytesToBase64(bytes));
-      setBookName(f.name);
+      setOpening((o) => ({ ...o, bookBin: bytesToBase64(bytes), bookName: f.name }));
       setBookSize(bytes.byteLength);
     };
     r.readAsArrayBuffer(f);
@@ -157,12 +173,19 @@ export function OwnerPortal() {
         category,
         middlegame,
         endgame,
-        opening: { enabled: bookEnabled, bookBin, bookName },
+        opening,
+        errorRules,
+        endgameTrigger,
+        bucketMap,
       });
       setName(""); setQuote(""); setAvatar(undefined); setAvatarFile(null);
       setElo(1500);
-      setMiddlegame(defaultPhase()); setEndgame(defaultPhase());
-      setBookEnabled(false); setBookBin(undefined); setBookName(undefined); setBookSize(0);
+      setMiddlegame(defaultPhase());
+      setEndgame({ ...defaultPhase(), style: defaultMoveStyle() });
+      setOpening(defaultOpening()); setBookSize(0);
+      setErrorRules(defaultErrorRules());
+      setEndgameTrigger(defaultEndgameTrigger());
+      setBucketMap({ ...DEFAULT_BUCKET_MAP });
       setOpen(false);
     } catch (e) {
       setPublishError(e instanceof Error ? e.message : String(e));
@@ -191,13 +214,15 @@ export function OwnerPortal() {
           <CollapsibleContent>
             {unlocked && (
               <div className="px-4 pb-4 pt-2 space-y-4">
-                <div className="text-sm font-semibold">Bot Upload Forge</div>
+                <div className="text-sm font-semibold">Bot Personality Forge — Lucas Chess engine</div>
                 <Tabs defaultValue="general">
-                  <TabsList className="grid grid-cols-4 w-full">
-                    <TabsTrigger value="general">General Info</TabsTrigger>
+                  <TabsList className="grid grid-cols-6 w-full">
+                    <TabsTrigger value="general">General</TabsTrigger>
                     <TabsTrigger value="middlegame">Middlegame</TabsTrigger>
                     <TabsTrigger value="endgame">Endgame</TabsTrigger>
+                    <TabsTrigger value="errors">Error rules</TabsTrigger>
                     <TabsTrigger value="opening">Opening</TabsTrigger>
+                    <TabsTrigger value="buckets">Buckets</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="general" className="space-y-3 pt-3">
@@ -207,8 +232,9 @@ export function OwnerPortal() {
                         <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Kasparov Jr." />
                       </div>
                       <div>
-                        <Label className="text-xs">ELO</Label>
+                        <Label className="text-xs">ELO (cosmetic only)</Label>
                         <Input type="number" value={elo} onChange={(e) => setElo(Number(e.target.value))} />
+                        <p className="text-[10px] text-muted-foreground mt-1">Displayed on the bot card. Does not affect strength or rating.</p>
                       </div>
                       <div>
                         <Label className="text-xs">Profile Picture</Label>
@@ -241,13 +267,56 @@ export function OwnerPortal() {
                   <TabsContent value="middlegame" className="pt-3">
                     <PhaseEditor value={middlegame} onChange={setMiddlegame} />
                   </TabsContent>
-                  <TabsContent value="endgame" className="pt-3">
+                  <TabsContent value="endgame" className="pt-3 space-y-4">
                     <PhaseEditor value={endgame} onChange={setEndgame} />
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label className="text-xs text-muted-foreground">Endgame trigger — max non-king/pawn pieces</Label>
+                        <span className="text-xs font-mono">{endgameTrigger.maxMajorMinor}</span>
+                      </div>
+                      <Slider min={2} max={12} step={1} value={[endgameTrigger.maxMajorMinor]}
+                        onValueChange={([v]) => setEndgameTrigger({ maxMajorMinor: v })} />
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="errors" className="pt-3 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Checkbox id="forceMate" checked={errorRules.forceMate} onCheckedChange={(v) => setErrorRules({ ...errorRules, forceMate: !!v })} />
+                      <Label htmlFor="forceMate" className="text-sm cursor-pointer">Force best move when mate exists</Label>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label className="text-xs text-muted-foreground">Max centipawn loss (0 = off)</Label>
+                        <span className="text-xs font-mono">{errorRules.maxCpLoss}</span>
+                      </div>
+                      <Slider min={0} max={600} step={10} value={[errorRules.maxCpLoss]}
+                        onValueChange={([v]) => setErrorRules({ ...errorRules, maxCpLoss: v })} />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox id="noBlunder" checked={errorRules.noBlunderWhenWinning} onCheckedChange={(v) => setErrorRules({ ...errorRules, noBlunderWhenWinning: !!v })} />
+                      <Label htmlFor="noBlunder" className="text-sm cursor-pointer">No blunders when winning</Label>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label className="text-xs text-muted-foreground">Winning threshold (cp)</Label>
+                        <span className="text-xs font-mono">{errorRules.winningThresholdCp}</span>
+                      </div>
+                      <Slider min={50} max={800} step={10} value={[errorRules.winningThresholdCp]}
+                        onValueChange={([v]) => setErrorRules({ ...errorRules, winningThresholdCp: v })} />
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label className="text-xs text-muted-foreground">Max loss when winning (cp)</Label>
+                        <span className="text-xs font-mono">{errorRules.winningMaxLossCp}</span>
+                      </div>
+                      <Slider min={0} max={200} step={5} value={[errorRules.winningMaxLossCp]}
+                        onValueChange={([v]) => setErrorRules({ ...errorRules, winningMaxLossCp: v })} />
+                    </div>
                   </TabsContent>
 
                   <TabsContent value="opening" className="space-y-3 pt-3">
                     <div className="flex items-center gap-2">
-                      <Checkbox id="actBook" checked={bookEnabled} onCheckedChange={(v) => setBookEnabled(!!v)} />
+                      <Checkbox id="actBook" checked={opening.enabled} onCheckedChange={(v) => setOpening({ ...opening, enabled: !!v })} />
                       <Label htmlFor="actBook" className="text-sm cursor-pointer">Activate Book</Label>
                     </div>
                     <div>
@@ -259,14 +328,46 @@ export function OwnerPortal() {
                           <Upload className="w-3.5 h-3.5 mr-1" /> Upload .bin
                         </Button>
                         <span className="text-xs text-muted-foreground truncate">
-                          {bookName ? `${bookName} · ${(bookSize / 1024).toFixed(1)} KB` : "no file"}
+                          {opening.bookName ? `${opening.bookName} · ${(bookSize / 1024).toFixed(1)} KB` : "no file"}
                         </span>
                       </div>
-                      <p className="text-[11px] text-muted-foreground mt-1.5">
-                        Accepts Polyglot-format binary opening books (e.g. Lucas Chess exports). The bot will
-                        consult this book each move until it leaves known theory, then hand off to the engine.
-                      </p>
                     </div>
+                    <div>
+                      <Label className="text-xs">Selection mode</Label>
+                      <Select value={opening.mode} onValueChange={(v) => setOpening({ ...opening, mode: v as OpeningConfig["mode"] })}>
+                        <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="best">Always highest percentage</SelectItem>
+                          <SelectItem value="proportional">Proportional random</SelectItem>
+                          <SelectItem value="uniform">Uniform random</SelectItem>
+                          <SelectItem value="player">Player selected</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label className="text-xs text-muted-foreground">Book influence %</Label>
+                        <span className="text-xs font-mono">{opening.influence}</span>
+                      </div>
+                      <Slider min={0} max={100} step={1} value={[opening.influence]}
+                        onValueChange={([v]) => setOpening({ ...opening, influence: v })} />
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="buckets" className="pt-3 space-y-3">
+                    <p className="text-[11px] text-muted-foreground">
+                      Editable centipawn tolerance per strength bucket. Lower = closer to best move.
+                    </p>
+                    {STRENGTH_LABELS.filter((s) => s.value !== "worst").map((s) => (
+                      <div key={s.value}>
+                        <div className="flex items-center justify-between mb-1">
+                          <Label className="text-xs text-muted-foreground">{s.label}</Label>
+                          <span className="text-xs font-mono">{bucketMap[s.value]} cp</span>
+                        </div>
+                        <Slider min={0} max={500} step={5} value={[bucketMap[s.value]]}
+                          onValueChange={([v]) => setBucketMap({ ...bucketMap, [s.value]: v })} />
+                      </div>
+                    ))}
                   </TabsContent>
                 </Tabs>
 
