@@ -258,35 +258,37 @@ export function ChessApp() {
     let detail = "The game ended in a draw.";
 
     if (resignedFlag) {
-      userField = "losses"; botField = "wins"; eloDelta = -15;
+      userField = "losses"; botField = "wins"; eloDelta = 0;
       title = "Defeat";
       detail = `You resigned — ${activeBot?.name ?? "the bot"} wins.`;
     } else if (game.isCheckmate()) {
       const loser = game.turn();
       if (loser === playerColor) {
-        userField = "losses"; botField = "wins"; eloDelta = -15;
+        userField = "losses"; botField = "wins"; eloDelta = 0;
         title = "Defeat";
         detail = `${activeBot?.name ?? "Bot"} delivered checkmate.`;
       } else {
-        userField = "wins"; botField = "losses"; eloDelta = 15;
+        userField = "wins"; botField = "losses"; eloDelta = 0;
         title = "Victory";
         detail = `You checkmated ${activeBot?.name ?? "the bot"}!`;
       }
     } else if (game.isStalemate()) {
       detail = "Stalemate — no legal moves.";
     }
+    void eloDelta;
 
+    // Bot games are cosmetic-only for Elo — record wins/losses but never change rating.
     const profUpdate = {
       wins: profile.wins,
       losses: profile.losses,
       draws: profile.draws,
-      elo_rating: Math.max(100, profile.elo_rating + eloDelta),
+      elo_rating: profile.elo_rating,
     };
     profUpdate[userField] = profUpdate[userField] + 1;
     supabase.from("profiles").update(profUpdate).eq("id", user.id).then(({ error }) => {
       if (error) addLog("error", `Score sync failed: ${error.message}`);
       else {
-        addLog("ok", `Result saved (${userField}${eloDelta ? `, ${eloDelta > 0 ? "+" : ""}${eloDelta} Elo` : ""})`);
+        addLog("ok", `Result saved (${userField} — Elo unchanged, bot game)`);
         refreshProfile();
       }
     });
