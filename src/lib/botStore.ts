@@ -313,6 +313,7 @@ export async function publishBot(input: {
     endgame_settings: input.endgame as any,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     opening_settings: openingPayload as any,
+    dialogue_lines: (input.dialogueLines ?? []).filter((s) => s.trim().length > 0),
     created_by: uid,
   }).select("*").single();
   if (error) throw error;
