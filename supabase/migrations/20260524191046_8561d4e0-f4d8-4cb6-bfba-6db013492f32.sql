@@ -1,0 +1,1 @@
+ALTER TABLE public.custom_bots ADD COLUMN IF NOT EXISTS dialogue_lines jsonb NOT NULL DEFAULT '[]'::jsonb;
