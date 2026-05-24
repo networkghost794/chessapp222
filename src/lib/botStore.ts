@@ -581,7 +581,23 @@ export async function chooseBotMove(
         // gently favour stronger moves within the bucket: weight by style * (1 - loss/tolerance)
         const loss = Math.max(0, bestCp - s.cp);
         const closeness = tolerance > 0 ? Math.max(0.1, 1 - loss / (tolerance + 1)) : 1;
-        return { vm: s.vm, w: sty * closeness };
+        // "In the expected moves" — long-term Lucas Chess strategic bias.
+        // Applied as a soft multiplicative bonus; never overrides engine eval.
+        const exp = phase.expected ?? defaultExpectedMoves();
+        let bias = 1;
+        if (cls.isCapture) bias += exp.capture / 200;
+        if (cls.isCheck) bias += exp.check / 200;
+        if (cls.advance > 0) bias += (exp.advance / 200) * Math.min(3, cls.advance);
+        // "Keep the two bishops" — penalise trading away own bishop while still owning the pair.
+        if (s.vm.piece === "b") {
+          let myBishops = 0;
+          const turn = game.turn();
+          for (const row of game.board()) for (const sq of row) {
+            if (sq && sq.type === "b" && sq.color === turn) myBishops++;
+          }
+          if (myBishops >= 2) bias *= Math.max(0.2, 1 - exp.keepBishopPair / 150);
+        }
+        return { vm: s.vm, w: sty * closeness * bias };
       });
       const total = weighted.reduce((a, b) => a + b.w, 0);
       let r = Math.random() * total;
