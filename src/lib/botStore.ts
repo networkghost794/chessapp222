@@ -129,6 +129,23 @@ export const defaultOpening = (): OpeningConfig => ({
 export type EndgameTrigger = { maxMajorMinor: number };
 export const defaultEndgameTrigger = (): EndgameTrigger => ({ maxMajorMinor: 6 });
 
+export type BotCategory =
+  | "Beginner"
+  | "Intermediate"
+  | "Advanced"
+  | "Master"
+  | "SpecialEvent"
+  | "TopPlayer";
+
+export const BOT_CATEGORIES: { value: BotCategory; label: string }[] = [
+  { value: "Beginner", label: "Beginner Bots" },
+  { value: "Intermediate", label: "Intermediate Bots" },
+  { value: "Advanced", label: "Advanced Bots" },
+  { value: "Master", label: "Master Bots" },
+  { value: "SpecialEvent", label: "Special Event Bots" },
+  { value: "TopPlayer", label: "Top Player Bots" },
+];
+
 export type BotConfig = {
   id: string;
   name: string;
@@ -136,13 +153,14 @@ export type BotConfig = {
   elo: number;
   avatar?: string;
   quote: string;
-  category: "Intermediate" | "Master";
+  category: BotCategory;
   middlegame: PhaseConfig;
   endgame: PhaseConfig;
   opening: OpeningConfig;
   errorRules: ErrorRules;
   endgameTrigger: EndgameTrigger;
   bucketMap: BucketMap;
+  dialogueLines: string[];
   createdAt: number;
   createdBy?: string | null;
   lifetimeWins?: number;
