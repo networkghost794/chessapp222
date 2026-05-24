@@ -266,7 +266,8 @@ export async function publishBot(input: {
   avatarFile?: File | null;
   avatarDataUrl?: string;
   quote: string;
-  category: "Intermediate" | "Master";
+  category: BotCategory;
+  dialogueLines?: string[];
   middlegame: PhaseConfig;
   endgame: PhaseConfig;
   opening: OpeningConfig;
