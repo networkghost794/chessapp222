@@ -73,6 +73,8 @@ export function ChessApp() {
   const [bathroomOpen, setBathroomOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [resignedFlag, setResignedFlag] = useState(false);
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [matchActive, setMatchActive] = useState(false);
 
   useEffect(() => {
     const refresh = () => {
