@@ -223,7 +223,7 @@ function rowToBot(r: Record<string, unknown>): BotConfig {
     elo: Number(r.elo ?? 1500),
     avatar: (r.profile_pic_url as string) ?? undefined,
     quote: String(r.quote ?? ""),
-    category: (r.tier === "Master" ? "Master" : "Intermediate"),
+    category: (BOT_CATEGORIES.find((c) => c.value === r.tier)?.value ?? "Intermediate"),
     middlegame: migratePhase(mg),
     endgame: migratePhase(eg),
     opening: {
