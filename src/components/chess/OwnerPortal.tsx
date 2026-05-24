@@ -300,11 +300,12 @@ export function OwnerPortal() {
                       </div>
                       <div>
                         <Label className="text-xs">Category</Label>
-                        <Select value={category} onValueChange={(v) => setCategory(v as "Intermediate" | "Master")}>
+                        <Select value={category} onValueChange={(v) => setCategory(v as BotCategory)}>
                           <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Intermediate">Intermediate</SelectItem>
-                            <SelectItem value="Master">Master</SelectItem>
+                            {BOT_CATEGORIES.map((c) => (
+                              <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -312,6 +313,19 @@ export function OwnerPortal() {
                     <div>
                       <Label className="text-xs">Custom Quote</Label>
                       <Textarea value={quote} onChange={(e) => setQuote(e.target.value)} placeholder="Say something memorable…" rows={2} />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Bot Dialogue Lines</Label>
+                      <Textarea
+                        value={dialogueLinesText}
+                        onChange={(e) => setDialogueLinesText(e.target.value)}
+                        placeholder={"One line per row.\nExample:\nInteresting position…\nYou missed something there.\nLet's see how you handle this."}
+                        rows={4}
+                        className="font-mono text-xs"
+                      />
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        Randomly chosen and shown as a speech bubble above the bot panel during active matches.
+                      </p>
                     </div>
                   </TabsContent>
 
