@@ -220,6 +220,7 @@ export function OwnerPortal() {
         avatarDataUrl: avatar,
         quote: quote.trim(),
         category,
+        dialogueLines: dialogueLinesText.split("\n").map((s) => s.trim()).filter(Boolean),
         middlegame,
         endgame,
         opening,
@@ -229,6 +230,7 @@ export function OwnerPortal() {
       });
       setName(""); setQuote(""); setAvatar(undefined); setAvatarFile(null);
       setElo(1500);
+      setDialogueLinesText("");
       setMiddlegame(defaultPhase());
       setEndgame({ ...defaultPhase(), style: defaultMoveStyle() });
       setOpening(defaultOpening()); setBookSize(0);
