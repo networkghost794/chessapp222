@@ -152,6 +152,7 @@ export type BotConfig = {
 export const defaultPhase = (): PhaseConfig => ({
   strength: "similar",
   style: defaultMoveStyle(),
+  expected: defaultExpectedMoves(),
 });
 
 const KEY_ACTIVE = "ownerPortal.activeBot.v1";
