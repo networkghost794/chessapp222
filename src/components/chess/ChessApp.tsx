@@ -148,7 +148,7 @@ export function ChessApp() {
 
   useEffect(() => { requestBotMoveRef.current = requestBotMove; }, [requestBotMove]);
 
-  const startMatch = useCallback(() => {
+  const beginMatch = useCallback(() => {
     gameRef.current = new Chess();
     setHistory([]);
     setUciHistory([]);
@@ -164,6 +164,7 @@ export function ChessApp() {
     setPlayerColor(color);
     setFlipped(color === "b");
     addLog("info", `New match — you play ${color === "w" ? "White" : "Black"}.`);
+    setMatchActive(true);
     force();
 
     if (color === "b") {
@@ -173,6 +174,14 @@ export function ChessApp() {
       setPending(false);
     }
   }, [colorChoice, addLog, force]);
+
+  const startMatch = useCallback(() => {
+    if (!activeBot) {
+      addLog("warn", "Pick a bot from the library first.");
+      return;
+    }
+    setSetupOpen(true);
+  }, [activeBot, addLog]);
 
   const resetGame = useCallback(() => {
     gameRef.current = new Chess();
