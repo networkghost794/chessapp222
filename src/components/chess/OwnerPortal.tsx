@@ -157,7 +157,8 @@ export function OwnerPortal() {
   const [elo, setElo] = useState(1500);
   const [avatar, setAvatar] = useState<string | undefined>();
   const [quote, setQuote] = useState("");
-  const [category, setCategory] = useState<"Intermediate" | "Master">("Intermediate");
+  const [category, setCategory] = useState<BotCategory>("Intermediate");
+  const [dialogueLinesText, setDialogueLinesText] = useState("");
   const [middlegame, setMiddlegame] = useState<PhaseConfig>(defaultPhase());
   const [endgame, setEndgame] = useState<PhaseConfig>(() => ({ ...defaultPhase(), style: defaultMoveStyle() }));
   const [errorRules, setErrorRules] = useState<ErrorRules>(defaultErrorRules());
