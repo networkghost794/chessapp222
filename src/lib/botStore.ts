@@ -66,12 +66,28 @@ export const defaultMoveStyle = (): MoveStyle => ({
   positional: 50,
 });
 
+/** Lucas Chess–style "in the expected moves" long-term tendencies (0–100). */
+export type ExpectedMoves = {
+  keepBishopPair: number;
+  advance: number;
+  check: number;
+  capture: number;
+};
+export const defaultExpectedMoves = (): ExpectedMoves => ({
+  keepBishopPair: 45,
+  advance: 20,
+  check: 10,
+  capture: 5,
+});
+
 /** Per-phase config combines bucket selection and move-style weights. */
 export type PhaseConfig = {
   /** Lucas Chess strength bucket. */
   strength: StrengthBucket;
-  /** Move type weights for this phase. */
+  /** Move type weights for this phase ("in the next move"). */
   style: MoveStyle;
+  /** "In the expected moves" — long-term strategic tendencies. */
+  expected: ExpectedMoves;
   // legacy fields retained for backward compatibility with old saved JSON
   pawnMove?: number;
   advance?: number;
