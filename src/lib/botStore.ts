@@ -187,6 +187,7 @@ function migratePhase(raw: Partial<PhaseConfig> | undefined): PhaseConfig {
   return {
     strength: legalBuckets.includes(s) ? s : "similar",
     style,
+    expected: { ...defaultExpectedMoves(), ...((r as { expected?: Partial<ExpectedMoves> }).expected ?? {}) },
   };
 }
 
