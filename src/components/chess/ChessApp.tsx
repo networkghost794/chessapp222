@@ -32,6 +32,7 @@ import { useAuth } from "@/lib/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { BathroomBreak } from "./BathroomBreak";
 import { ProfileSettings } from "./ProfileSettings";
+import { BotChatBubble } from "./BotChatBubble";
 
 type LogEntry = { kind: "info" | "warn" | "error" | "ok"; text: string; ts: string };
 type ConnStatus = "idle" | "ok" | "error" | "checking";
