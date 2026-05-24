@@ -326,6 +326,7 @@ export function ChessApp() {
     }
 
     setResultModal({ open: true, title, detail });
+    setMatchActive(false);
   }, [history.length, game, user, profile, addLog, refreshProfile, activeBot, playerColor, botStats, resignedFlag]);
 
   const moveRows = useMemo(() => {
