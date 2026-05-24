@@ -79,6 +79,43 @@ function StyleEditor({ value, onChange }: { value: MoveStyle; onChange: (v: Move
   );
 }
 
+const EXPECTED_LABELS: Array<[keyof ExpectedMoves, string]> = [
+  ["keepBishopPair", "Keep the two bishops"],
+  ["advance", "Advance"],
+  ["check", "Make check"],
+  ["capture", "Capture"],
+];
+
+function ExpectedEditor({ value, onChange }: { value: ExpectedMoves; onChange: (v: ExpectedMoves) => void }) {
+  return (
+    <div className="rounded-md border border-border/60 bg-background/30 p-3 space-y-2">
+      <div className="text-xs font-semibold">In the expected moves</div>
+      <p className="text-[10px] text-muted-foreground leading-relaxed">
+        This section controls long-term move preferences and personality tendencies over multiple moves,
+        similar to the Lucas Chess personality system. Higher values increase the likelihood of the bot
+        preferring these move types strategically over time rather than only on the immediate next move.
+      </p>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 pt-1">
+        {EXPECTED_LABELS.map(([key, label]) => (
+          <label key={key} className="flex items-center justify-between gap-2 text-xs">
+            <span className="text-muted-foreground">{label}</span>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              value={value[key]}
+              onChange={(e) =>
+                onChange({ ...value, [key]: Math.max(0, Math.min(100, Number(e.target.value) || 0)) })
+              }
+              className="h-7 w-16 text-xs font-mono text-right px-1.5"
+            />
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function PhaseEditor({ value, onChange }: { value: PhaseConfig; onChange: (v: PhaseConfig) => void }) {
   return (
     <div className="space-y-4">
@@ -96,7 +133,14 @@ function PhaseEditor({ value, onChange }: { value: PhaseConfig; onChange: (v: Ph
           </SelectContent>
         </Select>
       </div>
-      <StyleEditor value={value.style} onChange={(style) => onChange({ ...value, style })} />
+      <div className="rounded-md border border-border/60 bg-background/30 p-3 space-y-3">
+        <div className="text-xs font-semibold">In the next move</div>
+        <StyleEditor value={value.style} onChange={(style) => onChange({ ...value, style })} />
+      </div>
+      <ExpectedEditor
+        value={value.expected ?? defaultExpectedMoves()}
+        onChange={(expected) => onChange({ ...value, expected })}
+      />
     </div>
   );
 }
