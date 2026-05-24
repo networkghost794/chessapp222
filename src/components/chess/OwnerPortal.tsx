@@ -30,15 +30,19 @@ import {
   defaultOpening,
   defaultEndgameTrigger,
   defaultMoveStyle,
+  defaultExpectedMoves,
   DEFAULT_BUCKET_MAP,
   STRENGTH_LABELS,
+  BOT_CATEGORIES,
   type PhaseConfig,
   type StrengthBucket,
   type MoveStyle,
+  type ExpectedMoves,
   type ErrorRules,
   type OpeningConfig,
   type EndgameTrigger,
   type BucketMap,
+  type BotCategory,
 } from "@/lib/botStore";
 import { bytesToBase64 } from "@/lib/polyglot";
 
