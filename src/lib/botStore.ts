@@ -301,21 +301,20 @@ export async function publishBot(input: {
     bucketMap: input.bucketMap,
   };
 
-  const { data, error } = await supabase.from("custom_bots").insert({
+  const insertPayload = {
     name: input.name,
     elo: input.elo,
     profile_pic_url: avatarUrl ?? null,
     quote: input.quote,
     tier: input.category,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    middlegame_settings: input.middlegame as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    endgame_settings: input.endgame as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    opening_settings: openingPayload as any,
+    middlegame_settings: input.middlegame,
+    endgame_settings: input.endgame,
+    opening_settings: openingPayload,
     dialogue_lines: (input.dialogueLines ?? []).filter((s) => s.trim().length > 0),
     created_by: uid,
-  }).select("*").single();
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await supabase.from("custom_bots").insert(insertPayload as any).select("*").single();
   if (error) throw error;
   await refreshFromCloud();
   return data ? rowToBot(data) : null;
