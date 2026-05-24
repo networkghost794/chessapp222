@@ -385,29 +385,32 @@ export function ChessApp() {
         {/* Board area */}
         <section className="space-y-4">
           {activeBot && (
-            <Card className="bg-card p-3 flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-primary/40">
-                {activeBot.avatar ? (
-                  <img src={activeBot.avatar} alt={activeBot.name} className="w-full h-full object-cover" />
-                ) : (
-                  <User className="w-5 h-5 text-muted-foreground" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold truncate">
-                  {activeBot.name} <span className="text-muted-foreground font-normal">· ELO {activeBot.elo}</span>
+            <div className="relative">
+              <BotChatBubble active={matchActive && !game.isGameOver() && !resignedFlag} lines={activeBot.dialogueLines} />
+              <Card className="bg-card p-3 flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-primary/40">
+                  {activeBot.avatar ? (
+                    <img src={activeBot.avatar} alt={activeBot.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="w-5 h-5 text-muted-foreground" />
+                  )}
                 </div>
-                {activeBot.quote && (
-                  <div className="text-xs text-muted-foreground italic truncate">“{activeBot.quote}”</div>
-                )}
-                <div className="text-[11px] text-muted-foreground mt-0.5">
-                  Bot Record — <span className="text-success">Wins: {botStats.wins}</span>
-                  {" | "}<span className="text-destructive">Losses: {botStats.losses}</span>
-                  {" | "}<span>Draws: {botStats.draws}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold truncate">
+                    {activeBot.name} <span className="text-muted-foreground font-normal">· ELO {activeBot.elo}</span>
+                  </div>
+                  {activeBot.quote && (
+                    <div className="text-xs text-muted-foreground italic truncate">“{activeBot.quote}”</div>
+                  )}
+                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                    Bot Record — <span className="text-success">Wins: {botStats.wins}</span>
+                    {" | "}<span className="text-destructive">Losses: {botStats.losses}</span>
+                    {" | "}<span>Draws: {botStats.draws}</span>
+                  </div>
                 </div>
-              </div>
-              <span className="text-[10px] uppercase tracking-wider text-primary">{activeBot.category}</span>
-            </Card>
+                <span className="text-[10px] uppercase tracking-wider text-primary">{activeBot.category}</span>
+              </Card>
+            </div>
           )}
           <Card className="p-4 md:p-6 bg-card">
             <div className="flex items-center justify-between mb-3">
