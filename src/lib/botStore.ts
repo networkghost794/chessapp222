@@ -66,12 +66,28 @@ export const defaultMoveStyle = (): MoveStyle => ({
   positional: 50,
 });
 
+/** Lucas Chess–style "in the expected moves" long-term tendencies (0–100). */
+export type ExpectedMoves = {
+  keepBishopPair: number;
+  advance: number;
+  check: number;
+  capture: number;
+};
+export const defaultExpectedMoves = (): ExpectedMoves => ({
+  keepBishopPair: 45,
+  advance: 20,
+  check: 10,
+  capture: 5,
+});
+
 /** Per-phase config combines bucket selection and move-style weights. */
 export type PhaseConfig = {
   /** Lucas Chess strength bucket. */
   strength: StrengthBucket;
-  /** Move type weights for this phase. */
+  /** Move type weights for this phase ("in the next move"). */
   style: MoveStyle;
+  /** "In the expected moves" — long-term strategic tendencies. */
+  expected: ExpectedMoves;
   // legacy fields retained for backward compatibility with old saved JSON
   pawnMove?: number;
   advance?: number;
@@ -113,6 +129,23 @@ export const defaultOpening = (): OpeningConfig => ({
 export type EndgameTrigger = { maxMajorMinor: number };
 export const defaultEndgameTrigger = (): EndgameTrigger => ({ maxMajorMinor: 6 });
 
+export type BotCategory =
+  | "Beginner"
+  | "Intermediate"
+  | "Advanced"
+  | "Master"
+  | "SpecialEvent"
+  | "TopPlayer";
+
+export const BOT_CATEGORIES: { value: BotCategory; label: string }[] = [
+  { value: "Beginner", label: "Beginner Bots" },
+  { value: "Intermediate", label: "Intermediate Bots" },
+  { value: "Advanced", label: "Advanced Bots" },
+  { value: "Master", label: "Master Bots" },
+  { value: "SpecialEvent", label: "Special Event Bots" },
+  { value: "TopPlayer", label: "Top Player Bots" },
+];
+
 export type BotConfig = {
   id: string;
   name: string;
@@ -120,13 +153,14 @@ export type BotConfig = {
   elo: number;
   avatar?: string;
   quote: string;
-  category: "Intermediate" | "Master";
+  category: BotCategory;
   middlegame: PhaseConfig;
   endgame: PhaseConfig;
   opening: OpeningConfig;
   errorRules: ErrorRules;
   endgameTrigger: EndgameTrigger;
   bucketMap: BucketMap;
+  dialogueLines: string[];
   createdAt: number;
   createdBy?: string | null;
   lifetimeWins?: number;
@@ -136,6 +170,7 @@ export type BotConfig = {
 export const defaultPhase = (): PhaseConfig => ({
   strength: "similar",
   style: defaultMoveStyle(),
+  expected: defaultExpectedMoves(),
 });
 
 const KEY_ACTIVE = "ownerPortal.activeBot.v1";
@@ -170,6 +205,7 @@ function migratePhase(raw: Partial<PhaseConfig> | undefined): PhaseConfig {
   return {
     strength: legalBuckets.includes(s) ? s : "similar",
     style,
+    expected: { ...defaultExpectedMoves(), ...((r as { expected?: Partial<ExpectedMoves> }).expected ?? {}) },
   };
 }
 
@@ -187,7 +223,7 @@ function rowToBot(r: Record<string, unknown>): BotConfig {
     elo: Number(r.elo ?? 1500),
     avatar: (r.profile_pic_url as string) ?? undefined,
     quote: String(r.quote ?? ""),
-    category: (r.tier === "Master" ? "Master" : "Intermediate"),
+    category: (BOT_CATEGORIES.find((c) => c.value === r.tier)?.value ?? "Intermediate"),
     middlegame: migratePhase(mg),
     endgame: migratePhase(eg),
     opening: {
@@ -202,6 +238,7 @@ function rowToBot(r: Record<string, unknown>): BotConfig {
     errorRules: { ...defaultErrorRules(), ...(op.errorRules ?? {}) },
     endgameTrigger: { ...defaultEndgameTrigger(), ...(op.endgameTrigger ?? {}) },
     bucketMap: { ...DEFAULT_BUCKET_MAP, ...(op.bucketMap ?? {}) },
+    dialogueLines: Array.isArray(r.dialogue_lines) ? (r.dialogue_lines as string[]).filter((x) => typeof x === "string") : [],
     createdAt: r.created_at ? new Date(String(r.created_at)).getTime() : Date.now(),
     createdBy: (r.created_by as string) ?? null,
     lifetimeWins: Number(r.lifetime_wins ?? 0),
@@ -229,7 +266,8 @@ export async function publishBot(input: {
   avatarFile?: File | null;
   avatarDataUrl?: string;
   quote: string;
-  category: "Intermediate" | "Master";
+  category: BotCategory;
+  dialogueLines?: string[];
   middlegame: PhaseConfig;
   endgame: PhaseConfig;
   opening: OpeningConfig;
@@ -263,20 +301,20 @@ export async function publishBot(input: {
     bucketMap: input.bucketMap,
   };
 
-  const { data, error } = await supabase.from("custom_bots").insert({
+  const insertPayload = {
     name: input.name,
     elo: input.elo,
     profile_pic_url: avatarUrl ?? null,
     quote: input.quote,
     tier: input.category,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    middlegame_settings: input.middlegame as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    endgame_settings: input.endgame as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    opening_settings: openingPayload as any,
+    middlegame_settings: input.middlegame,
+    endgame_settings: input.endgame,
+    opening_settings: openingPayload,
+    dialogue_lines: (input.dialogueLines ?? []).filter((s) => s.trim().length > 0),
     created_by: uid,
-  }).select("*").single();
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await supabase.from("custom_bots").insert(insertPayload as any).select("*").single();
   if (error) throw error;
   await refreshFromCloud();
   return data ? rowToBot(data) : null;
@@ -543,7 +581,23 @@ export async function chooseBotMove(
         // gently favour stronger moves within the bucket: weight by style * (1 - loss/tolerance)
         const loss = Math.max(0, bestCp - s.cp);
         const closeness = tolerance > 0 ? Math.max(0.1, 1 - loss / (tolerance + 1)) : 1;
-        return { vm: s.vm, w: sty * closeness };
+        // "In the expected moves" — long-term Lucas Chess strategic bias.
+        // Applied as a soft multiplicative bonus; never overrides engine eval.
+        const exp = phase.expected ?? defaultExpectedMoves();
+        let bias = 1;
+        if (cls.isCapture) bias += exp.capture / 200;
+        if (cls.isCheck) bias += exp.check / 200;
+        if (cls.advance > 0) bias += (exp.advance / 200) * Math.min(3, cls.advance);
+        // "Keep the two bishops" — penalise trading away own bishop while still owning the pair.
+        if (s.vm.piece === "b") {
+          let myBishops = 0;
+          const turn = game.turn();
+          for (const row of game.board()) for (const sq of row) {
+            if (sq && sq.type === "b" && sq.color === turn) myBishops++;
+          }
+          if (myBishops >= 2) bias *= Math.max(0.2, 1 - exp.keepBishopPair / 150);
+        }
+        return { vm: s.vm, w: sty * closeness * bias };
       });
       const total = weighted.reduce((a, b) => a + b.w, 0);
       let r = Math.random() * total;

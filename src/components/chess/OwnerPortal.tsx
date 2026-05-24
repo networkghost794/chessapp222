@@ -30,15 +30,19 @@ import {
   defaultOpening,
   defaultEndgameTrigger,
   defaultMoveStyle,
+  defaultExpectedMoves,
   DEFAULT_BUCKET_MAP,
   STRENGTH_LABELS,
+  BOT_CATEGORIES,
   type PhaseConfig,
   type StrengthBucket,
   type MoveStyle,
+  type ExpectedMoves,
   type ErrorRules,
   type OpeningConfig,
   type EndgameTrigger,
   type BucketMap,
+  type BotCategory,
 } from "@/lib/botStore";
 import { bytesToBase64 } from "@/lib/polyglot";
 
@@ -75,6 +79,43 @@ function StyleEditor({ value, onChange }: { value: MoveStyle; onChange: (v: Move
   );
 }
 
+const EXPECTED_LABELS: Array<[keyof ExpectedMoves, string]> = [
+  ["keepBishopPair", "Keep the two bishops"],
+  ["advance", "Advance"],
+  ["check", "Make check"],
+  ["capture", "Capture"],
+];
+
+function ExpectedEditor({ value, onChange }: { value: ExpectedMoves; onChange: (v: ExpectedMoves) => void }) {
+  return (
+    <div className="rounded-md border border-border/60 bg-background/30 p-3 space-y-2">
+      <div className="text-xs font-semibold">In the expected moves</div>
+      <p className="text-[10px] text-muted-foreground leading-relaxed">
+        This section controls long-term move preferences and personality tendencies over multiple moves,
+        similar to the Lucas Chess personality system. Higher values increase the likelihood of the bot
+        preferring these move types strategically over time rather than only on the immediate next move.
+      </p>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 pt-1">
+        {EXPECTED_LABELS.map(([key, label]) => (
+          <label key={key} className="flex items-center justify-between gap-2 text-xs">
+            <span className="text-muted-foreground">{label}</span>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              value={value[key]}
+              onChange={(e) =>
+                onChange({ ...value, [key]: Math.max(0, Math.min(100, Number(e.target.value) || 0)) })
+              }
+              className="h-7 w-16 text-xs font-mono text-right px-1.5"
+            />
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function PhaseEditor({ value, onChange }: { value: PhaseConfig; onChange: (v: PhaseConfig) => void }) {
   return (
     <div className="space-y-4">
@@ -92,7 +133,14 @@ function PhaseEditor({ value, onChange }: { value: PhaseConfig; onChange: (v: Ph
           </SelectContent>
         </Select>
       </div>
-      <StyleEditor value={value.style} onChange={(style) => onChange({ ...value, style })} />
+      <div className="rounded-md border border-border/60 bg-background/30 p-3 space-y-3">
+        <div className="text-xs font-semibold">In the next move</div>
+        <StyleEditor value={value.style} onChange={(style) => onChange({ ...value, style })} />
+      </div>
+      <ExpectedEditor
+        value={value.expected ?? defaultExpectedMoves()}
+        onChange={(expected) => onChange({ ...value, expected })}
+      />
     </div>
   );
 }
@@ -109,7 +157,8 @@ export function OwnerPortal() {
   const [elo, setElo] = useState(1500);
   const [avatar, setAvatar] = useState<string | undefined>();
   const [quote, setQuote] = useState("");
-  const [category, setCategory] = useState<"Intermediate" | "Master">("Intermediate");
+  const [category, setCategory] = useState<BotCategory>("Intermediate");
+  const [dialogueLinesText, setDialogueLinesText] = useState("");
   const [middlegame, setMiddlegame] = useState<PhaseConfig>(defaultPhase());
   const [endgame, setEndgame] = useState<PhaseConfig>(() => ({ ...defaultPhase(), style: defaultMoveStyle() }));
   const [errorRules, setErrorRules] = useState<ErrorRules>(defaultErrorRules());
@@ -171,6 +220,7 @@ export function OwnerPortal() {
         avatarDataUrl: avatar,
         quote: quote.trim(),
         category,
+        dialogueLines: dialogueLinesText.split("\n").map((s) => s.trim()).filter(Boolean),
         middlegame,
         endgame,
         opening,
@@ -180,6 +230,7 @@ export function OwnerPortal() {
       });
       setName(""); setQuote(""); setAvatar(undefined); setAvatarFile(null);
       setElo(1500);
+      setDialogueLinesText("");
       setMiddlegame(defaultPhase());
       setEndgame({ ...defaultPhase(), style: defaultMoveStyle() });
       setOpening(defaultOpening()); setBookSize(0);
@@ -249,11 +300,12 @@ export function OwnerPortal() {
                       </div>
                       <div>
                         <Label className="text-xs">Category</Label>
-                        <Select value={category} onValueChange={(v) => setCategory(v as "Intermediate" | "Master")}>
+                        <Select value={category} onValueChange={(v) => setCategory(v as BotCategory)}>
                           <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Intermediate">Intermediate</SelectItem>
-                            <SelectItem value="Master">Master</SelectItem>
+                            {BOT_CATEGORIES.map((c) => (
+                              <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -261,6 +313,19 @@ export function OwnerPortal() {
                     <div>
                       <Label className="text-xs">Custom Quote</Label>
                       <Textarea value={quote} onChange={(e) => setQuote(e.target.value)} placeholder="Say something memorable…" rows={2} />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Bot Dialogue Lines</Label>
+                      <Textarea
+                        value={dialogueLinesText}
+                        onChange={(e) => setDialogueLinesText(e.target.value)}
+                        placeholder={"One line per row.\nExample:\nInteresting position…\nYou missed something there.\nLet's see how you handle this."}
+                        rows={4}
+                        className="font-mono text-xs"
+                      />
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        Randomly chosen and shown as a speech bubble above the bot panel during active matches.
+                      </p>
                     </div>
                   </TabsContent>
 
