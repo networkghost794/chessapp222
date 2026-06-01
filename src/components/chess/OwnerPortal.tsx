@@ -45,8 +45,9 @@ import {
   type BotCategory,
 } from "@/lib/botStore";
 import { bytesToBase64 } from "@/lib/polyglot";
+import { supabase } from "@/integrations/supabase/client";
+import { UpdateLogManager } from "./UpdateLogManager";
 
-const PIN = "774152";
 
 const STYLE_LABELS: Array<[keyof MoveStyle, string]> = [
   ["pawnAdvance", "Pawn advance %"],
@@ -177,16 +178,20 @@ export function OwnerPortal() {
     if (unlocked && !open) setOpen(true);
   }, [unlocked, open]);
 
-  const tryUnlock = () => {
-    if (pin === PIN) {
+  const tryUnlock = async () => {
+    setPinError("");
+    // Server-side PIN verification + grants `owner` role for this user.
+    const { data, error } = await supabase.rpc("claim_owner_role", { _pin: pin });
+    if (error) { setPinError(error.message); return; }
+    if (data === true) {
       setUnlocked(true);
       setPinOpen(false);
       setPin("");
-      setPinError("");
     } else {
       setPinError("Incorrect PIN");
     }
   };
+
 
   const onAvatarFile = (f?: File) => {
     if (!f) return;
@@ -267,14 +272,16 @@ export function OwnerPortal() {
               <div className="px-4 pb-4 pt-2 space-y-4">
                 <div className="text-sm font-semibold">Bot Personality Forge — Lucas Chess engine</div>
                 <Tabs defaultValue="general">
-                  <TabsList className="grid grid-cols-6 w-full">
+                  <TabsList className="grid grid-cols-7 w-full">
                     <TabsTrigger value="general">General</TabsTrigger>
                     <TabsTrigger value="middlegame">Middlegame</TabsTrigger>
                     <TabsTrigger value="endgame">Endgame</TabsTrigger>
                     <TabsTrigger value="errors">Error rules</TabsTrigger>
                     <TabsTrigger value="opening">Opening</TabsTrigger>
                     <TabsTrigger value="buckets">Buckets</TabsTrigger>
+                    <TabsTrigger value="updates">Updates</TabsTrigger>
                   </TabsList>
+
 
                   <TabsContent value="general" className="space-y-3 pt-3">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
