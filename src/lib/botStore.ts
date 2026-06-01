@@ -509,9 +509,17 @@ export async function chooseBotMove(
     try {
       const phase = isEndgame(game, bot.endgameTrigger) ? bot.endgame : bot.middlegame;
       const multipv = Math.min(legal.length, 24);
-      const depth = bot.category === "Master" ? 14 : 10;
-      // NOTE: do NOT pass Elo — strength is governed by personality, not Stockfish skill.
+      // Depth cap by ELO — weaker bots search shallower
+      const elo = Math.max(100, Math.min(3200, bot.elo ?? 1500));
+      const depth =
+        elo < 400 ? 4 :
+        elo < 800 ? 6 :
+        elo < 1400 ? 8 :
+        elo < 2000 ? 11 :
+        elo < 2500 ? 14 : 16;
+      // NOTE: do NOT pass Elo to UCI_LimitStrength — we control strength via candidate filtering below.
       const top = await analyseTopMoves(game.fen(), { multipv, depth });
+
       const scored: ScoredMove[] = [];
       for (const tm of top) {
         const vm = legal.find((m) =>
