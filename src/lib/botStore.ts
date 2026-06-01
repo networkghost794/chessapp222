@@ -543,7 +543,7 @@ export async function chooseBotMove(
 
       // Sort by cp desc (side-to-move perspective)
       scored.sort((a, b) => b.cp - a.cp);
-      const bestCp = scored[0].cp;
+      // (engine truth — reference only; personality uses eloBestCp below)
 
       // ---------- 5a) Hard override: forced mate (engine truth, before any filtering) ----------
       if (bot.errorRules.forceMate) {
