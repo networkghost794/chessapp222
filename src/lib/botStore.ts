@@ -545,27 +545,59 @@ export async function chooseBotMove(
       scored.sort((a, b) => b.cp - a.cp);
       const bestCp = scored[0].cp;
 
-      // ---------- 5a) Hard override: forced mate ----------
+      // ---------- 5a) Hard override: forced mate (engine truth, before any filtering) ----------
       if (bot.errorRules.forceMate) {
         const mateNow = scored.find((s) => s.mate !== null && s.mate > 0);
         if (mateNow) return { move: mateNow.vm, source: "engine" };
       }
 
-      // ---------- 4) Strength bucket filter ----------
+      // ============================================================
+      //   STEP 1 — STRENGTH ENGINE (ELO CONTROL LAYER)
+      //   Build a limited candidate move pool BEFORE personality runs.
+      //   Personality can never select a move outside this pool.
+      // ============================================================
+      const eloPoolSize =
+        elo < 200  ? Math.min(scored.length, 5) :
+        elo < 600  ? Math.min(scored.length, 7) :
+        elo < 1000 ? Math.min(scored.length, 9) :
+        elo < 1500 ? Math.min(scored.length, 12) :
+        elo < 2000 ? Math.min(scored.length, 16) :
+                     scored.length;
+      let eloPool: ScoredMove[] = scored.slice(0, eloPoolSize);
+
+      // Blunder injection — probability inversely proportional to ELO.
+      const blunderProb =
+        elo < 200  ? 0.35 :
+        elo < 600  ? 0.22 :
+        elo < 1000 ? 0.12 :
+        elo < 1500 ? 0.05 :
+        elo < 2000 ? 0.02 : 0;
+      if (blunderProb > 0 && Math.random() < blunderProb && scored.length > eloPoolSize) {
+        const span = Math.min(6, scored.length - eloPoolSize);
+        const worse = scored[eloPoolSize + Math.floor(Math.random() * span)];
+        if (worse) eloPool = [...eloPool, worse];
+      }
+      // Force-mate already returned above, so this is safe.
+      const eloFiltered = eloPool;
+
+      // ============================================================
+      //   STEP 2 — PERSONALITY LAYER (STYLE ONLY)
+      //   Operates strictly within the ELO-filtered pool.
+      // ============================================================
       const bucket = phase.strength;
       const tolerance = bot.bucketMap[bucket] ?? DEFAULT_BUCKET_MAP[bucket];
+      const eloBestCp = eloFiltered[0].cp;
 
       let pool: ScoredMove[];
       if (bucket === "worst") {
-        // pick the genuinely worst move
-        const worst = scored[scored.length - 1];
-        pool = [worst];
+        pool = [eloFiltered[eloFiltered.length - 1]];
       } else if (bucket === "best") {
-        pool = scored.filter((s) => bestCp - s.cp <= 5);
+        pool = eloFiltered.filter((s) => eloBestCp - s.cp <= 5);
       } else {
-        pool = scored.filter((s) => bestCp - s.cp <= tolerance);
-        if (pool.length === 0) pool = [scored[0]];
+        pool = eloFiltered.filter((s) => eloBestCp - s.cp <= tolerance);
+        if (pool.length === 0) pool = [eloFiltered[0]];
       }
+
 
       // ---------- 5b) Max centipawn loss cap ----------
       if (bot.errorRules.maxCpLoss > 0 && bucket !== "worst") {
