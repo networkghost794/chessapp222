@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_updates: {
+        Row: {
+          content: string
+          created_at: string
+          created_by: string | null
+          id: string
+          published: boolean
+          title: string | null
+          updated_at: string
+          version: string
+        }
+        Insert: {
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          published?: boolean
+          title?: string | null
+          updated_at?: string
+          version: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          published?: boolean
+          title?: string | null
+          updated_at?: string
+          version?: string
+        }
+        Relationships: []
+      }
       bot_stats: {
         Row: {
           bot_id: string
@@ -149,18 +182,62 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_seen_updates: {
+        Row: {
+          seen_at: string
+          user_id: string
+          version: string
+        }
+        Insert: {
+          seen_at?: string
+          user_id: string
+          version: string
+        }
+        Update: {
+          seen_at?: string
+          user_id?: string
+          version?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      claim_owner_role: { Args: { _pin: string }; Returns: boolean }
+      has_role: {
+        Args: { _role: Database["public"]["Enums"]["app_role"]; _uid: string }
+        Returns: boolean
+      }
       increment_bot_lifetime: {
         Args: { _bot_id: string; _losses: number; _wins: number }
         Returns: undefined
       }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "owner" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -287,6 +364,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["owner", "user"],
+    },
   },
 } as const
