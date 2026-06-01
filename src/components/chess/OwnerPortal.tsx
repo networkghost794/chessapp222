@@ -430,6 +430,13 @@ export function OwnerPortal() {
                     <p className="text-[11px] text-muted-foreground">
                       Editable centipawn tolerance per strength bucket. Lower = closer to best move.
                     </p>
+                    <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-[11px] text-muted-foreground leading-relaxed">
+                      <span className="font-semibold text-primary">Strength &gt; Personality:</span> the
+                      bot's ELO first builds a limited candidate-move pool (top moves + depth + blunder
+                      probability). Personality buckets and style weights then pick within that pool ONLY.
+                      Even if personality prefers a GM-level move, if the move is not inside the ELO pool
+                      it is never played.
+                    </div>
                     {STRENGTH_LABELS.filter((s) => s.value !== "worst").map((s) => (
                       <div key={s.value}>
                         <div className="flex items-center justify-between mb-1">
@@ -441,7 +448,12 @@ export function OwnerPortal() {
                       </div>
                     ))}
                   </TabsContent>
+
+                  <TabsContent value="updates" className="pt-3">
+                    <UpdateLogManager />
+                  </TabsContent>
                 </Tabs>
+
 
                 <div className="flex items-center justify-end gap-3 pt-2">
                   {publishError && <span className="text-xs text-destructive">{publishError}</span>}
