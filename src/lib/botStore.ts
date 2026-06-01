@@ -599,15 +599,15 @@ export async function chooseBotMove(
       }
 
 
-      // ---------- 5b) Max centipawn loss cap ----------
+      // ---------- 5b) Max centipawn loss cap (within ELO pool) ----------
       if (bot.errorRules.maxCpLoss > 0 && bucket !== "worst") {
-        const capped = pool.filter((s) => bestCp - s.cp <= bot.errorRules.maxCpLoss);
+        const capped = pool.filter((s) => eloBestCp - s.cp <= bot.errorRules.maxCpLoss);
         if (capped.length > 0) pool = capped;
       }
 
-      // ---------- 5c) Don’t blunder when winning ----------
-      if (bot.errorRules.noBlunderWhenWinning && bestCp >= bot.errorRules.winningThresholdCp && bucket !== "worst") {
-        const safe = pool.filter((s) => bestCp - s.cp <= bot.errorRules.winningMaxLossCp);
+      // ---------- 5c) Don't blunder when winning ----------
+      if (bot.errorRules.noBlunderWhenWinning && eloBestCp >= bot.errorRules.winningThresholdCp && bucket !== "worst") {
+        const safe = pool.filter((s) => eloBestCp - s.cp <= bot.errorRules.winningMaxLossCp);
         if (safe.length > 0) pool = safe;
       }
 
@@ -619,8 +619,9 @@ export async function chooseBotMove(
         const cls = classifyMove(game, s.vm);
         const sty = styleScore(cls, phase.style);
         // gently favour stronger moves within the bucket: weight by style * (1 - loss/tolerance)
-        const loss = Math.max(0, bestCp - s.cp);
+        const loss = Math.max(0, eloBestCp - s.cp);
         const closeness = tolerance > 0 ? Math.max(0.1, 1 - loss / (tolerance + 1)) : 1;
+
         // "In the expected moves" — long-term Lucas Chess strategic bias.
         // Applied as a soft multiplicative bonus; never overrides engine eval.
         const exp = phase.expected ?? defaultExpectedMoves();
