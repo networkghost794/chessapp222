@@ -45,8 +45,9 @@ import {
   type BotCategory,
 } from "@/lib/botStore";
 import { bytesToBase64 } from "@/lib/polyglot";
+import { supabase } from "@/integrations/supabase/client";
+import { UpdateLogManager } from "./UpdateLogManager";
 
-const PIN = "774152";
 
 const STYLE_LABELS: Array<[keyof MoveStyle, string]> = [
   ["pawnAdvance", "Pawn advance %"],
@@ -177,16 +178,20 @@ export function OwnerPortal() {
     if (unlocked && !open) setOpen(true);
   }, [unlocked, open]);
 
-  const tryUnlock = () => {
-    if (pin === PIN) {
+  const tryUnlock = async () => {
+    setPinError("");
+    // Server-side PIN verification + grants `owner` role for this user.
+    const { data, error } = await supabase.rpc("claim_owner_role", { _pin: pin });
+    if (error) { setPinError(error.message); return; }
+    if (data === true) {
       setUnlocked(true);
       setPinOpen(false);
       setPin("");
-      setPinError("");
     } else {
       setPinError("Incorrect PIN");
     }
   };
+
 
   const onAvatarFile = (f?: File) => {
     if (!f) return;
@@ -267,14 +272,16 @@ export function OwnerPortal() {
               <div className="px-4 pb-4 pt-2 space-y-4">
                 <div className="text-sm font-semibold">Bot Personality Forge — Lucas Chess engine</div>
                 <Tabs defaultValue="general">
-                  <TabsList className="grid grid-cols-6 w-full">
+                  <TabsList className="grid grid-cols-7 w-full">
                     <TabsTrigger value="general">General</TabsTrigger>
                     <TabsTrigger value="middlegame">Middlegame</TabsTrigger>
                     <TabsTrigger value="endgame">Endgame</TabsTrigger>
                     <TabsTrigger value="errors">Error rules</TabsTrigger>
                     <TabsTrigger value="opening">Opening</TabsTrigger>
                     <TabsTrigger value="buckets">Buckets</TabsTrigger>
+                    <TabsTrigger value="updates">Updates</TabsTrigger>
                   </TabsList>
+
 
                   <TabsContent value="general" className="space-y-3 pt-3">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -423,6 +430,13 @@ export function OwnerPortal() {
                     <p className="text-[11px] text-muted-foreground">
                       Editable centipawn tolerance per strength bucket. Lower = closer to best move.
                     </p>
+                    <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-[11px] text-muted-foreground leading-relaxed">
+                      <span className="font-semibold text-primary">Strength &gt; Personality:</span> the
+                      bot's ELO first builds a limited candidate-move pool (top moves + depth + blunder
+                      probability). Personality buckets and style weights then pick within that pool ONLY.
+                      Even if personality prefers a GM-level move, if the move is not inside the ELO pool
+                      it is never played.
+                    </div>
                     {STRENGTH_LABELS.filter((s) => s.value !== "worst").map((s) => (
                       <div key={s.value}>
                         <div className="flex items-center justify-between mb-1">
@@ -434,7 +448,12 @@ export function OwnerPortal() {
                       </div>
                     ))}
                   </TabsContent>
+
+                  <TabsContent value="updates" className="pt-3">
+                    <UpdateLogManager />
+                  </TabsContent>
                 </Tabs>
+
 
                 <div className="flex items-center justify-end gap-3 pt-2">
                   {publishError && <span className="text-xs text-destructive">{publishError}</span>}

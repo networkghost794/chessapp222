@@ -509,9 +509,17 @@ export async function chooseBotMove(
     try {
       const phase = isEndgame(game, bot.endgameTrigger) ? bot.endgame : bot.middlegame;
       const multipv = Math.min(legal.length, 24);
-      const depth = bot.category === "Master" ? 14 : 10;
-      // NOTE: do NOT pass Elo — strength is governed by personality, not Stockfish skill.
+      // Depth cap by ELO — weaker bots search shallower
+      const elo = Math.max(100, Math.min(3200, bot.elo ?? 1500));
+      const depth =
+        elo < 400 ? 4 :
+        elo < 800 ? 6 :
+        elo < 1400 ? 8 :
+        elo < 2000 ? 11 :
+        elo < 2500 ? 14 : 16;
+      // NOTE: do NOT pass Elo to UCI_LimitStrength — we control strength via candidate filtering below.
       const top = await analyseTopMoves(game.fen(), { multipv, depth });
+
       const scored: ScoredMove[] = [];
       for (const tm of top) {
         const vm = legal.find((m) =>
@@ -535,39 +543,71 @@ export async function chooseBotMove(
 
       // Sort by cp desc (side-to-move perspective)
       scored.sort((a, b) => b.cp - a.cp);
-      const bestCp = scored[0].cp;
+      // (engine truth — reference only; personality uses eloBestCp below)
 
-      // ---------- 5a) Hard override: forced mate ----------
+      // ---------- 5a) Hard override: forced mate (engine truth, before any filtering) ----------
       if (bot.errorRules.forceMate) {
         const mateNow = scored.find((s) => s.mate !== null && s.mate > 0);
         if (mateNow) return { move: mateNow.vm, source: "engine" };
       }
 
-      // ---------- 4) Strength bucket filter ----------
+      // ============================================================
+      //   STEP 1 — STRENGTH ENGINE (ELO CONTROL LAYER)
+      //   Build a limited candidate move pool BEFORE personality runs.
+      //   Personality can never select a move outside this pool.
+      // ============================================================
+      const eloPoolSize =
+        elo < 200  ? Math.min(scored.length, 5) :
+        elo < 600  ? Math.min(scored.length, 7) :
+        elo < 1000 ? Math.min(scored.length, 9) :
+        elo < 1500 ? Math.min(scored.length, 12) :
+        elo < 2000 ? Math.min(scored.length, 16) :
+                     scored.length;
+      let eloPool: ScoredMove[] = scored.slice(0, eloPoolSize);
+
+      // Blunder injection — probability inversely proportional to ELO.
+      const blunderProb =
+        elo < 200  ? 0.35 :
+        elo < 600  ? 0.22 :
+        elo < 1000 ? 0.12 :
+        elo < 1500 ? 0.05 :
+        elo < 2000 ? 0.02 : 0;
+      if (blunderProb > 0 && Math.random() < blunderProb && scored.length > eloPoolSize) {
+        const span = Math.min(6, scored.length - eloPoolSize);
+        const worse = scored[eloPoolSize + Math.floor(Math.random() * span)];
+        if (worse) eloPool = [...eloPool, worse];
+      }
+      // Force-mate already returned above, so this is safe.
+      const eloFiltered = eloPool;
+
+      // ============================================================
+      //   STEP 2 — PERSONALITY LAYER (STYLE ONLY)
+      //   Operates strictly within the ELO-filtered pool.
+      // ============================================================
       const bucket = phase.strength;
       const tolerance = bot.bucketMap[bucket] ?? DEFAULT_BUCKET_MAP[bucket];
+      const eloBestCp = eloFiltered[0].cp;
 
       let pool: ScoredMove[];
       if (bucket === "worst") {
-        // pick the genuinely worst move
-        const worst = scored[scored.length - 1];
-        pool = [worst];
+        pool = [eloFiltered[eloFiltered.length - 1]];
       } else if (bucket === "best") {
-        pool = scored.filter((s) => bestCp - s.cp <= 5);
+        pool = eloFiltered.filter((s) => eloBestCp - s.cp <= 5);
       } else {
-        pool = scored.filter((s) => bestCp - s.cp <= tolerance);
-        if (pool.length === 0) pool = [scored[0]];
+        pool = eloFiltered.filter((s) => eloBestCp - s.cp <= tolerance);
+        if (pool.length === 0) pool = [eloFiltered[0]];
       }
 
-      // ---------- 5b) Max centipawn loss cap ----------
+
+      // ---------- 5b) Max centipawn loss cap (within ELO pool) ----------
       if (bot.errorRules.maxCpLoss > 0 && bucket !== "worst") {
-        const capped = pool.filter((s) => bestCp - s.cp <= bot.errorRules.maxCpLoss);
+        const capped = pool.filter((s) => eloBestCp - s.cp <= bot.errorRules.maxCpLoss);
         if (capped.length > 0) pool = capped;
       }
 
-      // ---------- 5c) Don’t blunder when winning ----------
-      if (bot.errorRules.noBlunderWhenWinning && bestCp >= bot.errorRules.winningThresholdCp && bucket !== "worst") {
-        const safe = pool.filter((s) => bestCp - s.cp <= bot.errorRules.winningMaxLossCp);
+      // ---------- 5c) Don't blunder when winning ----------
+      if (bot.errorRules.noBlunderWhenWinning && eloBestCp >= bot.errorRules.winningThresholdCp && bucket !== "worst") {
+        const safe = pool.filter((s) => eloBestCp - s.cp <= bot.errorRules.winningMaxLossCp);
         if (safe.length > 0) pool = safe;
       }
 
@@ -579,8 +619,9 @@ export async function chooseBotMove(
         const cls = classifyMove(game, s.vm);
         const sty = styleScore(cls, phase.style);
         // gently favour stronger moves within the bucket: weight by style * (1 - loss/tolerance)
-        const loss = Math.max(0, bestCp - s.cp);
+        const loss = Math.max(0, eloBestCp - s.cp);
         const closeness = tolerance > 0 ? Math.max(0.1, 1 - loss / (tolerance + 1)) : 1;
+
         // "In the expected moves" — long-term Lucas Chess strategic bias.
         // Applied as a soft multiplicative bonus; never overrides engine eval.
         const exp = phase.expected ?? defaultExpectedMoves();

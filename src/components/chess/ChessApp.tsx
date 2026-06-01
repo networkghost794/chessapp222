@@ -33,6 +33,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { BathroomBreak } from "./BathroomBreak";
 import { ProfileSettings } from "./ProfileSettings";
 import { BotChatBubble } from "./BotChatBubble";
+import { UpdatesPopup } from "./UpdatesPopup";
+
 
 type LogEntry = { kind: "info" | "warn" | "error" | "ok"; text: string; ts: string };
 type ConnStatus = "idle" | "ok" | "error" | "checking";
@@ -695,6 +697,8 @@ export function ChessApp() {
 
       <BathroomBreak open={bathroomOpen} onClose={() => setBathroomOpen(false)} />
       <ProfileSettings open={profileOpen} onOpenChange={setProfileOpen} />
+      <UpdatesPopup />
+
     </div>
   );
 }
