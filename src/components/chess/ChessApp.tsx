@@ -18,6 +18,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { ChevronDown, Flag, FlipHorizontal2, LogOut, Play, Plus, RotateCcw, Settings, Terminal, Trophy, User, Wifi } from "lucide-react";
+import { UpdateLogButton } from "./UpdateLogButton";
 import { cn } from "@/lib/utils";
 import {
   chooseBotMove,
