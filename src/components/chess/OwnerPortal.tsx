@@ -186,8 +186,9 @@ export function OwnerPortal() {
     const { data, error } = await supabase.rpc("claim_owner_role", { _pin: pin });
     if (error) { setPinError(error.message); return; }
     if (data === true) {
-      setUnlocked(true);
+      await refreshOwner();
       setPinOpen(false);
+      setOpen(true);
       setPin("");
     } else {
       setPinError("Incorrect PIN");
