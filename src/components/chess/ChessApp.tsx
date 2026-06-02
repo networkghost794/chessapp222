@@ -371,6 +371,7 @@ export function ChessApp() {
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span className={cn("w-2 h-2 rounded-full", statusDot)} />
           <span>{status === "ok" ? "Engine online" : status === "error" ? "Engine offline" : status === "checking" ? "Contacting engine" : "Standby"}</span>
+          <UpdateLogButton />
           {profile && (
             <>
               <Button variant="ghost" size="sm" onClick={() => setProfileOpen(true)} className="h-7 px-2 text-xs">
