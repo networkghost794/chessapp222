@@ -21,8 +21,8 @@ type Props = {
 export function BotChatBubble({
   active,
   lines,
-  minIntervalMs = 60_000,
-  maxIntervalMs = 120_000,
+  minIntervalMs = 10_000,
+  maxIntervalMs = 25_000,
 }: Props) {
   const pool = (lines && lines.length > 0) ? lines : DEFAULT_LINES;
   const [text, setText] = useState<string | null>(null);
