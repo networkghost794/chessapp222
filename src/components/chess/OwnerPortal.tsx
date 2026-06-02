@@ -148,8 +148,9 @@ function PhaseEditor({ value, onChange }: { value: PhaseConfig; onChange: (v: Ph
 }
 
 export function OwnerPortal() {
+  const { isOwner, refreshOwner } = useAuth();
+  const unlocked = isOwner;
   const [open, setOpen] = useState(false);
-  const [unlocked, setUnlocked] = useState(false);
   const [pinOpen, setPinOpen] = useState(false);
   const [pin, setPin] = useState("");
   const [pinError, setPinError] = useState("");
