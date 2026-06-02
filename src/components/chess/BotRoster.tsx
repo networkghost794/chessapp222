@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/accordion";
 import { Trash2, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/useAuth";
 import {
   loadBots,
   subscribeBots,
