@@ -44,7 +44,7 @@ type BotStats = { wins: number; losses: number; draws: number };
 const EMPTY_STATS: BotStats = { wins: 0, losses: 0, draws: 0 };
 
 export function ChessApp() {
-  const { profile, refreshProfile, signOut, user, isOwner } = useAuth();
+  const { profile, refreshProfile, signOut, user } = useAuth();
   const gameRef = useRef(new Chess());
   const [, setTick] = useState(0);
   const force = useCallback(() => setTick((t) => t + 1), []);
