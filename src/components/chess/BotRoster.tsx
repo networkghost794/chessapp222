@@ -97,7 +97,7 @@ export function BotRoster({ onSelect }: { onSelect?: (bot: BotConfig) => void })
                             <div className="text-sm font-medium truncate">{b.name}</div>
                             <div className="text-[11px] text-muted-foreground">ELO {b.elo}</div>
                           </div>
-                          {b.createdBy && (
+                          {isOwner && b.createdBy && (
                             <Button
                               variant="ghost"
                               size="icon"
