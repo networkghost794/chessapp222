@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/accordion";
 import { Trash2, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/useAuth";
 import {
   loadBots,
   subscribeBots,
@@ -37,6 +38,7 @@ const ORDER = ["Beginner", "Intermediate", "Advanced", "SpecialEvent", "Creator"
 SECTIONS.sort((a, b) => ORDER.indexOf(a.key) - ORDER.indexOf(b.key));
 
 export function BotRoster({ onSelect }: { onSelect?: (bot: BotConfig) => void }) {
+  const { isOwner } = useAuth();
   const [bots, setBots] = useState<BotConfig[]>([]);
   const [activeId, setActive] = useState<string | null>(null);
 
@@ -95,7 +97,7 @@ export function BotRoster({ onSelect }: { onSelect?: (bot: BotConfig) => void })
                             <div className="text-sm font-medium truncate">{b.name}</div>
                             <div className="text-[11px] text-muted-foreground">ELO {b.elo}</div>
                           </div>
-                          {b.createdBy && (
+                          {isOwner && b.createdBy && (
                             <Button
                               variant="ghost"
                               size="icon"

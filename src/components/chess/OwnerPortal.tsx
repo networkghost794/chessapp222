@@ -46,6 +46,7 @@ import {
 } from "@/lib/botStore";
 import { bytesToBase64 } from "@/lib/polyglot";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/useAuth";
 import { UpdateLogManager } from "./UpdateLogManager";
 
 
@@ -147,8 +148,9 @@ function PhaseEditor({ value, onChange }: { value: PhaseConfig; onChange: (v: Ph
 }
 
 export function OwnerPortal() {
+  const { isOwner, refreshOwner } = useAuth();
+  const unlocked = isOwner;
   const [open, setOpen] = useState(false);
-  const [unlocked, setUnlocked] = useState(false);
   const [pinOpen, setPinOpen] = useState(false);
   const [pin, setPin] = useState("");
   const [pinError, setPinError] = useState("");
@@ -184,8 +186,9 @@ export function OwnerPortal() {
     const { data, error } = await supabase.rpc("claim_owner_role", { _pin: pin });
     if (error) { setPinError(error.message); return; }
     if (data === true) {
-      setUnlocked(true);
+      await refreshOwner();
       setPinOpen(false);
+      setOpen(true);
       setPin("");
     } else {
       setPinError("Incorrect PIN");
