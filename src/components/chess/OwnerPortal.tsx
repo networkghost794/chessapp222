@@ -46,6 +46,7 @@ import {
 } from "@/lib/botStore";
 import { bytesToBase64 } from "@/lib/polyglot";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/useAuth";
 import { UpdateLogManager } from "./UpdateLogManager";
 
 
