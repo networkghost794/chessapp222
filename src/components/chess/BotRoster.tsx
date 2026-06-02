@@ -38,6 +38,7 @@ const ORDER = ["Beginner", "Intermediate", "Advanced", "SpecialEvent", "Creator"
 SECTIONS.sort((a, b) => ORDER.indexOf(a.key) - ORDER.indexOf(b.key));
 
 export function BotRoster({ onSelect }: { onSelect?: (bot: BotConfig) => void }) {
+  const { isOwner } = useAuth();
   const [bots, setBots] = useState<BotConfig[]>([]);
   const [activeId, setActive] = useState<string | null>(null);
 
