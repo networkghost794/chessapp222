@@ -693,7 +693,7 @@ export function ChessApp() {
         </DialogContent>
       </Dialog>
 
-      <OwnerPortal />
+      {isOwner && <OwnerPortal />}
 
       <BathroomBreak open={bathroomOpen} onClose={() => setBathroomOpen(false)} />
       <ProfileSettings open={profileOpen} onOpenChange={setProfileOpen} />
