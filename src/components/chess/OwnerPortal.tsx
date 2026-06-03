@@ -551,7 +551,7 @@ export function OwnerPortal() {
                     disabled={publishing}
                     className="bg-success text-primary-foreground hover:bg-success/90 font-bold"
                   >
-                    <Rocket className="w-4 h-4 mr-2" /> {publishing ? "Publishing…" : "Publish Bot"}
+                    <Rocket className="w-4 h-4 mr-2" /> {publishing ? (editingId ? "Saving…" : "Publishing…") : (editingId ? "Save Changes" : "Publish Bot")}
                   </Button>
                 </div>
               </div>
