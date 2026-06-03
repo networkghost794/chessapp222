@@ -173,6 +173,7 @@ export function OwnerPortal() {
   const [errorRules, setErrorRules] = useState<ErrorRules>(defaultErrorRules());
   const [endgameTrigger, setEndgameTrigger] = useState<EndgameTrigger>(defaultEndgameTrigger());
   const [bucketMap, setBucketMap] = useState<BucketMap>({ ...DEFAULT_BUCKET_MAP });
+  const [humanMistake, setHumanMistake] = useState<HumanMistake>(defaultHumanMistake());
 
   const [opening, setOpening] = useState<OpeningConfig>(defaultOpening());
   const [bookSize, setBookSize] = useState<number>(0);
@@ -181,6 +182,45 @@ export function OwnerPortal() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
+
+  // ---- Edit mode ----
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [allBots, setAllBots] = useState<BotConfig[]>(loadBots());
+  useEffect(() => subscribeBots(() => setAllBots(loadBots())), []);
+
+  const resetForm = () => {
+    setName(""); setQuote(""); setAvatar(undefined); setAvatarFile(null);
+    setElo(1500); setCategory("Intermediate");
+    setDialogueLinesText("");
+    setMiddlegame(defaultPhase());
+    setEndgame({ ...defaultPhase(), style: defaultMoveStyle() });
+    setOpening(defaultOpening()); setBookSize(0);
+    setErrorRules(defaultErrorRules());
+    setEndgameTrigger(defaultEndgameTrigger());
+    setBucketMap({ ...DEFAULT_BUCKET_MAP });
+    setHumanMistake(defaultHumanMistake());
+    setEditingId(null);
+  };
+
+  const loadBotIntoForm = (id: string) => {
+    const b = allBots.find((x) => x.id === id);
+    if (!b) return;
+    setEditingId(b.id);
+    setName(b.name);
+    setElo(b.elo);
+    setAvatar(b.avatar);
+    setAvatarFile(null);
+    setQuote(b.quote);
+    setCategory(b.category);
+    setDialogueLinesText((b.dialogueLines ?? []).join("\n"));
+    setMiddlegame(b.middlegame);
+    setEndgame(b.endgame);
+    setOpening(b.opening);
+    setErrorRules(b.errorRules);
+    setEndgameTrigger(b.endgameTrigger);
+    setBucketMap(b.bucketMap);
+    setHumanMistake(b.humanMistake ?? defaultHumanMistake());
+  };
 
   useEffect(() => {
     if (unlocked && !open) setOpen(true);
