@@ -120,10 +120,19 @@ export function ChessApp() {
     async () => {
       if (game.isGameOver()) { setPending(false); return; }
       setStatus("checking");
+      const startedAt = Date.now();
       try {
         const result = await chooseBotMove(game, activeBot);
         if (!result) { setPending(false); return; }
         const { move: pick, source } = result;
+        // Global human-like delay: ~2s at low Elo → ~1s at high Elo.
+        const elo = activeBot?.elo ?? 1500;
+        const targetMs =
+          elo <= 800 ? 2000 :
+          elo >= 2200 ? 1000 :
+          Math.round(2000 - ((elo - 800) / 1400) * 1000);
+        const elapsed = Date.now() - startedAt;
+        if (elapsed < targetMs) await new Promise((r) => setTimeout(r, targetMs - elapsed));
         const m = game.move({
           from: pick.from as Square,
           to: pick.to as Square,
