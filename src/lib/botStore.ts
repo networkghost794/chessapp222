@@ -345,6 +345,7 @@ export async function publishBot(input: {
     profile_pic_url: avatarUrl ?? null,
     quote: input.quote,
     tier: input.category,
+    order_index: (cache.filter((b) => b.category === input.category).length),
     middlegame_settings: input.middlegame,
     endgame_settings: input.endgame,
     opening_settings: openingPayload,
