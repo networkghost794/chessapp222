@@ -261,6 +261,7 @@ function rowToBot(r: Record<string, unknown>): BotConfig {
     errorRules: { ...defaultErrorRules(), ...(op.errorRules ?? {}) },
     endgameTrigger: { ...defaultEndgameTrigger(), ...(op.endgameTrigger ?? {}) },
     bucketMap: { ...DEFAULT_BUCKET_MAP, ...(op.bucketMap ?? {}) },
+    humanMistake: { ...defaultHumanMistake(), ...((op as { humanMistake?: Partial<HumanMistake> }).humanMistake ?? {}) },
     dialogueLines: Array.isArray(r.dialogue_lines) ? (r.dialogue_lines as string[]).filter((x) => typeof x === "string") : [],
     createdAt: r.created_at ? new Date(String(r.created_at)).getTime() : Date.now(),
     createdBy: (r.created_by as string) ?? null,
