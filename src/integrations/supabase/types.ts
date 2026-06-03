@@ -96,6 +96,7 @@ export type Database = {
           middlegame_settings: Json
           name: string
           opening_settings: Json
+          order_index: number
           profile_pic_url: string | null
           quote: string
           tier: string
@@ -113,6 +114,7 @@ export type Database = {
           middlegame_settings?: Json
           name: string
           opening_settings?: Json
+          order_index?: number
           profile_pic_url?: string | null
           quote?: string
           tier?: string
@@ -130,6 +132,7 @@ export type Database = {
           middlegame_settings?: Json
           name?: string
           opening_settings?: Json
+          order_index?: number
           profile_pic_url?: string | null
           quote?: string
           tier?: string
