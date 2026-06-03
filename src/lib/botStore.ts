@@ -133,18 +133,22 @@ export type BotCategory =
   | "Beginner"
   | "Intermediate"
   | "Advanced"
-  | "Master"
   | "SpecialEvent"
-  | "TopPlayer";
+  | "Creator"
+  | "TopPlayer"
+  | "Master";
 
 export const BOT_CATEGORIES: { value: BotCategory; label: string }[] = [
   { value: "Beginner", label: "Beginner Bots" },
   { value: "Intermediate", label: "Intermediate Bots" },
   { value: "Advanced", label: "Advanced Bots" },
-  { value: "Master", label: "Master Bots" },
   { value: "SpecialEvent", label: "Special Event Bots" },
+  { value: "Creator", label: "Creator Bots" },
   { value: "TopPlayer", label: "Top Player Bots" },
+  { value: "Master", label: "Master Bots" },
 ];
+
+const VALID_CATEGORIES = new Set<BotCategory>(BOT_CATEGORIES.map((c) => c.value));
 
 export type BotConfig = {
   id: string;
@@ -154,6 +158,7 @@ export type BotConfig = {
   avatar?: string;
   quote: string;
   category: BotCategory;
+  orderIndex: number;
   middlegame: PhaseConfig;
   endgame: PhaseConfig;
   opening: OpeningConfig;
@@ -217,13 +222,16 @@ function rowToBot(r: Record<string, unknown>): BotConfig {
     endgameTrigger?: Partial<EndgameTrigger>;
     bucketMap?: Partial<BucketMap>;
   };
+  const rawTier = String(r.tier ?? "Intermediate") as BotCategory;
+  const category: BotCategory = VALID_CATEGORIES.has(rawTier) ? rawTier : "Intermediate";
   return {
     id: String(r.id),
     name: String(r.name ?? "Bot"),
     elo: Number(r.elo ?? 1500),
     avatar: (r.profile_pic_url as string) ?? undefined,
     quote: String(r.quote ?? ""),
-    category: (BOT_CATEGORIES.find((c) => c.value === r.tier)?.value ?? "Intermediate"),
+    category,
+    orderIndex: Number((r as { order_index?: number }).order_index ?? 0),
     middlegame: migratePhase(mg),
     endgame: migratePhase(eg),
     opening: {
@@ -250,6 +258,8 @@ export async function refreshFromCloud(): Promise<BotConfig[]> {
   const { data, error } = await supabase
     .from("custom_bots")
     .select("*")
+    .order("tier", { ascending: true })
+    .order("order_index", { ascending: true })
     .order("created_at", { ascending: false });
   if (error) {
     console.warn("[botStore] refresh failed:", error.message);
@@ -258,6 +268,34 @@ export async function refreshFromCloud(): Promise<BotConfig[]> {
   cache = (data ?? []).map(rowToBot);
   emit();
   return cache;
+}
+
+/** Owner-only: move a bot to a new category and/or position. */
+export async function updateBotPlacement(
+  id: string,
+  category: BotCategory,
+  orderIndex: number,
+): Promise<void> {
+  const { error } = await supabase
+    .from("custom_bots")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .update({ tier: category, order_index: orderIndex } as any)
+    .eq("id", id);
+  if (error) { console.warn("[botStore] placement update failed:", error.message); return; }
+  await refreshFromCloud();
+}
+
+/** Owner-only: rewrite the full ordering of a category (0..n-1). */
+export async function reorderCategory(category: BotCategory, orderedIds: string[]): Promise<void> {
+  // Batch updates in parallel.
+  await Promise.all(orderedIds.map((id, idx) =>
+    supabase
+      .from("custom_bots")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .update({ tier: category, order_index: idx } as any)
+      .eq("id", id),
+  ));
+  await refreshFromCloud();
 }
 
 export async function publishBot(input: {
