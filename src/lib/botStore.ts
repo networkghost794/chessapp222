@@ -129,6 +129,20 @@ export const defaultOpening = (): OpeningConfig => ({
 export type EndgameTrigger = { maxMajorMinor: number };
 export const defaultEndgameTrigger = (): EndgameTrigger => ({ maxMajorMinor: 6 });
 
+/** Human Mistake Layer (Elo simulation). Probabilities are 0–100. */
+export type HumanMistake = {
+  blunderChance: number;
+  missedCaptureChance: number;
+  blindSpotChance: number;
+  randomMoveChance: number;
+};
+export const defaultHumanMistake = (): HumanMistake => ({
+  blunderChance: 0,
+  missedCaptureChance: 0,
+  blindSpotChance: 0,
+  randomMoveChance: 0,
+});
+
 export type BotCategory =
   | "Beginner"
   | "Intermediate"
@@ -165,6 +179,7 @@ export type BotConfig = {
   errorRules: ErrorRules;
   endgameTrigger: EndgameTrigger;
   bucketMap: BucketMap;
+  humanMistake: HumanMistake;
   dialogueLines: string[];
   createdAt: number;
   createdBy?: string | null;
