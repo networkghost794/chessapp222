@@ -314,7 +314,7 @@ export async function reorderCategory(category: BotCategory, orderedIds: string[
   await refreshFromCloud();
 }
 
-export async function publishBot(input: {
+export type BotPublishInput = {
   name: string;
   elo: number;
   avatarFile?: File | null;
@@ -328,24 +328,28 @@ export async function publishBot(input: {
   errorRules: ErrorRules;
   endgameTrigger: EndgameTrigger;
   bucketMap: BucketMap;
-}): Promise<BotConfig | null> {
-  const { data: userData } = await supabase.auth.getUser();
-  const uid = userData.user?.id;
-  if (!uid) throw new Error("Sign in required to publish bots");
+  humanMistake: HumanMistake;
+};
 
-  let avatarUrl: string | undefined;
+async function resolveAvatarUrl(uid: string, input: BotPublishInput): Promise<string | null | undefined> {
   if (input.avatarFile) {
     const ext = input.avatarFile.name.split(".").pop() || "png";
     const path = `${uid}/${Date.now()}.${ext}`;
     const { error: upErr } = await supabase.storage.from("bot-avatars").upload(path, input.avatarFile, { upsert: false });
-    if (upErr) console.warn("[botStore] avatar upload failed:", upErr.message);
-    else {
-      const { data: pub } = supabase.storage.from("bot-avatars").getPublicUrl(path);
-      avatarUrl = pub.publicUrl;
-    }
-  } else if (input.avatarDataUrl) {
-    avatarUrl = input.avatarDataUrl;
+    if (upErr) { console.warn("[botStore] avatar upload failed:", upErr.message); return undefined; }
+    const { data: pub } = supabase.storage.from("bot-avatars").getPublicUrl(path);
+    return pub.publicUrl;
   }
+  if (input.avatarDataUrl) return input.avatarDataUrl;
+  return undefined;
+}
+
+export async function publishBot(input: BotPublishInput): Promise<BotConfig | null> {
+  const { data: userData } = await supabase.auth.getUser();
+  const uid = userData.user?.id;
+  if (!uid) throw new Error("Sign in required to publish bots");
+
+  const avatarUrl = await resolveAvatarUrl(uid, input);
 
   // Pack extras into opening_settings jsonb so no migration is required.
   const openingPayload = {
@@ -353,6 +357,7 @@ export async function publishBot(input: {
     errorRules: input.errorRules,
     endgameTrigger: input.endgameTrigger,
     bucketMap: input.bucketMap,
+    humanMistake: input.humanMistake,
   };
 
   const insertPayload = {
@@ -370,6 +375,41 @@ export async function publishBot(input: {
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await supabase.from("custom_bots").insert(insertPayload as any).select("*").single();
+  if (error) throw error;
+  await refreshFromCloud();
+  return data ? rowToBot(data) : null;
+}
+
+/** Owner-only: update an existing bot in place. Changes apply immediately. */
+export async function updateBot(id: string, input: BotPublishInput): Promise<BotConfig | null> {
+  const { data: userData } = await supabase.auth.getUser();
+  const uid = userData.user?.id;
+  if (!uid) throw new Error("Sign in required to edit bots");
+
+  const newAvatarUrl = await resolveAvatarUrl(uid, input);
+
+  const openingPayload = {
+    ...input.opening,
+    errorRules: input.errorRules,
+    endgameTrigger: input.endgameTrigger,
+    bucketMap: input.bucketMap,
+    humanMistake: input.humanMistake,
+  };
+
+  const updatePayload: Record<string, unknown> = {
+    name: input.name,
+    elo: input.elo,
+    quote: input.quote,
+    tier: input.category,
+    middlegame_settings: input.middlegame,
+    endgame_settings: input.endgame,
+    opening_settings: openingPayload,
+    dialogue_lines: (input.dialogueLines ?? []).filter((s) => s.trim().length > 0),
+  };
+  if (newAvatarUrl !== undefined) updatePayload.profile_pic_url = newAvatarUrl;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await supabase.from("custom_bots").update(updatePayload as any).eq("id", id).select("*").single();
   if (error) throw error;
   await refreshFromCloud();
   return data ? rowToBot(data) : null;
