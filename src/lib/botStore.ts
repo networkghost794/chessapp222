@@ -129,6 +129,20 @@ export const defaultOpening = (): OpeningConfig => ({
 export type EndgameTrigger = { maxMajorMinor: number };
 export const defaultEndgameTrigger = (): EndgameTrigger => ({ maxMajorMinor: 6 });
 
+/** Human Mistake Layer (Elo simulation). Probabilities are 0–100. */
+export type HumanMistake = {
+  blunderChance: number;
+  missedCaptureChance: number;
+  blindSpotChance: number;
+  randomMoveChance: number;
+};
+export const defaultHumanMistake = (): HumanMistake => ({
+  blunderChance: 0,
+  missedCaptureChance: 0,
+  blindSpotChance: 0,
+  randomMoveChance: 0,
+});
+
 export type BotCategory =
   | "Beginner"
   | "Intermediate"
@@ -165,6 +179,7 @@ export type BotConfig = {
   errorRules: ErrorRules;
   endgameTrigger: EndgameTrigger;
   bucketMap: BucketMap;
+  humanMistake: HumanMistake;
   dialogueLines: string[];
   createdAt: number;
   createdBy?: string | null;
@@ -246,6 +261,7 @@ function rowToBot(r: Record<string, unknown>): BotConfig {
     errorRules: { ...defaultErrorRules(), ...(op.errorRules ?? {}) },
     endgameTrigger: { ...defaultEndgameTrigger(), ...(op.endgameTrigger ?? {}) },
     bucketMap: { ...DEFAULT_BUCKET_MAP, ...(op.bucketMap ?? {}) },
+    humanMistake: { ...defaultHumanMistake(), ...((op as { humanMistake?: Partial<HumanMistake> }).humanMistake ?? {}) },
     dialogueLines: Array.isArray(r.dialogue_lines) ? (r.dialogue_lines as string[]).filter((x) => typeof x === "string") : [],
     createdAt: r.created_at ? new Date(String(r.created_at)).getTime() : Date.now(),
     createdBy: (r.created_by as string) ?? null,
@@ -298,7 +314,7 @@ export async function reorderCategory(category: BotCategory, orderedIds: string[
   await refreshFromCloud();
 }
 
-export async function publishBot(input: {
+export type BotPublishInput = {
   name: string;
   elo: number;
   avatarFile?: File | null;
@@ -312,24 +328,28 @@ export async function publishBot(input: {
   errorRules: ErrorRules;
   endgameTrigger: EndgameTrigger;
   bucketMap: BucketMap;
-}): Promise<BotConfig | null> {
-  const { data: userData } = await supabase.auth.getUser();
-  const uid = userData.user?.id;
-  if (!uid) throw new Error("Sign in required to publish bots");
+  humanMistake: HumanMistake;
+};
 
-  let avatarUrl: string | undefined;
+async function resolveAvatarUrl(uid: string, input: BotPublishInput): Promise<string | null | undefined> {
   if (input.avatarFile) {
     const ext = input.avatarFile.name.split(".").pop() || "png";
     const path = `${uid}/${Date.now()}.${ext}`;
     const { error: upErr } = await supabase.storage.from("bot-avatars").upload(path, input.avatarFile, { upsert: false });
-    if (upErr) console.warn("[botStore] avatar upload failed:", upErr.message);
-    else {
-      const { data: pub } = supabase.storage.from("bot-avatars").getPublicUrl(path);
-      avatarUrl = pub.publicUrl;
-    }
-  } else if (input.avatarDataUrl) {
-    avatarUrl = input.avatarDataUrl;
+    if (upErr) { console.warn("[botStore] avatar upload failed:", upErr.message); return undefined; }
+    const { data: pub } = supabase.storage.from("bot-avatars").getPublicUrl(path);
+    return pub.publicUrl;
   }
+  if (input.avatarDataUrl) return input.avatarDataUrl;
+  return undefined;
+}
+
+export async function publishBot(input: BotPublishInput): Promise<BotConfig | null> {
+  const { data: userData } = await supabase.auth.getUser();
+  const uid = userData.user?.id;
+  if (!uid) throw new Error("Sign in required to publish bots");
+
+  const avatarUrl = await resolveAvatarUrl(uid, input);
 
   // Pack extras into opening_settings jsonb so no migration is required.
   const openingPayload = {
@@ -337,6 +357,7 @@ export async function publishBot(input: {
     errorRules: input.errorRules,
     endgameTrigger: input.endgameTrigger,
     bucketMap: input.bucketMap,
+    humanMistake: input.humanMistake,
   };
 
   const insertPayload = {
@@ -354,6 +375,41 @@ export async function publishBot(input: {
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await supabase.from("custom_bots").insert(insertPayload as any).select("*").single();
+  if (error) throw error;
+  await refreshFromCloud();
+  return data ? rowToBot(data) : null;
+}
+
+/** Owner-only: update an existing bot in place. Changes apply immediately. */
+export async function updateBot(id: string, input: BotPublishInput): Promise<BotConfig | null> {
+  const { data: userData } = await supabase.auth.getUser();
+  const uid = userData.user?.id;
+  if (!uid) throw new Error("Sign in required to edit bots");
+
+  const newAvatarUrl = await resolveAvatarUrl(uid, input);
+
+  const openingPayload = {
+    ...input.opening,
+    errorRules: input.errorRules,
+    endgameTrigger: input.endgameTrigger,
+    bucketMap: input.bucketMap,
+    humanMistake: input.humanMistake,
+  };
+
+  const updatePayload: Record<string, unknown> = {
+    name: input.name,
+    elo: input.elo,
+    quote: input.quote,
+    tier: input.category,
+    middlegame_settings: input.middlegame,
+    endgame_settings: input.endgame,
+    opening_settings: openingPayload,
+    dialogue_lines: (input.dialogueLines ?? []).filter((s) => s.trim().length > 0),
+  };
+  if (newAvatarUrl !== undefined) updatePayload.profile_pic_url = newAvatarUrl;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await supabase.from("custom_bots").update(updatePayload as any).eq("id", id).select("*").single();
   if (error) throw error;
   await refreshFromCloud();
   return data ? rowToBot(data) : null;
@@ -648,6 +704,42 @@ export async function chooseBotMove(
       if (bot.errorRules.noBlunderWhenWinning && eloBestCp >= bot.errorRules.winningThresholdCp && bucket !== "worst") {
         const safe = pool.filter((s) => eloBestCp - s.cp <= bot.errorRules.winningMaxLossCp);
         if (safe.length > 0) pool = safe;
+      }
+
+      // ============================================================
+      //   STEP 3 — HUMAN MISTAKE LAYER (Elo realism)
+      //   Applied AFTER engine + ELO + personality filtering, so it
+      //   directly perturbs the final candidate set in human ways.
+      //   Skipped entirely when forceMate has already fired above.
+      // ============================================================
+      const hm = bot.humanMistake ?? defaultHumanMistake();
+      // 3a) Random move injection — pick any legal move regardless of eval.
+      if (hm.randomMoveChance > 0 && Math.random() * 100 < hm.randomMoveChance) {
+        const r = legal[Math.floor(Math.random() * legal.length)];
+        return { move: r, source: "engine" };
+      }
+      // 3b) Missed capture — if pool contains captures, drop them sometimes.
+      if (hm.missedCaptureChance > 0 && Math.random() * 100 < hm.missedCaptureChance) {
+        const nonCaptures = pool.filter((s) => !s.vm.captured);
+        if (nonCaptures.length > 0) pool = nonCaptures;
+      }
+      // 3c) Blind spot — ignore immediate threats by picking a worse move
+      //     from below the personality pool (overlooks tactics).
+      if (hm.blindSpotChance > 0 && Math.random() * 100 < hm.blindSpotChance) {
+        const beyond = scored.filter((s) => !pool.some((p) => p.vm === s.vm));
+        const slice = beyond.slice(0, 5);
+        if (slice.length > 0) {
+          const pick = slice[Math.floor(Math.random() * slice.length)];
+          return { move: pick.vm, source: "engine" };
+        }
+      }
+      // 3d) Blunder — clearly bad move drawn from the bottom half of evals.
+      if (hm.blunderChance > 0 && Math.random() * 100 < hm.blunderChance && scored.length > 3) {
+        const tail = scored.slice(Math.max(3, Math.floor(scored.length * 0.5)));
+        if (tail.length > 0) {
+          const pick = tail[Math.floor(Math.random() * tail.length)];
+          return { move: pick.vm, source: "engine" };
+        }
       }
 
       // ---------- 3 + 6) Style-weighted pick over the survivors ----------
