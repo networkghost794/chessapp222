@@ -706,6 +706,42 @@ export async function chooseBotMove(
         if (safe.length > 0) pool = safe;
       }
 
+      // ============================================================
+      //   STEP 3 — HUMAN MISTAKE LAYER (Elo realism)
+      //   Applied AFTER engine + ELO + personality filtering, so it
+      //   directly perturbs the final candidate set in human ways.
+      //   Skipped entirely when forceMate has already fired above.
+      // ============================================================
+      const hm = bot.humanMistake ?? defaultHumanMistake();
+      // 3a) Random move injection — pick any legal move regardless of eval.
+      if (hm.randomMoveChance > 0 && Math.random() * 100 < hm.randomMoveChance) {
+        const r = legal[Math.floor(Math.random() * legal.length)];
+        return { move: r, source: "engine" };
+      }
+      // 3b) Missed capture — if pool contains captures, drop them sometimes.
+      if (hm.missedCaptureChance > 0 && Math.random() * 100 < hm.missedCaptureChance) {
+        const nonCaptures = pool.filter((s) => !s.vm.captured);
+        if (nonCaptures.length > 0) pool = nonCaptures;
+      }
+      // 3c) Blind spot — ignore immediate threats by picking a worse move
+      //     from below the personality pool (overlooks tactics).
+      if (hm.blindSpotChance > 0 && Math.random() * 100 < hm.blindSpotChance) {
+        const beyond = scored.filter((s) => !pool.some((p) => p.vm === s.vm));
+        const slice = beyond.slice(0, 5);
+        if (slice.length > 0) {
+          const pick = slice[Math.floor(Math.random() * slice.length)];
+          return { move: pick.vm, source: "engine" };
+        }
+      }
+      // 3d) Blunder — clearly bad move drawn from the bottom half of evals.
+      if (hm.blunderChance > 0 && Math.random() * 100 < hm.blunderChance && scored.length > 3) {
+        const tail = scored.slice(Math.max(3, Math.floor(scored.length * 0.5)));
+        if (tail.length > 0) {
+          const pick = tail[Math.floor(Math.random() * tail.length)];
+          return { move: pick.vm, source: "engine" };
+        }
+      }
+
       // ---------- 3 + 6) Style-weighted pick over the survivors ----------
       if (pool.length === 1) return { move: pool[0].vm, source: "engine" };
       if (bucket === "best") return { move: pool[0].vm, source: "engine" };
