@@ -314,13 +314,34 @@ export function OwnerPortal() {
           <CollapsibleContent>
             {unlocked && (
               <div className="px-4 pb-4 pt-2 space-y-4">
-                <div className="text-sm font-semibold">Bot Personality Forge — Lucas Chess engine</div>
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="text-sm font-semibold">
+                    Bot Personality Forge — Lucas Chess engine
+                    {editingId && <span className="ml-2 text-xs text-primary">· Editing</span>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Select value={editingId ?? ""} onValueChange={(v) => v && loadBotIntoForm(v)}>
+                      <SelectTrigger className="h-8 w-[220px] text-xs">
+                        <SelectValue placeholder="Edit existing bot…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allBots.map((b) => (
+                          <SelectItem key={b.id} value={b.id}>{b.name} · ELO {b.elo}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {editingId && (
+                      <Button size="sm" variant="secondary" onClick={resetForm}>New bot</Button>
+                    )}
+                  </div>
+                </div>
                 <Tabs defaultValue="general">
-                  <TabsList className="grid grid-cols-7 w-full">
+                  <TabsList className="grid grid-cols-8 w-full">
                     <TabsTrigger value="general">General</TabsTrigger>
                     <TabsTrigger value="middlegame">Middlegame</TabsTrigger>
                     <TabsTrigger value="endgame">Endgame</TabsTrigger>
                     <TabsTrigger value="errors">Error rules</TabsTrigger>
+                    <TabsTrigger value="mistakes">Mistakes</TabsTrigger>
                     <TabsTrigger value="opening">Opening</TabsTrigger>
                     <TabsTrigger value="buckets">Buckets</TabsTrigger>
                     <TabsTrigger value="updates">Updates</TabsTrigger>
