@@ -25,12 +25,16 @@ import { ChevronDown, Lock, Rocket, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   publishBot,
+  updateBot,
+  loadBots,
+  subscribeBots,
   defaultPhase,
   defaultErrorRules,
   defaultOpening,
   defaultEndgameTrigger,
   defaultMoveStyle,
   defaultExpectedMoves,
+  defaultHumanMistake,
   DEFAULT_BUCKET_MAP,
   STRENGTH_LABELS,
   BOT_CATEGORIES,
@@ -43,6 +47,8 @@ import {
   type EndgameTrigger,
   type BucketMap,
   type BotCategory,
+  type BotConfig,
+  type HumanMistake,
 } from "@/lib/botStore";
 import { bytesToBase64 } from "@/lib/polyglot";
 import { supabase } from "@/integrations/supabase/client";
