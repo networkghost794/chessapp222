@@ -451,6 +451,30 @@ export function OwnerPortal() {
                     </div>
                   </TabsContent>
 
+                  <TabsContent value="mistakes" className="pt-3 space-y-4">
+                    <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-[11px] text-muted-foreground leading-relaxed">
+                      <span className="font-semibold text-primary">🧠 Human Mistake Layer (ELO Simulation).</span>{" "}
+                      Realistic human-like errors applied AFTER engine filtering. These
+                      directly affect move selection and create real Elo differences between bots.
+                    </div>
+                    {([
+                      ["blunderChance", "🎲 Blunder Chance %", "Chance the bot plays a clearly bad move (hangs piece / misses tactic)."],
+                      ["missedCaptureChance", "👀 Missed Capture Chance %", "Chance the bot ignores a free or winning capture."],
+                      ["blindSpotChance", "💤 Blind Spot Chance %", "Chance the bot fails to see an immediate threat (check / fork / hanging piece)."],
+                      ["randomMoveChance", "🎯 Random Move Injection %", "Chance the bot plays a non-optimal but legal random move from the full move list."],
+                    ] as Array<[keyof HumanMistake, string, string]>).map(([key, label, hint]) => (
+                      <div key={key}>
+                        <div className="flex items-center justify-between mb-1">
+                          <Label className="text-xs text-muted-foreground">{label}</Label>
+                          <span className="text-xs font-mono">{humanMistake[key]}</span>
+                        </div>
+                        <Slider min={0} max={100} step={1} value={[humanMistake[key]]}
+                          onValueChange={([v]) => setHumanMistake({ ...humanMistake, [key]: v })} />
+                        <p className="text-[10px] text-muted-foreground mt-1">{hint}</p>
+                      </div>
+                    ))}
+                  </TabsContent>
+
                   <TabsContent value="opening" className="space-y-3 pt-3">
                     <div className="flex items-center gap-2">
                       <Checkbox id="actBook" checked={opening.enabled} onCheckedChange={(v) => setOpening({ ...opening, enabled: !!v })} />
