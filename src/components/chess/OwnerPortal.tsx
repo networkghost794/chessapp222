@@ -267,7 +267,7 @@ export function OwnerPortal() {
     setPublishing(true);
     setPublishError(null);
     try {
-      await publishBot({
+      const payload = {
         name: name.trim(),
         elo: Number(elo) || 1500,
         avatarFile,
@@ -281,16 +281,11 @@ export function OwnerPortal() {
         errorRules,
         endgameTrigger,
         bucketMap,
-      });
-      setName(""); setQuote(""); setAvatar(undefined); setAvatarFile(null);
-      setElo(1500);
-      setDialogueLinesText("");
-      setMiddlegame(defaultPhase());
-      setEndgame({ ...defaultPhase(), style: defaultMoveStyle() });
-      setOpening(defaultOpening()); setBookSize(0);
-      setErrorRules(defaultErrorRules());
-      setEndgameTrigger(defaultEndgameTrigger());
-      setBucketMap({ ...DEFAULT_BUCKET_MAP });
+        humanMistake,
+      };
+      if (editingId) await updateBot(editingId, payload);
+      else await publishBot(payload);
+      resetForm();
       setOpen(false);
     } catch (e) {
       setPublishError(e instanceof Error ? e.message : String(e));
