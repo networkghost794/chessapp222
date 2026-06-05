@@ -5,10 +5,8 @@ import { PromotionDialog } from "./PromotionDialog";
 import { BotRoster } from "./BotRoster";
 import { OwnerPortal } from "./OwnerPortal";
 import { Button } from "@/components/ui/button";
-
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Dialog,
   DialogContent,
@@ -17,7 +15,18 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ChevronDown, Flag, FlipHorizontal2, LogOut, Play, Plus, RotateCcw, Settings, Terminal, Trophy, User, Wifi } from "lucide-react";
+import {
+  Flag,
+  FlipHorizontal2,
+  Home,
+  LogOut,
+  Play,
+  Settings,
+  Swords,
+  Trophy,
+  User,
+  Bell,
+} from "lucide-react";
 import { UpdateLogButton } from "./UpdateLogButton";
 import { cn } from "@/lib/utils";
 import {
@@ -36,13 +45,64 @@ import { ProfileSettings } from "./ProfileSettings";
 import { BotChatBubble } from "./BotChatBubble";
 import { UpdatesPopup } from "./UpdatesPopup";
 
-
-type LogEntry = { kind: "info" | "warn" | "error" | "ok"; text: string; ts: string };
-type ConnStatus = "idle" | "ok" | "error" | "checking";
 type ColorChoice = "white" | "black" | "random";
 type BotStats = { wins: number; losses: number; draws: number };
+type AppMode = "home" | "hub" | "match";
+type SidebarKey = "home" | "play" | "profile" | "updates";
 
 const EMPTY_STATS: BotStats = { wins: 0, losses: 0, draws: 0 };
+
+function PlayerIdentity({
+  username,
+  elo,
+  title,
+  icon,
+  size = "md",
+}: {
+  username: string;
+  elo: number;
+  title?: string | null;
+  icon?: string | null;
+  size?: "sm" | "md" | "lg";
+}) {
+  const cls = size === "lg" ? "text-2xl" : size === "sm" ? "text-sm" : "text-base";
+  return (
+    <span className={cn("inline-flex items-baseline gap-2 font-semibold tracking-tight", cls)}>
+      {title && (
+        <span className="text-primary font-black uppercase tracking-wider text-[0.7em]">{title}</span>
+      )}
+      {icon && <span className="text-[0.9em] leading-none">{icon}</span>}
+      <span className="text-foreground">{username}</span>
+      <span className="text-muted-foreground/70 font-normal text-[0.85em]">({elo})</span>
+    </span>
+  );
+}
+
+function MiniProfileCard({ profile }: { profile: { username: string; avatar_url: string | null; elo_rating: number; title_badge?: string | null; profile_icon?: string | null; wins: number; losses: number; draws: number } }) {
+  return (
+    <Card className="bg-card p-3 flex items-center gap-3">
+      <div className="w-10 h-10 rounded-md bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-border">
+        {profile.avatar_url ? (
+          <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
+        ) : (
+          <User className="w-4 h-4 text-muted-foreground" />
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <PlayerIdentity
+          username={profile.username}
+          elo={profile.elo_rating}
+          title={profile.title_badge}
+          icon={profile.profile_icon}
+          size="sm"
+        />
+        <div className="text-[11px] text-muted-foreground mt-0.5">
+          {profile.wins}W · {profile.losses}L · {profile.draws}D
+        </div>
+      </div>
+    </Card>
+  );
+}
 
 export function ChessApp() {
   const { profile, refreshProfile, signOut, user } = useAuth();
@@ -52,23 +112,18 @@ export function ChessApp() {
   const recordedRef = useRef(false);
 
   const [flipped, setFlipped] = useState(false);
-  const [status, setStatus] = useState<ConnStatus>("idle");
-  const [log, setLog] = useState<LogEntry[]>([]);
   const [history, setHistory] = useState<string[]>([]);
   const [uciHistory, setUciHistory] = useState<string[]>([]);
   const [lastMove, setLastMove] = useState<{ from: Square; to: Square } | null>(null);
   const [pending, setPending] = useState(false);
   const [promotion, setPromotion] = useState<{ from: Square; to: Square } | null>(null);
-  const [configOpen, setConfigOpen] = useState(true);
   const [activeBot, setActiveBotState] = useState<BotConfig | null>(null);
 
   const [colorChoice, setColorChoice] = useState<ColorChoice>("white");
   const [playerColor, setPlayerColor] = useState<Color>("w");
   const [botStats, setBotStats] = useState<BotStats>(EMPTY_STATS);
   const [resultModal, setResultModal] = useState<{ open: boolean; title: string; detail: string }>({
-    open: false,
-    title: "",
-    detail: "",
+    open: false, title: "", detail: "",
   });
 
   const game = gameRef.current;
@@ -76,8 +131,12 @@ export function ChessApp() {
   const [bathroomOpen, setBathroomOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [resignedFlag, setResignedFlag] = useState(false);
-  const [setupOpen, setSetupOpen] = useState(false);
   const [matchActive, setMatchActive] = useState(false);
+
+  // Navigation modes
+  const [mode, setMode] = useState<AppMode>("home");
+  const [sidebar, setSidebar] = useState<SidebarKey>("home");
+  const [vsOverlay, setVsOverlay] = useState(false);
 
   useEffect(() => {
     const refresh = () => {
@@ -90,16 +149,6 @@ export function ChessApp() {
     return unsub;
   }, []);
 
-  const addLog = useCallback((kind: LogEntry["kind"], text: string) => {
-    const ts = new Date().toLocaleTimeString();
-    setLog((l) => [...l.slice(-200), { kind, text, ts }]);
-  }, []);
-
-  useEffect(() => {
-    addLog("info", "Native Stockfish engine ready (Web Worker, no network).");
-  }, [addLog]);
-
-  // Load bot stats whenever active bot or user changes
   const loadBotStats = useCallback(async (bot: BotConfig | null) => {
     if (!user || !bot) { setBotStats(EMPTY_STATS); return; }
     const { data, error } = await supabase
@@ -119,13 +168,11 @@ export function ChessApp() {
   const requestBotMove = useCallback(
     async () => {
       if (game.isGameOver()) { setPending(false); return; }
-      setStatus("checking");
       const startedAt = Date.now();
       try {
         const result = await chooseBotMove(game, activeBot);
         if (!result) { setPending(false); return; }
-        const { move: pick, source } = result;
-        // Global human-like delay: ~2s at low Elo → ~1s at high Elo.
+        const { move: pick } = result;
         const elo = activeBot?.elo ?? 1500;
         const targetMs =
           elo <= 800 ? 2000 :
@@ -142,20 +189,14 @@ export function ChessApp() {
         setHistory((h) => [...h, m.san]);
         setUciHistory((h) => [...h, pick.from + pick.to + (pick.promotion ?? "")]);
         setLastMove({ from: pick.from as Square, to: pick.to as Square });
-        setStatus(source === "fallback" ? "error" : "ok");
-        if (source === "book") addLog("ok", `${activeBot?.name ?? "Bot"} played ${m.san} (book)`);
-        else if (source === "engine") addLog("ok", `${activeBot?.name ?? "Bot"} played ${m.san} (Stockfish)`);
-        else addLog("warn", `${activeBot?.name ?? "Bot"} played ${m.san} (fallback heuristic)`);
         force();
-      } catch (err) {
-        setStatus("error");
-        const msg = err instanceof Error ? err.message : String(err);
-        addLog("error", `Engine error: ${msg}`);
+      } catch {
+        /* swallow */
       } finally {
         setPending(false);
       }
     },
-    [game, addLog, force, activeBot],
+    [game, force, activeBot],
   );
 
   useEffect(() => { requestBotMoveRef.current = requestBotMove; }, [requestBotMove]);
@@ -175,8 +216,8 @@ export function ChessApp() {
     else color = Math.random() < 0.5 ? "w" : "b";
     setPlayerColor(color);
     setFlipped(color === "b");
-    addLog("info", `New match — you play ${color === "w" ? "White" : "Black"}.`);
     setMatchActive(true);
+    setMode("match");
     force();
 
     if (color === "b") {
@@ -185,28 +226,28 @@ export function ChessApp() {
     } else {
       setPending(false);
     }
-  }, [colorChoice, addLog, force]);
+  }, [colorChoice, force]);
 
-  const startMatch = useCallback(() => {
-    if (!activeBot) {
-      addLog("warn", "Pick a bot from the library first.");
-      return;
-    }
-    setSetupOpen(true);
-  }, [activeBot, addLog]);
+  const triggerPlay = useCallback(() => {
+    if (!activeBot) return;
+    setVsOverlay(true);
+  }, [activeBot]);
 
-  const resetGame = useCallback(() => {
-    gameRef.current = new Chess();
-    setHistory([]);
-    setUciHistory([]);
-    setLastMove(null);
-    setPending(false);
-    setPromotion(null);
-    recordedRef.current = false;
-    setResignedFlag(false);
-    addLog("info", "Board reset.");
-    force();
-  }, [addLog, force]);
+  // VS overlay auto-advance after 1.2s
+  useEffect(() => {
+    if (!vsOverlay) return;
+    const t = setTimeout(() => {
+      setVsOverlay(false);
+      beginMatch();
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [vsOverlay, beginMatch]);
+
+  const skipOverlay = useCallback(() => {
+    if (!vsOverlay) return;
+    setVsOverlay(false);
+    beginMatch();
+  }, [vsOverlay, beginMatch]);
 
   const finishMove = useCallback(
     (from: Square, to: Square, promo?: PieceSymbol) => {
@@ -216,7 +257,6 @@ export function ChessApp() {
       setHistory((h) => [...h, move.san]);
       setUciHistory((h) => [...h, uci]);
       setLastMove({ from, to });
-      addLog("ok", `You played ${move.san}`);
       force();
       setPending(true);
       setTimeout(() => requestBotMoveRef.current(), 250);
@@ -259,16 +299,11 @@ export function ChessApp() {
 
   const resignMatch = useCallback(() => {
     if (recordedRef.current || game.isGameOver()) return;
-    if (history.length === 0) {
-      addLog("warn", "Nothing to resign — start a match first.");
-      return;
-    }
+    if (history.length === 0) return;
     setPending(false);
     setResignedFlag(true);
-    addLog("warn", `You resigned. ${activeBot?.name ?? "Bot"} wins.`);
-  }, [game, history.length, addLog, activeBot]);
+  }, [game, history.length]);
 
-  // Record result when the game ends (or on resign)
   useEffect(() => {
     if (!user || !profile || recordedRef.current) return;
     const over = game.isGameOver() || resignedFlag;
@@ -277,31 +312,28 @@ export function ChessApp() {
 
     let userField: "wins" | "losses" | "draws" = "draws";
     let botField: "wins" | "losses" | "draws" = "draws";
-    let eloDelta = 0;
     let title = "Draw";
     let detail = "The game ended in a draw.";
 
     if (resignedFlag) {
-      userField = "losses"; botField = "wins"; eloDelta = 0;
+      userField = "losses"; botField = "wins";
       title = "Defeat";
       detail = `You resigned — ${activeBot?.name ?? "the bot"} wins.`;
     } else if (game.isCheckmate()) {
       const loser = game.turn();
       if (loser === playerColor) {
-        userField = "losses"; botField = "wins"; eloDelta = 0;
+        userField = "losses"; botField = "wins";
         title = "Defeat";
         detail = `${activeBot?.name ?? "Bot"} delivered checkmate.`;
       } else {
-        userField = "wins"; botField = "losses"; eloDelta = 0;
+        userField = "wins"; botField = "losses";
         title = "Victory";
         detail = `You checkmated ${activeBot?.name ?? "the bot"}!`;
       }
     } else if (game.isStalemate()) {
       detail = "Stalemate — no legal moves.";
     }
-    void eloDelta;
 
-    // Bot games are cosmetic-only for Elo — record wins/losses but never change rating.
     const profUpdate = {
       wins: profile.wins,
       losses: profile.losses,
@@ -310,11 +342,7 @@ export function ChessApp() {
     };
     profUpdate[userField] = profUpdate[userField] + 1;
     supabase.from("profiles").update(profUpdate).eq("id", user.id).then(({ error }) => {
-      if (error) addLog("error", `Score sync failed: ${error.message}`);
-      else {
-        addLog("ok", `Result saved (${userField} — Elo unchanged, bot game)`);
-        refreshProfile();
-      }
+      if (!error) refreshProfile();
     });
 
     if (activeBot) {
@@ -329,17 +357,14 @@ export function ChessApp() {
         bot_id: activeBot.id,
         bot_name: activeBot.name,
         ...next,
-      }, { onConflict: "user_id,bot_id" }).then(({ error }) => {
-        if (error) addLog("error", `Bot stats sync failed: ${error.message}`);
-      });
-      // Global lifetime counters on the public custom_bots row
+      }, { onConflict: "user_id,bot_id" }).then(() => {});
       if (botField === "wins") incrementBotLifetime(activeBot.id, 1, 0);
       else if (botField === "losses") incrementBotLifetime(activeBot.id, 0, 1);
     }
 
     setResultModal({ open: true, title, detail });
     setMatchActive(false);
-  }, [history.length, game, user, profile, addLog, refreshProfile, activeBot, playerColor, botStats, resignedFlag]);
+  }, [history.length, game, user, profile, refreshProfile, activeBot, playerColor, botStats, resignedFlag]);
 
   const moveRows = useMemo(() => {
     const rows: Array<{ n: number; w: string; b?: string }> = [];
@@ -349,261 +374,123 @@ export function ChessApp() {
     return rows;
   }, [history]);
 
-  const statusDot = {
-    idle: "bg-muted-foreground",
-    checking: "bg-warning animate-pulse",
-    ok: "bg-success",
-    error: "bg-destructive",
-  }[status];
+  const navItems: Array<{ key: SidebarKey; label: string; icon: typeof Home; onClick?: () => void }> = [
+    { key: "home", label: "Home", icon: Home, onClick: () => { setSidebar("home"); setMode("home"); } },
+    { key: "play", label: "Play Bots", icon: Swords, onClick: () => { setSidebar("play"); if (mode !== "match") setMode("hub"); } },
+    { key: "profile", label: "Profile", icon: User, onClick: () => { setSidebar("profile"); setProfileOpen(true); } },
+    { key: "updates", label: "Updates", icon: Bell },
+    { key: "home", label: "Settings", icon: Settings, onClick: () => { setProfileOpen(true); } },
+  ];
 
   return (
-    <div className="min-h-screen w-full px-3 md:px-6 py-4 md:py-6">
-      <header className="max-w-[1400px] mx-auto flex items-center justify-between mb-4 md:mb-6">
-        <div className="flex items-center gap-3">
+    <div className="min-h-screen w-full flex">
+      {/* Sidebar */}
+      <aside className="w-16 md:w-56 shrink-0 border-r border-border bg-card/40 flex flex-col">
+        <div className="px-3 md:px-4 py-4 flex items-center gap-2 border-b border-border">
+          <div className="w-8 h-8 rounded-md bg-primary/15 grid place-items-center ring-1 ring-primary/30">
+            <span className="text-primary text-base font-black">♞</span>
+          </div>
+          <div className="hidden md:block">
+            <div className="text-sm font-bold leading-tight">BotBoard</div>
+            <div className="text-[10px] text-muted-foreground">Chess Arena</div>
+          </div>
+        </div>
+        <nav className="flex-1 py-3 space-y-0.5 px-2">
+          {navItems.map((item, idx) => {
+            const Icon = item.icon;
+            const active = idx === 0 ? sidebar === "home" && mode === "home" : idx === 1 ? sidebar === "play" || mode === "match" : false;
+            const content = (
+              <button
+                key={idx}
+                onClick={item.onClick}
+                className={cn(
+                  "w-full flex items-center gap-3 px-2 md:px-3 py-2 rounded-md text-left text-sm transition-colors",
+                  active ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground",
+                )}
+              >
+                <Icon className="w-4 h-4 shrink-0" />
+                <span className="hidden md:inline">{item.label}</span>
+              </button>
+            );
+            if (item.label === "Updates") {
+              return (
+                <div key={idx} className="px-0">
+                  <div className="md:hidden grid place-items-center py-1"><UpdateLogButton /></div>
+                  <div className="hidden md:block"><UpdateLogButton /></div>
+                </div>
+              );
+            }
+            return content;
+          })}
+        </nav>
+        <div className="p-2 border-t border-border space-y-1">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setBathroomOpen(true)}
-            className="h-9 px-2 text-lg hover:bg-secondary/60"
-            title="Bathroom Break"
+            className="w-full justify-start text-xs"
           >
-            🚽 <span className="hidden md:inline text-xs ml-1 font-semibold">Bathroom Break</span>
+            🚽 <span className="hidden md:inline ml-1">Bathroom</span>
           </Button>
-          <div className="w-9 h-9 rounded-lg bg-primary/15 grid place-items-center ring-1 ring-primary/30">
-            <span className="text-primary text-lg font-black">♞</span>
-          </div>
-          <div>
-            <h1 className="text-lg md:text-xl font-bold tracking-tight">BotBoard</h1>
-            <p className="text-xs text-muted-foreground">Custom engine sparring arena</p>
-          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => signOut()}
+            className="w-full justify-start text-xs text-muted-foreground"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">Sign out</span>
+          </Button>
         </div>
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          <span className={cn("w-2 h-2 rounded-full", statusDot)} />
-          <span>{status === "ok" ? "Engine online" : status === "error" ? "Engine offline" : status === "checking" ? "Contacting engine" : "Standby"}</span>
-          <UpdateLogButton />
-          {profile && (
-            <>
-              <Button variant="ghost" size="sm" onClick={() => setProfileOpen(true)} className="h-7 px-2 text-xs">
-                <Settings className="w-3.5 h-3.5 mr-1" /> Profile
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => signOut()} className="h-7 px-2 text-xs">
-                <LogOut className="w-3.5 h-3.5 mr-1" /> Sign out
-              </Button>
-            </>
-          )}
-        </div>
-      </header>
+      </aside>
 
-      <main className="max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-4 md:gap-6">
-        {/* Board area */}
-        <section className="space-y-4">
-          {activeBot && (
-            <div className="relative">
-              <BotChatBubble active={matchActive && !game.isGameOver() && !resignedFlag} lines={activeBot.dialogueLines} />
-              <Card className="bg-card p-3 flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-primary/40">
-                  {activeBot.avatar ? (
-                    <img src={activeBot.avatar} alt={activeBot.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <User className="w-5 h-5 text-muted-foreground" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold truncate">
-                    {activeBot.name} <span className="text-muted-foreground font-normal">· ELO {activeBot.elo}</span>
-                  </div>
-                  {activeBot.quote && (
-                    <div className="text-xs text-muted-foreground italic truncate">“{activeBot.quote}”</div>
-                  )}
-                  <div className="text-[11px] text-muted-foreground mt-0.5">
-                    Bot Record — <span className="text-success">Wins: {botStats.wins}</span>
-                    {" | "}<span className="text-destructive">Losses: {botStats.losses}</span>
-                    {" | "}<span>Draws: {botStats.draws}</span>
-                  </div>
-                </div>
-                <span className="text-[10px] uppercase tracking-wider text-primary">{activeBot.category}</span>
-              </Card>
-            </div>
+      {/* Main content area */}
+      <div className="flex-1 min-w-0 flex flex-col">
+        <main className="flex-1 px-4 md:px-8 py-6">
+          {mode === "home" && profile && (
+            <HomeView
+              profile={profile}
+              onPlay={() => { setSidebar("play"); setMode("hub"); }}
+            />
           )}
-          <Card className="p-4 md:p-6 bg-card">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-medium">{gameStatusText}</div>
-              {pending && <div className="text-xs text-muted-foreground">Bot thinking…</div>}
-            </div>
-            <Board
+
+          {mode === "hub" && (
+            <HubView
+              profile={profile}
+              activeBot={activeBot}
+              colorChoice={colorChoice}
+              setColorChoice={setColorChoice}
+              onPlay={triggerPlay}
+              flipped={flipped}
+            />
+          )}
+
+          {mode === "match" && (
+            <MatchView
+              profile={profile}
+              activeBot={activeBot}
               game={game}
               flipped={flipped}
-              disabled={pending || game.isGameOver() || bathroomOpen || resignedFlag}
+              pending={pending}
+              matchActive={matchActive}
+              resignedFlag={resignedFlag}
+              gameStatusText={gameStatusText}
+              bathroomOpen={bathroomOpen}
               lastMove={lastMove}
-              onAttemptMove={handleAttemptMove}
+              handleAttemptMove={handleAttemptMove}
+              moveRows={moveRows}
+              onResign={resignMatch}
+              onFlip={() => setFlipped((f) => !f)}
+              botStats={botStats}
             />
-          </Card>
-          <Button
-            onClick={resignMatch}
-            variant="destructive"
-            disabled={game.isGameOver() || resignedFlag || history.length === 0}
-            className="w-full font-bold"
-          >
-            <Flag className="w-4 h-4 mr-2" /> 🏳️ Resign Match
-          </Button>
-          {profile && (
-            <Card className="bg-card p-3 flex items-center gap-3">
-              <div className="w-11 h-11 rounded-full bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-primary/40">
-                {profile.avatar_url ? (
-                  <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
-                ) : (
-                  <User className="w-5 h-5 text-muted-foreground" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold truncate flex items-center gap-1.5">
-                  {profile.profile_icon && <span className="text-base leading-none">{profile.profile_icon}</span>}
-                  <span className="truncate">{profile.username}</span>
-                  {profile.title_badge && (
-                    <span className={cn(
-                      "text-[10px] font-bold px-1.5 py-0.5 rounded",
-                      profile.title_badge.includes("CRTR")
-                        ? "bg-gradient-to-r from-amber-500/30 to-yellow-300/20 text-amber-300 ring-1 ring-amber-400/50"
-                        : "bg-primary/20 text-primary ring-1 ring-primary/40",
-                    )}>{profile.title_badge}</span>
-                  )}
-                </div>
-                <div className="text-[11px] text-muted-foreground">
-                  {profile.wins}W · {profile.losses}L · {profile.draws}D
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Elo</div>
-                <div className="text-lg font-black text-primary leading-none">{profile.elo_rating}</div>
-              </div>
-            </Card>
           )}
-        </section>
+        </main>
 
-        {/* Side panel */}
-        <aside className="flex flex-col gap-4">
-          {/* Bot bridge */}
-          <Card className="bg-card">
-            <Collapsible open={configOpen} onOpenChange={setConfigOpen}>
-              <CollapsibleTrigger asChild>
-                <button className="w-full flex items-center justify-between px-4 py-3 text-left">
-                  <div className="flex items-center gap-2">
-                    <Wifi className="w-4 h-4 text-primary" />
-                    <span className="text-sm font-semibold">Native Engine</span>
-                    <span className={cn("ml-1 w-2 h-2 rounded-full", statusDot)} />
-                  </div>
-                  <ChevronDown className={cn("w-4 h-4 transition-transform", configOpen && "rotate-180")} />
-                </button>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="px-4 pb-4 space-y-2">
-                  <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    Stockfish runs locally inside a browser Web Worker — no network, no timeouts.
-                    Each move is first looked up in the bot&apos;s Polyglot <code>.bin</code> opening
-                    book (if uploaded). Once book theory is exhausted, the engine returns its top
-                    candidates and the bot&apos;s slider weights pick from them.
-                  </p>
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-          </Card>
-
-          {/* Color selector + Play Match */}
-          <Card className="bg-card p-3 space-y-2">
-            <Label className="text-xs text-muted-foreground px-1">Play as</Label>
-            <div className="grid grid-cols-3 gap-2">
-              {([
-                { v: "white", label: "⚪ White" },
-                { v: "black", label: "⚫ Black" },
-                { v: "random", label: "🔀 Random" },
-              ] as Array<{ v: ColorChoice; label: string }>).map((o) => (
-                <button
-                  key={o.v}
-                  type="button"
-                  onClick={() => setColorChoice(o.v)}
-                  className={cn(
-                    "text-xs font-medium py-2 rounded-md border transition-colors",
-                    colorChoice === o.v
-                      ? "bg-primary/15 border-primary/50 text-primary"
-                      : "bg-secondary/40 border-border/60 text-muted-foreground hover:bg-secondary",
-                  )}
-                >
-                  {o.label}
-                </button>
-              ))}
-            </div>
-            <Button
-              onClick={startMatch}
-              className="w-full bg-success text-primary-foreground hover:bg-success/90 font-bold h-11 text-base"
-            >
-              <Play className="w-4 h-4 mr-2" /> PLAY MATCH
-            </Button>
-          </Card>
-
-          {/* Controls */}
-          <Card className="bg-card p-3">
-            <div className="grid grid-cols-3 gap-2">
-              <Button variant="default" size="sm" onClick={startMatch}>
-                <Plus className="w-3.5 h-3.5 mr-1" /> New
-              </Button>
-              <Button variant="secondary" size="sm" onClick={() => setFlipped((f) => !f)}>
-                <FlipHorizontal2 className="w-3.5 h-3.5 mr-1" /> Flip
-              </Button>
-              <Button variant="secondary" size="sm" onClick={resetGame}>
-                <RotateCcw className="w-3.5 h-3.5 mr-1" /> Reset
-              </Button>
-            </div>
-          </Card>
-
-          <BotRoster onSelect={(b) => addLog("ok", `Switched active bot to ${b.name}`)} />
-
-          {/* Move history */}
-          <Card className="bg-card p-3 flex-1 min-h-[200px]">
-            <div className="text-sm font-semibold mb-2 px-1">Move History</div>
-            <div className="max-h-[260px] overflow-auto scroll-thin rounded-md">
-              {moveRows.length === 0 ? (
-                <div className="text-xs text-muted-foreground px-2 py-4">No moves yet.</div>
-              ) : (
-                <table className="w-full text-sm">
-                  <tbody>
-                    {moveRows.map((r) => (
-                      <tr key={r.n} className="odd:bg-secondary/30">
-                        <td className="px-2 py-1 text-muted-foreground w-8 text-xs">{r.n}.</td>
-                        <td className="px-2 py-1 font-mono">{r.w}</td>
-                        <td className="px-2 py-1 font-mono text-muted-foreground">{r.b ?? ""}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </Card>
-
-          {/* Console */}
-          <Card className="bg-card p-3">
-            <div className="flex items-center gap-2 mb-2 px-1">
-              <Terminal className="w-3.5 h-3.5 text-primary" />
-              <span className="text-sm font-semibold">System Console</span>
-            </div>
-            <div className="bg-background/60 rounded-md p-2 max-h-[180px] overflow-auto scroll-thin font-mono text-[11px] leading-relaxed">
-              {log.map((e, i) => (
-                <div
-                  key={i}
-                  className={cn(
-                    "whitespace-pre-wrap",
-                    e.kind === "warn" && "text-warning",
-                    e.kind === "error" && "text-destructive",
-                    e.kind === "ok" && "text-success",
-                    e.kind === "info" && "text-muted-foreground",
-                  )}
-                >
-                  <span className="opacity-60">[{e.ts}]</span> {e.text}
-                </div>
-              ))}
-            </div>
-          </Card>
-        </aside>
-      </main>
+        {/* Owner Portal — always at the bottom */}
+        <div className="border-t border-border">
+          <OwnerPortal />
+        </div>
+      </div>
 
       <PromotionDialog
         open={!!promotion}
@@ -615,6 +502,35 @@ export function ChessApp() {
           }
         }}
       />
+
+      {/* VS Overlay */}
+      {vsOverlay && activeBot && profile && (
+        <div
+          className="fixed inset-0 z-[80] bg-background/90 backdrop-blur-md grid place-items-center animate-in fade-in duration-200 cursor-pointer"
+          onClick={skipOverlay}
+        >
+          <div className="flex items-center gap-8 md:gap-16 px-6">
+            <VsCard
+              name={profile.username}
+              avatar={profile.avatar_url}
+              elo={profile.elo_rating}
+              title={profile.title_badge}
+              side="left"
+            />
+            <div className="text-5xl md:text-7xl font-black text-primary animate-pulse drop-shadow-[0_0_20px_hsl(var(--primary)/0.6)]">
+              VS
+            </div>
+            <VsCard
+              name={activeBot.name}
+              avatar={activeBot.avatar}
+              elo={activeBot.elo}
+              subtitle={activeBot.category}
+              side="right"
+            />
+          </div>
+          <div className="absolute bottom-8 text-xs text-muted-foreground">Click anywhere to skip</div>
+        </div>
+      )}
 
       <Dialog open={resultModal.open} onOpenChange={(v) => setResultModal((r) => ({ ...r, open: v }))}>
         <DialogContent className="max-w-sm">
@@ -638,11 +554,14 @@ export function ChessApp() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="secondary" onClick={() => setResultModal((r) => ({ ...r, open: false }))}>
-              Close
+            <Button
+              variant="secondary"
+              onClick={() => { setResultModal((r) => ({ ...r, open: false })); setMode("hub"); }}
+            >
+              Back to Hub
             </Button>
             <Button
-              onClick={() => { setResultModal((r) => ({ ...r, open: false })); startMatch(); }}
+              onClick={() => { setResultModal((r) => ({ ...r, open: false })); triggerPlay(); }}
               className="bg-success text-primary-foreground hover:bg-success/90"
             >
               <Play className="w-4 h-4 mr-1" /> Play again
@@ -651,65 +570,292 @@ export function ChessApp() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={setupOpen} onOpenChange={setSetupOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-xl">Match Setup</DialogTitle>
-            <DialogDescription>Review the matchup, then start the game when ready.</DialogDescription>
-          </DialogHeader>
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 py-2">
-            {/* Player */}
-            <Card className="bg-secondary/40 p-3 flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-secondary grid place-items-center overflow-hidden ring-1 ring-primary/30">
-                {profile?.avatar_url
-                  ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
-                  : <User className="w-5 h-5 text-muted-foreground" />}
-              </div>
-              <div className="min-w-0">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">You</div>
-                <div className="text-sm font-semibold truncate">{profile?.username ?? "Player"}</div>
-                <div className="text-xs text-muted-foreground">Elo {profile?.elo_rating ?? 800}</div>
-              </div>
-            </Card>
-            <div className="text-2xl font-black text-muted-foreground">vs</div>
-            {/* Bot */}
-            <Card className="bg-secondary/40 p-3 flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-secondary grid place-items-center overflow-hidden ring-1 ring-primary/30">
-                {activeBot?.avatar
-                  ? <img src={activeBot.avatar} alt="" className="w-full h-full object-cover" />
-                  : <User className="w-5 h-5 text-muted-foreground" />}
-              </div>
-              <div className="min-w-0">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Bot</div>
-                <div className="text-sm font-semibold truncate">{activeBot?.name ?? "—"}</div>
-                <div className="text-xs text-muted-foreground">Elo {activeBot?.elo ?? "—"}</div>
-              </div>
-            </Card>
-          </div>
-          {/* Static preview board */}
-          <div className="rounded-md bg-background/60 p-3 grid place-items-center">
-            <div className="pointer-events-none scale-[0.85] origin-center">
-              <Board game={new Chess()} flipped={false} disabled lastMove={null} onAttemptMove={() => false} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="secondary" onClick={() => setSetupOpen(false)}>Cancel</Button>
-            <Button
-              onClick={() => { setSetupOpen(false); beginMatch(); }}
-              className="bg-success text-primary-foreground hover:bg-success/90 font-bold"
-            >
-              <Play className="w-4 h-4 mr-2" /> Start Game
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <OwnerPortal />
-
       <BathroomBreak open={bathroomOpen} onClose={() => setBathroomOpen(false)} />
       <ProfileSettings open={profileOpen} onOpenChange={setProfileOpen} />
       <UpdatesPopup />
+    </div>
+  );
+}
 
+/* ───────── Sub-views ───────── */
+
+function HomeView({
+  profile,
+  onPlay,
+}: {
+  profile: NonNullable<ReturnType<typeof useAuth>["profile"]>;
+  onPlay: () => void;
+}) {
+  return (
+    <div className="max-w-2xl mx-auto pt-12 md:pt-20 space-y-8">
+      <div className="flex items-center gap-5">
+        <div className="w-20 h-20 rounded-md bg-secondary grid place-items-center overflow-hidden ring-1 ring-border shrink-0">
+          {profile.avatar_url ? (
+            <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
+          ) : (
+            <User className="w-8 h-8 text-muted-foreground" />
+          )}
+        </div>
+        <div className="min-w-0">
+          <PlayerIdentity
+            username={profile.username}
+            elo={profile.elo_rating}
+            title={profile.title_badge}
+            icon={profile.profile_icon}
+            size="lg"
+          />
+          <div className="text-xs text-muted-foreground mt-2">
+            {profile.wins} wins · {profile.losses} losses · {profile.draws} draws
+          </div>
+        </div>
+      </div>
+
+      <div className="pt-4">
+        <Button
+          onClick={onPlay}
+          className="bg-success text-primary-foreground hover:bg-success/90 font-bold h-12 px-8 text-base"
+        >
+          <Swords className="w-5 h-5 mr-2" /> Play Bots
+        </Button>
+      </div>
+
+      <div className="text-xs text-muted-foreground border-t border-border pt-6">
+        Welcome back. Choose <span className="text-foreground">Play Bots</span> from the sidebar to enter the hub.
+      </div>
+    </div>
+  );
+}
+
+function HubView({
+  profile,
+  activeBot,
+  colorChoice,
+  setColorChoice,
+  onPlay,
+  flipped,
+}: {
+  profile: ReturnType<typeof useAuth>["profile"];
+  activeBot: BotConfig | null;
+  colorChoice: ColorChoice;
+  setColorChoice: (c: ColorChoice) => void;
+  onPlay: () => void;
+  flipped: boolean;
+}) {
+  const idleGame = useMemo(() => new Chess(), []);
+  return (
+    <div className="max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-[240px_1fr_340px] gap-4 md:gap-6">
+      {/* Left: compact player */}
+      <div className="space-y-3">
+        {profile && <MiniProfileCard profile={profile} />}
+        <Card className="bg-card p-3 space-y-2">
+          <Label className="text-xs text-muted-foreground px-1">Play as</Label>
+          <div className="grid grid-cols-3 gap-1.5">
+            {([
+              { v: "white" as const, label: "⚪" },
+              { v: "black" as const, label: "⚫" },
+              { v: "random" as const, label: "🔀" },
+            ]).map((o) => (
+              <button
+                key={o.v}
+                type="button"
+                onClick={() => setColorChoice(o.v)}
+                className={cn(
+                  "text-sm py-2 rounded-md border transition-colors",
+                  colorChoice === o.v
+                    ? "bg-primary/15 border-primary/50 text-primary"
+                    : "bg-secondary/40 border-border/60 text-muted-foreground hover:bg-secondary",
+                )}
+                title={o.v}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+          {activeBot ? (
+            <Button
+              onClick={onPlay}
+              className="w-full bg-success text-primary-foreground hover:bg-success/90 font-bold h-11"
+            >
+              <Play className="w-4 h-4 mr-2" /> Play {activeBot.name}
+            </Button>
+          ) : (
+            <div className="text-[11px] text-muted-foreground text-center py-2 border border-dashed border-border/60 rounded-md">
+              Select a bot from the library →
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Center: idle board */}
+      <Card className="p-4 md:p-6 bg-card">
+        <div className="text-sm text-muted-foreground mb-3">Idle board · select a bot to play</div>
+        <Board
+          game={idleGame}
+          flipped={flipped}
+          disabled
+          lastMove={null}
+          onAttemptMove={() => false}
+        />
+      </Card>
+
+      {/* Right: bot library */}
+      <div>
+        <BotRoster />
+      </div>
+    </div>
+  );
+}
+
+function MatchView({
+  profile,
+  activeBot,
+  game,
+  flipped,
+  pending,
+  matchActive,
+  resignedFlag,
+  gameStatusText,
+  bathroomOpen,
+  lastMove,
+  handleAttemptMove,
+  moveRows,
+  onResign,
+  onFlip,
+  botStats,
+}: {
+  profile: ReturnType<typeof useAuth>["profile"];
+  activeBot: BotConfig | null;
+  game: Chess;
+  flipped: boolean;
+  pending: boolean;
+  matchActive: boolean;
+  resignedFlag: boolean;
+  gameStatusText: string;
+  bathroomOpen: boolean;
+  lastMove: { from: Square; to: Square } | null;
+  handleAttemptMove: (from: Square, to: Square) => boolean;
+  moveRows: Array<{ n: number; w: string; b?: string }>;
+  onResign: () => void;
+  onFlip: () => void;
+  botStats: BotStats;
+}) {
+  return (
+    <div className="max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 md:gap-6">
+      <section className="space-y-3">
+        {/* Top: Bot */}
+        {activeBot && (
+          <div className="relative">
+            <BotChatBubble active={matchActive && !game.isGameOver() && !resignedFlag} lines={activeBot.dialogueLines} />
+            <Card className="bg-card p-3 flex items-center gap-3">
+              <div className="w-11 h-11 rounded-full bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-primary/40">
+                {activeBot.avatar ? (
+                  <img src={activeBot.avatar} alt={activeBot.name} className="w-full h-full object-cover" />
+                ) : (
+                  <User className="w-5 h-5 text-muted-foreground" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold truncate">
+                  {activeBot.name} <span className="text-muted-foreground/70 font-normal">({activeBot.elo})</span>
+                </div>
+                <div className="text-[11px] text-muted-foreground truncate">{activeBot.category}</div>
+              </div>
+              <div className="text-[11px] text-muted-foreground text-right shrink-0">
+                <span className="text-success">{botStats.wins}W</span> · <span className="text-destructive">{botStats.losses}L</span> · {botStats.draws}D
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* Board */}
+        <Card className="p-4 md:p-6 bg-card">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-sm font-medium">{gameStatusText}</div>
+            <div className="flex items-center gap-2">
+              {pending && <div className="text-xs text-muted-foreground">Bot thinking…</div>}
+              <Button variant="ghost" size="sm" onClick={onFlip}>
+                <FlipHorizontal2 className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          </div>
+          <Board
+            game={game}
+            flipped={flipped}
+            disabled={pending || game.isGameOver() || bathroomOpen || resignedFlag}
+            lastMove={lastMove}
+            onAttemptMove={handleAttemptMove}
+          />
+        </Card>
+
+        {/* Bottom: Player */}
+        {profile && <MiniProfileCard profile={profile} />}
+      </section>
+
+      {/* Right: Moves + Resign */}
+      <aside className="flex flex-col gap-3">
+        <Card className="bg-card p-3 flex-1 min-h-[260px]">
+          <div className="text-sm font-semibold mb-2 px-1">Moves</div>
+          <div className="max-h-[480px] overflow-auto scroll-thin rounded-md">
+            {moveRows.length === 0 ? (
+              <div className="text-xs text-muted-foreground px-2 py-4">No moves yet.</div>
+            ) : (
+              <table className="w-full text-sm">
+                <tbody>
+                  {moveRows.map((r) => (
+                    <tr key={r.n} className="odd:bg-secondary/30">
+                      <td className="px-2 py-1 text-muted-foreground w-8 text-xs">{r.n}.</td>
+                      <td className="px-2 py-1 font-mono">{r.w}</td>
+                      <td className="px-2 py-1 font-mono text-muted-foreground">{r.b ?? ""}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </Card>
+        <Button
+          onClick={onResign}
+          variant="destructive"
+          disabled={game.isGameOver() || resignedFlag || moveRows.length === 0}
+          className="w-full font-bold"
+        >
+          <Flag className="w-4 h-4 mr-2" /> Resign
+        </Button>
+      </aside>
+    </div>
+  );
+}
+
+function VsCard({
+  name,
+  avatar,
+  elo,
+  title,
+  subtitle,
+  side,
+}: {
+  name: string;
+  avatar?: string | null;
+  elo: number;
+  title?: string | null;
+  subtitle?: string;
+  side: "left" | "right";
+}) {
+  return (
+    <div className={cn("flex flex-col items-center gap-3", side === "right" ? "text-right" : "text-left")}>
+      <div className="w-24 h-24 md:w-32 md:h-32 rounded-md bg-secondary grid place-items-center overflow-hidden ring-2 ring-primary/40 shadow-[0_0_30px_hsl(var(--primary)/0.3)]">
+        {avatar ? (
+          <img src={avatar} alt={name} className="w-full h-full object-cover" />
+        ) : (
+          <User className="w-10 h-10 text-muted-foreground" />
+        )}
+      </div>
+      <div className="text-center">
+        {title && <div className="text-[10px] text-primary font-black uppercase tracking-widest">{title}</div>}
+        <div className="text-base md:text-xl font-bold">{name}</div>
+        <div className="text-xs text-muted-foreground">({elo})</div>
+        {subtitle && <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">{subtitle}</div>}
+      </div>
     </div>
   );
 }
