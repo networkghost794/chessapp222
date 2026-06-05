@@ -109,7 +109,7 @@ export function BotRoster({ onSelect }: { onSelect?: (bot: BotConfig) => void })
                       No bots in this category.
                     </div>
                   ) : (
-                    <div className="space-y-1.5 pt-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 pt-1">
                       {list.map((b) => (
                         <div
                           key={b.id}
@@ -120,37 +120,37 @@ export function BotRoster({ onSelect }: { onSelect?: (bot: BotConfig) => void })
                           onDragLeave={() => setDragOverId((id) => (id === b.id ? null : id))}
                           onDrop={(e) => { e.preventDefault(); handleDropOnBot(b); }}
                           className={cn(
-                            "group flex items-center gap-2 rounded-md p-1.5 cursor-pointer transition-colors",
+                            "group relative flex flex-col items-center text-center gap-2 rounded-lg p-3 cursor-pointer transition-colors border border-transparent min-w-0",
                             activeId === b.id
-                              ? "bg-primary/15 ring-1 ring-primary/40"
-                              : "hover:bg-secondary/50",
+                              ? "bg-primary/15 border-primary/40"
+                              : "bg-secondary/30 hover:bg-secondary/60",
                             dragId === b.id && "opacity-50",
                             dragOverId === b.id && dragId && dragId !== b.id && "ring-1 ring-primary",
                           )}
                           onClick={() => { setActiveBotId(b.id); onSelect?.(b); }}
                         >
                           {isOwner && (
-                            <GripVertical className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0 cursor-grab" />
+                            <GripVertical className="w-3.5 h-3.5 text-muted-foreground/60 absolute top-1 left-1 cursor-grab" />
                           )}
-                          <div className="w-9 h-9 rounded-full bg-secondary grid place-items-center overflow-hidden shrink-0">
+                          <div className="w-12 h-12 rounded-full bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-border">
                             {b.avatar ? (
                               <img src={b.avatar} alt={b.name} className="w-full h-full object-cover" />
                             ) : (
-                              <User className="w-4 h-4 text-muted-foreground" />
+                              <User className="w-5 h-5 text-muted-foreground" />
                             )}
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium truncate">{b.name}</div>
-                            <div className="text-[11px] text-muted-foreground">ELO {b.elo}</div>
+                          <div className="w-full min-w-0">
+                            <div className="text-xs font-semibold truncate">{b.name}</div>
+                            <div className="text-[10px] text-muted-foreground">ELO {b.elo}</div>
                           </div>
                           {isOwner && (
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="opacity-0 group-hover:opacity-100 h-7 w-7"
+                              className="opacity-0 group-hover:opacity-100 h-6 w-6 absolute top-1 right-1"
                               onClick={(e) => { e.stopPropagation(); deleteBot(b.id); }}
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Trash2 className="w-3 h-3" />
                             </Button>
                           )}
                         </div>

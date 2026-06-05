@@ -67,13 +67,13 @@ function PlayerIdentity({
 }) {
   const cls = size === "lg" ? "text-2xl" : size === "sm" ? "text-sm" : "text-base";
   return (
-    <span className={cn("inline-flex items-baseline gap-2 font-semibold tracking-tight", cls)}>
+    <span className={cn("inline-flex items-baseline gap-2 font-semibold tracking-tight max-w-full min-w-0", cls)}>
       {title && (
-        <span className="text-primary font-black uppercase tracking-wider text-[0.7em]">{title}</span>
+        <span className="text-primary font-black uppercase tracking-wider text-[0.7em] shrink-0">{title}</span>
       )}
-      {icon && <span className="text-[0.9em] leading-none">{icon}</span>}
-      <span className="text-foreground">{username}</span>
-      <span className="text-muted-foreground/70 font-normal text-[0.85em]">({elo})</span>
+      {icon && <span className="text-[0.9em] leading-none shrink-0">{icon}</span>}
+      <span className="text-foreground truncate min-w-0">{username}</span>
+      <span className="text-muted-foreground/70 font-normal text-[0.85em] shrink-0">({elo})</span>
     </span>
   );
 }
@@ -383,7 +383,7 @@ export function ChessApp() {
   ];
 
   return (
-    <div className="min-h-screen w-full flex">
+    <div className="min-h-screen w-full flex overflow-x-hidden">
       {/* Sidebar */}
       <aside className="w-16 md:w-56 shrink-0 border-r border-border bg-card/40 flex flex-col">
         <div className="px-3 md:px-4 py-4 flex items-center gap-2 border-b border-border">
@@ -643,11 +643,11 @@ function HubView({
 }) {
   const idleGame = useMemo(() => new Chess(), []);
   return (
-    <div className="max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-[240px_1fr_340px] gap-4 md:gap-6">
+    <div className="max-w-[1500px] mx-auto grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)_380px] gap-6 lg:gap-8">
       {/* Left: compact player */}
-      <div className="space-y-3">
+      <div className="space-y-4 min-w-0">
         {profile && <MiniProfileCard profile={profile} />}
-        <Card className="bg-card p-3 space-y-2">
+        <Card className="bg-card p-4 space-y-3">
           <Label className="text-xs text-muted-foreground px-1">Play as</Label>
           <div className="grid grid-cols-3 gap-1.5">
             {([
@@ -687,19 +687,21 @@ function HubView({
       </div>
 
       {/* Center: idle board */}
-      <Card className="p-4 md:p-6 bg-card">
-        <div className="text-sm text-muted-foreground mb-3">Idle board · select a bot to play</div>
-        <Board
-          game={idleGame}
-          flipped={flipped}
-          disabled
-          lastMove={null}
-          onAttemptMove={() => false}
-        />
+      <Card className="p-5 md:p-6 bg-card min-w-0">
+        <div className="text-sm text-muted-foreground mb-4">Idle board · select a bot to play</div>
+        <div className="mx-auto w-full max-w-[min(60vh,520px)]">
+          <Board
+            game={idleGame}
+            flipped={flipped}
+            disabled
+            lastMove={null}
+            onAttemptMove={() => false}
+          />
+        </div>
       </Card>
 
       {/* Right: bot library */}
-      <div>
+      <div className="min-w-0">
         <BotRoster />
       </div>
     </div>
@@ -740,8 +742,8 @@ function MatchView({
   botStats: BotStats;
 }) {
   return (
-    <div className="max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 md:gap-6">
-      <section className="space-y-3">
+    <div className="max-w-[1500px] mx-auto grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6 lg:gap-8">
+      <section className="space-y-4 min-w-0">
         {/* Top: Bot */}
         {activeBot && (
           <div className="relative">
@@ -768,23 +770,25 @@ function MatchView({
         )}
 
         {/* Board */}
-        <Card className="p-4 md:p-6 bg-card">
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-sm font-medium">{gameStatusText}</div>
-            <div className="flex items-center gap-2">
+        <Card className="p-5 md:p-6 bg-card min-w-0">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-sm font-medium truncate">{gameStatusText}</div>
+            <div className="flex items-center gap-2 shrink-0">
               {pending && <div className="text-xs text-muted-foreground">Bot thinking…</div>}
               <Button variant="ghost" size="sm" onClick={onFlip}>
                 <FlipHorizontal2 className="w-3.5 h-3.5" />
               </Button>
             </div>
           </div>
-          <Board
-            game={game}
-            flipped={flipped}
-            disabled={pending || game.isGameOver() || bathroomOpen || resignedFlag}
-            lastMove={lastMove}
-            onAttemptMove={handleAttemptMove}
-          />
+          <div className="mx-auto w-full max-w-[min(65vh,560px)]">
+            <Board
+              game={game}
+              flipped={flipped}
+              disabled={pending || game.isGameOver() || bathroomOpen || resignedFlag}
+              lastMove={lastMove}
+              onAttemptMove={handleAttemptMove}
+            />
+          </div>
         </Card>
 
         {/* Bottom: Player */}
