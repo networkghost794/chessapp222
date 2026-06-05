@@ -643,11 +643,11 @@ function HubView({
 }) {
   const idleGame = useMemo(() => new Chess(), []);
   return (
-    <div className="max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-[240px_1fr_340px] gap-4 md:gap-6">
+    <div className="max-w-[1500px] mx-auto grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)_380px] gap-6 lg:gap-8">
       {/* Left: compact player */}
-      <div className="space-y-3">
+      <div className="space-y-4 min-w-0">
         {profile && <MiniProfileCard profile={profile} />}
-        <Card className="bg-card p-3 space-y-2">
+        <Card className="bg-card p-4 space-y-3">
           <Label className="text-xs text-muted-foreground px-1">Play as</Label>
           <div className="grid grid-cols-3 gap-1.5">
             {([
@@ -687,19 +687,21 @@ function HubView({
       </div>
 
       {/* Center: idle board */}
-      <Card className="p-4 md:p-6 bg-card">
-        <div className="text-sm text-muted-foreground mb-3">Idle board · select a bot to play</div>
-        <Board
-          game={idleGame}
-          flipped={flipped}
-          disabled
-          lastMove={null}
-          onAttemptMove={() => false}
-        />
+      <Card className="p-5 md:p-6 bg-card min-w-0">
+        <div className="text-sm text-muted-foreground mb-4">Idle board · select a bot to play</div>
+        <div className="mx-auto w-full max-w-[min(60vh,520px)]">
+          <Board
+            game={idleGame}
+            flipped={flipped}
+            disabled
+            lastMove={null}
+            onAttemptMove={() => false}
+          />
+        </div>
       </Card>
 
       {/* Right: bot library */}
-      <div>
+      <div className="min-w-0">
         <BotRoster />
       </div>
     </div>
