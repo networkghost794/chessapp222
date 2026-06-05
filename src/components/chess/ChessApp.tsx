@@ -383,7 +383,7 @@ export function ChessApp() {
   ];
 
   return (
-    <div className="min-h-screen w-full flex">
+    <div className="min-h-screen w-full flex overflow-x-hidden">
       {/* Sidebar */}
       <aside className="w-16 md:w-56 shrink-0 border-r border-border bg-card/40 flex flex-col">
         <div className="px-3 md:px-4 py-4 flex items-center gap-2 border-b border-border">
