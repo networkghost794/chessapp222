@@ -742,8 +742,8 @@ function MatchView({
   botStats: BotStats;
 }) {
   return (
-    <div className="max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 md:gap-6">
-      <section className="space-y-3">
+    <div className="max-w-[1500px] mx-auto grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6 lg:gap-8">
+      <section className="space-y-4 min-w-0">
         {/* Top: Bot */}
         {activeBot && (
           <div className="relative">
@@ -770,23 +770,25 @@ function MatchView({
         )}
 
         {/* Board */}
-        <Card className="p-4 md:p-6 bg-card">
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-sm font-medium">{gameStatusText}</div>
-            <div className="flex items-center gap-2">
+        <Card className="p-5 md:p-6 bg-card min-w-0">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-sm font-medium truncate">{gameStatusText}</div>
+            <div className="flex items-center gap-2 shrink-0">
               {pending && <div className="text-xs text-muted-foreground">Bot thinking…</div>}
               <Button variant="ghost" size="sm" onClick={onFlip}>
                 <FlipHorizontal2 className="w-3.5 h-3.5" />
               </Button>
             </div>
           </div>
-          <Board
-            game={game}
-            flipped={flipped}
-            disabled={pending || game.isGameOver() || bathroomOpen || resignedFlag}
-            lastMove={lastMove}
-            onAttemptMove={handleAttemptMove}
-          />
+          <div className="mx-auto w-full max-w-[min(65vh,560px)]">
+            <Board
+              game={game}
+              flipped={flipped}
+              disabled={pending || game.isGameOver() || bathroomOpen || resignedFlag}
+              lastMove={lastMove}
+              onAttemptMove={handleAttemptMove}
+            />
+          </div>
         </Card>
 
         {/* Bottom: Player */}
