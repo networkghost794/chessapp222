@@ -67,13 +67,13 @@ function PlayerIdentity({
 }) {
   const cls = size === "lg" ? "text-2xl" : size === "sm" ? "text-sm" : "text-base";
   return (
-    <span className={cn("inline-flex items-baseline gap-2 font-semibold tracking-tight", cls)}>
+    <span className={cn("inline-flex items-baseline gap-2 font-semibold tracking-tight max-w-full min-w-0", cls)}>
       {title && (
-        <span className="text-primary font-black uppercase tracking-wider text-[0.7em]">{title}</span>
+        <span className="text-primary font-black uppercase tracking-wider text-[0.7em] shrink-0">{title}</span>
       )}
-      {icon && <span className="text-[0.9em] leading-none">{icon}</span>}
-      <span className="text-foreground">{username}</span>
-      <span className="text-muted-foreground/70 font-normal text-[0.85em]">({elo})</span>
+      {icon && <span className="text-[0.9em] leading-none shrink-0">{icon}</span>}
+      <span className="text-foreground truncate min-w-0">{username}</span>
+      <span className="text-muted-foreground/70 font-normal text-[0.85em] shrink-0">({elo})</span>
     </span>
   );
 }
