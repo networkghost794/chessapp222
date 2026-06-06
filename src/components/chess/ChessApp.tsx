@@ -693,6 +693,15 @@ function HubView({
             </div>
           )}
         </Card>
+        <a
+          href="https://sites.google.com/view/chess-bot-library"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-2 rounded-lg border border-border/60 bg-card px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-secondary/60 hover:text-primary"
+        >
+          <span>Bot Library / Info Page</span>
+          <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
+        </a>
       </div>
 
       {/* Center: idle board */}
