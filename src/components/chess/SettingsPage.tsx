@@ -83,7 +83,7 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="max-w-xl mx-auto pt-10 md:pt-16 px-4 pb-12 space-y-6">
+    <div className="max-w-xl mx-auto pt-10 md:pt-16 pb-12 space-y-6">
       {/* Appearance */}
       <Card className="bg-card">
         <CardHeader className="pb-4">

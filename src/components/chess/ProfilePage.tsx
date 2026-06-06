@@ -10,7 +10,7 @@ export function ProfilePage() {
   const winRate = totalGames > 0 ? Math.round((profile.wins / totalGames) * 100) : 0;
 
   return (
-    <div className="max-w-xl mx-auto pt-12 md:pt-20 px-4">
+    <div className="max-w-xl mx-auto pt-12 md:pt-20">
       <Card className="bg-card p-8 space-y-6">
         <div className="flex items-center gap-6">
           <div className="w-24 h-24 rounded-lg bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-border">
