@@ -26,6 +26,7 @@ import {
   Trophy,
   User,
   Bell,
+  ExternalLink,
 } from "lucide-react";
 import { UpdateLogButton } from "./UpdateLogButton";
 import { cn } from "@/lib/utils";
@@ -41,14 +42,15 @@ import {
 import { useAuth } from "@/lib/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { BathroomBreak } from "./BathroomBreak";
-import { ProfileSettings } from "./ProfileSettings";
+import { ProfilePage } from "./ProfilePage";
+import { SettingsPage } from "./SettingsPage";
 import { BotChatBubble } from "./BotChatBubble";
 import { UpdatesPopup } from "./UpdatesPopup";
 
 type ColorChoice = "white" | "black" | "random";
 type BotStats = { wins: number; losses: number; draws: number };
-type AppMode = "home" | "hub" | "match";
-type SidebarKey = "home" | "play" | "profile" | "updates";
+type AppMode = "home" | "hub" | "match" | "profile" | "settings";
+type SidebarKey = "home" | "play" | "profile" | "updates" | "settings";
 
 const EMPTY_STATS: BotStats = { wins: 0, losses: 0, draws: 0 };
 
@@ -129,7 +131,7 @@ export function ChessApp() {
   const game = gameRef.current;
 
   const [bathroomOpen, setBathroomOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
+  
   const [resignedFlag, setResignedFlag] = useState(false);
   const [matchActive, setMatchActive] = useState(false);
 
@@ -377,9 +379,9 @@ export function ChessApp() {
   const navItems: Array<{ key: SidebarKey; label: string; icon: typeof Home; onClick?: () => void }> = [
     { key: "home", label: "Home", icon: Home, onClick: () => { setSidebar("home"); setMode("home"); } },
     { key: "play", label: "Play Bots", icon: Swords, onClick: () => { setSidebar("play"); if (mode !== "match") setMode("hub"); } },
-    { key: "profile", label: "Profile", icon: User, onClick: () => { setSidebar("profile"); setProfileOpen(true); } },
+    { key: "profile", label: "Profile", icon: User, onClick: () => { setSidebar("profile"); setMode("profile"); } },
     { key: "updates", label: "Updates", icon: Bell },
-    { key: "home", label: "Settings", icon: Settings, onClick: () => { setProfileOpen(true); } },
+    { key: "settings", label: "Settings", icon: Settings, onClick: () => { setSidebar("settings"); setMode("settings"); } },
   ];
 
   return (
@@ -398,7 +400,12 @@ export function ChessApp() {
         <nav className="flex-1 py-3 space-y-0.5 px-2">
           {navItems.map((item, idx) => {
             const Icon = item.icon;
-            const active = idx === 0 ? sidebar === "home" && mode === "home" : idx === 1 ? sidebar === "play" || mode === "match" : false;
+            const active =
+              item.key === "home" ? mode === "home" :
+              item.key === "play" ? mode === "hub" || mode === "match" :
+              item.key === "profile" ? mode === "profile" :
+              item.key === "settings" ? mode === "settings" :
+              false;
             const content = (
               <button
                 key={idx}
@@ -484,6 +491,8 @@ export function ChessApp() {
               botStats={botStats}
             />
           )}
+          {mode === "profile" && profile && <ProfilePage />}
+          {mode === "settings" && <SettingsPage />}
         </main>
 
         {/* Owner Portal — always at the bottom */}
@@ -571,7 +580,7 @@ export function ChessApp() {
       </Dialog>
 
       <BathroomBreak open={bathroomOpen} onClose={() => setBathroomOpen(false)} />
-      <ProfileSettings open={profileOpen} onOpenChange={setProfileOpen} />
+      
       <UpdatesPopup />
     </div>
   );
@@ -684,6 +693,15 @@ function HubView({
             </div>
           )}
         </Card>
+        <a
+          href="https://sites.google.com/view/chess-bot-library"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-2 rounded-lg border border-border/60 bg-card px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-secondary/60 hover:text-primary"
+        >
+          <span>Bot Library / Info Page</span>
+          <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
+        </a>
       </div>
 
       {/* Center: idle board */}
