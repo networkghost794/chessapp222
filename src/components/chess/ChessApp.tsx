@@ -131,7 +131,7 @@ export function ChessApp() {
   const game = gameRef.current;
 
   const [bathroomOpen, setBathroomOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
+  
   const [resignedFlag, setResignedFlag] = useState(false);
   const [matchActive, setMatchActive] = useState(false);
 
@@ -573,7 +573,7 @@ export function ChessApp() {
       </Dialog>
 
       <BathroomBreak open={bathroomOpen} onClose={() => setBathroomOpen(false)} />
-      <ProfileSettings open={profileOpen} onOpenChange={setProfileOpen} />
+      
       <UpdatesPopup />
     </div>
   );
