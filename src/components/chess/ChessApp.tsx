@@ -400,7 +400,12 @@ export function ChessApp() {
         <nav className="flex-1 py-3 space-y-0.5 px-2">
           {navItems.map((item, idx) => {
             const Icon = item.icon;
-            const active = idx === 0 ? sidebar === "home" && mode === "home" : idx === 1 ? sidebar === "play" || mode === "match" : false;
+            const active =
+              item.key === "home" ? mode === "home" :
+              item.key === "play" ? mode === "hub" || mode === "match" :
+              item.key === "profile" ? mode === "profile" :
+              item.key === "settings" ? mode === "settings" :
+              false;
             const content = (
               <button
                 key={idx}
