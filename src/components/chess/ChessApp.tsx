@@ -491,6 +491,8 @@ export function ChessApp() {
               botStats={botStats}
             />
           )}
+          {mode === "profile" && profile && <ProfilePage />}
+          {mode === "settings" && <SettingsPage />}
         </main>
 
         {/* Owner Portal — always at the bottom */}
