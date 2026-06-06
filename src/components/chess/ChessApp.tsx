@@ -379,9 +379,9 @@ export function ChessApp() {
   const navItems: Array<{ key: SidebarKey; label: string; icon: typeof Home; onClick?: () => void }> = [
     { key: "home", label: "Home", icon: Home, onClick: () => { setSidebar("home"); setMode("home"); } },
     { key: "play", label: "Play Bots", icon: Swords, onClick: () => { setSidebar("play"); if (mode !== "match") setMode("hub"); } },
-    { key: "profile", label: "Profile", icon: User, onClick: () => { setSidebar("profile"); setProfileOpen(true); } },
+    { key: "profile", label: "Profile", icon: User, onClick: () => { setSidebar("profile"); setMode("profile"); } },
     { key: "updates", label: "Updates", icon: Bell },
-    { key: "home", label: "Settings", icon: Settings, onClick: () => { setProfileOpen(true); } },
+    { key: "settings", label: "Settings", icon: Settings, onClick: () => { setSidebar("settings"); setMode("settings"); } },
   ];
 
   return (
