@@ -26,6 +26,7 @@ import {
   Trophy,
   User,
   Bell,
+  ExternalLink,
 } from "lucide-react";
 import { UpdateLogButton } from "./UpdateLogButton";
 import { cn } from "@/lib/utils";
