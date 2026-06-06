@@ -42,7 +42,8 @@ import {
 import { useAuth } from "@/lib/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { BathroomBreak } from "./BathroomBreak";
-import { ProfileSettings } from "./ProfileSettings";
+import { ProfilePage } from "./ProfilePage";
+import { SettingsPage } from "./SettingsPage";
 import { BotChatBubble } from "./BotChatBubble";
 import { UpdatesPopup } from "./UpdatesPopup";
 
