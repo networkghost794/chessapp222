@@ -49,8 +49,8 @@ import { UpdatesPopup } from "./UpdatesPopup";
 
 type ColorChoice = "white" | "black" | "random";
 type BotStats = { wins: number; losses: number; draws: number };
-type AppMode = "home" | "hub" | "match";
-type SidebarKey = "home" | "play" | "profile" | "updates";
+type AppMode = "home" | "hub" | "match" | "profile" | "settings";
+type SidebarKey = "home" | "play" | "profile" | "updates" | "settings";
 
 const EMPTY_STATS: BotStats = { wins: 0, losses: 0, draws: 0 };
 
