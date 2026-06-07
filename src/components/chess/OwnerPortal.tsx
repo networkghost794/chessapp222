@@ -296,6 +296,8 @@ export function OwnerPortal() {
         endgameTrigger,
         bucketMap,
         humanMistake,
+        title: botTitle.trim() || null,
+        titleColor: botTitleColor.trim() || null,
       };
       if (editingId) await updateBot(editingId, payload);
       else await publishBot(payload);
