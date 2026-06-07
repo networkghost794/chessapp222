@@ -190,6 +190,10 @@ export function OwnerPortal() {
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
 
+  // Title for this bot (string + optional per-bot color override)
+  const [botTitle, setBotTitle] = useState<string>("");
+  const [botTitleColor, setBotTitleColor] = useState<string>("");
+
   // ---- Edit mode ----
   const [editingId, setEditingId] = useState<string | null>(null);
   const [allBots, setAllBots] = useState<BotConfig[]>(loadBots());
