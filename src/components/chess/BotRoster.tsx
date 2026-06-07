@@ -18,6 +18,10 @@ import {
   deleteBot,
   reorderCategory,
   updateBotPlacement,
+  getTitleColor,
+  loadTitleColors,
+  subscribeTitleColors,
+  refreshTitleColors,
   BOT_CATEGORIES,
   type BotConfig,
   type BotCategory,
@@ -31,14 +35,20 @@ export function BotRoster({ onSelect }: { onSelect?: (bot: BotConfig) => void })
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [dragOverCat, setDragOverCat] = useState<BotCategory | null>(null);
 
+  const [, setColorTick] = useState(0);
+
   useEffect(() => {
     const refresh = () => {
       setBots(loadBots());
       setActive(getActiveBotId());
     };
     refresh();
-    return subscribeBots(refresh);
+    refreshTitleColors();
+    const unsubBots = subscribeBots(refresh);
+    const unsubColors = subscribeTitleColors(() => setColorTick((t) => t + 1));
+    return () => { unsubBots(); unsubColors(); };
   }, []);
+  void loadTitleColors;
 
   const handleDropOnBot = async (target: BotConfig) => {
     if (!isOwner || !dragId || dragId === target.id) {
@@ -132,7 +142,7 @@ export function BotRoster({ onSelect }: { onSelect?: (bot: BotConfig) => void })
                           {isOwner && (
                             <GripVertical className="w-3.5 h-3.5 text-muted-foreground/60 absolute top-1 left-1 cursor-grab" />
                           )}
-                          <div className="w-12 h-12 rounded-full bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-border">
+                          <div className="w-12 h-12 rounded-md bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-border">
                             {b.avatar ? (
                               <img src={b.avatar} alt={b.name} className="w-full h-full object-cover" />
                             ) : (
@@ -140,7 +150,17 @@ export function BotRoster({ onSelect }: { onSelect?: (bot: BotConfig) => void })
                             )}
                           </div>
                           <div className="w-full min-w-0">
-                            <div className="text-xs font-semibold truncate">{b.name}</div>
+                            <div className="text-xs font-semibold truncate">
+                              {b.title && (
+                                <span
+                                  className="font-black uppercase tracking-wider mr-1"
+                                  style={{ color: getTitleColor(b.title, b.titleColor) }}
+                                >
+                                  {b.title}
+                                </span>
+                              )}
+                              {b.name}
+                            </div>
                             <div className="text-[10px] text-muted-foreground">ELO {b.elo}</div>
                           </div>
                           {isOwner && (

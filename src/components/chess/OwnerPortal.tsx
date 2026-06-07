@@ -38,6 +38,12 @@ import {
   DEFAULT_BUCKET_MAP,
   STRENGTH_LABELS,
   BOT_CATEGORIES,
+  loadTitleColors,
+  subscribeTitleColors,
+  refreshTitleColors,
+  setTitleColor as saveTitleColor,
+  deleteTitleColor,
+  getTitleColor,
   type PhaseConfig,
   type StrengthBucket,
   type MoveStyle,
@@ -54,6 +60,7 @@ import { bytesToBase64 } from "@/lib/polyglot";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/useAuth";
 import { UpdateLogManager } from "./UpdateLogManager";
+import { Trash2 } from "lucide-react";
 
 
 const STYLE_LABELS: Array<[keyof MoveStyle, string]> = [
@@ -183,6 +190,10 @@ export function OwnerPortal() {
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
 
+  // Title for this bot (string + optional per-bot color override)
+  const [botTitle, setBotTitle] = useState<string>("");
+  const [botTitleColor, setBotTitleColor] = useState<string>("");
+
   // ---- Edit mode ----
   const [editingId, setEditingId] = useState<string | null>(null);
   const [allBots, setAllBots] = useState<BotConfig[]>(loadBots());
@@ -199,6 +210,7 @@ export function OwnerPortal() {
     setEndgameTrigger(defaultEndgameTrigger());
     setBucketMap({ ...DEFAULT_BUCKET_MAP });
     setHumanMistake(defaultHumanMistake());
+    setBotTitle(""); setBotTitleColor("");
     setEditingId(null);
   };
 
@@ -220,6 +232,8 @@ export function OwnerPortal() {
     setEndgameTrigger(b.endgameTrigger);
     setBucketMap(b.bucketMap);
     setHumanMistake(b.humanMistake ?? defaultHumanMistake());
+    setBotTitle(b.title ?? "");
+    setBotTitleColor(b.titleColor ?? "");
   };
 
   useEffect(() => {
@@ -282,6 +296,8 @@ export function OwnerPortal() {
         endgameTrigger,
         bucketMap,
         humanMistake,
+        title: botTitle.trim() || null,
+        titleColor: botTitleColor.trim() || null,
       };
       if (editingId) await updateBot(editingId, payload);
       else await publishBot(payload);
@@ -336,7 +352,7 @@ export function OwnerPortal() {
                   </div>
                 </div>
                 <Tabs defaultValue="general">
-                  <TabsList className="grid grid-cols-8 w-full">
+                  <TabsList className="grid grid-cols-9 w-full">
                     <TabsTrigger value="general">General</TabsTrigger>
                     <TabsTrigger value="middlegame">Middlegame</TabsTrigger>
                     <TabsTrigger value="endgame">Endgame</TabsTrigger>
@@ -344,6 +360,7 @@ export function OwnerPortal() {
                     <TabsTrigger value="mistakes">Mistakes</TabsTrigger>
                     <TabsTrigger value="opening">Opening</TabsTrigger>
                     <TabsTrigger value="buckets">Buckets</TabsTrigger>
+                    <TabsTrigger value="titles">Titles</TabsTrigger>
                     <TabsTrigger value="updates">Updates</TabsTrigger>
                   </TabsList>
 
@@ -380,6 +397,35 @@ export function OwnerPortal() {
                             ))}
                           </SelectContent>
                         </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Title (optional)</Label>
+                        <Input
+                          value={botTitle}
+                          onChange={(e) => setBotTitle(e.target.value)}
+                          placeholder="GM, IM, FM, or custom"
+                          maxLength={16}
+                        />
+                        <p className="text-[10px] text-muted-foreground mt-1">Shown before the bot name everywhere.</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Title Color Override (optional)</Label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <input
+                            type="color"
+                            value={botTitleColor || "#a78bfa"}
+                            onChange={(e) => setBotTitleColor(e.target.value)}
+                            className="h-9 w-12 rounded border border-border bg-transparent cursor-pointer"
+                          />
+                          <Input
+                            value={botTitleColor}
+                            onChange={(e) => setBotTitleColor(e.target.value)}
+                            placeholder="leave empty to use global"
+                          />
+                          {botTitleColor && (
+                            <Button type="button" size="sm" variant="ghost" onClick={() => setBotTitleColor("")}>Clear</Button>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div>
@@ -538,6 +584,10 @@ export function OwnerPortal() {
                     ))}
                   </TabsContent>
 
+                  <TabsContent value="titles" className="pt-3">
+                    <TitleColorsManager />
+                  </TabsContent>
+
                   <TabsContent value="updates" className="pt-3">
                     <UpdateLogManager />
                   </TabsContent>
@@ -582,3 +632,69 @@ export function OwnerPortal() {
     </div>
   );
 }
+
+function TitleColorsManager() {
+  const [map, setMap] = useState<Record<string, string>>(loadTitleColors());
+  const [newTitle, setNewTitle] = useState("");
+  const [newColor, setNewColor] = useState("#b8860b");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    refreshTitleColors().then(setMap);
+    return subscribeTitleColors(() => setMap({ ...loadTitleColors() }));
+  }, []);
+
+  const add = async () => {
+    if (!newTitle.trim()) return;
+    setBusy(true);
+    await saveTitleColor(newTitle.trim(), newColor);
+    setNewTitle(""); setBusy(false);
+  };
+
+  const update = async (title: string, color: string) => {
+    await saveTitleColor(title, color);
+  };
+
+  const entries = Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-[11px] text-muted-foreground">
+        Colors here apply globally to every bot using that title (e.g. GM, IM, FM, or custom titles). Individual bots can override via the Title Color in the General tab.
+      </div>
+      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 items-end">
+        <div>
+          <Label className="text-xs">New title</Label>
+          <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="e.g. CM" maxLength={16} />
+        </div>
+        <div>
+          <Label className="text-xs">Color</Label>
+          <input type="color" value={newColor} onChange={(e) => setNewColor(e.target.value)} className="h-9 w-14 rounded border border-border cursor-pointer block" />
+        </div>
+        <Button onClick={add} disabled={busy || !newTitle.trim()} size="sm">Add</Button>
+      </div>
+      <div className="space-y-2">
+        {entries.length === 0 && <p className="text-xs text-muted-foreground">No titles configured yet.</p>}
+        {entries.map(([title, color]) => (
+          <div key={title} className="flex items-center gap-3 rounded-md border border-border/60 bg-secondary/30 px-3 py-2">
+            <span className="font-black uppercase tracking-wider text-sm w-16" style={{ color }}>{title}</span>
+            <input
+              type="color"
+              value={color}
+              onChange={(e) => update(title, e.target.value)}
+              className="h-8 w-12 rounded border border-border cursor-pointer"
+            />
+            <span className="text-xs font-mono text-muted-foreground flex-1">{color}</span>
+            <Button variant="ghost" size="icon" onClick={() => deleteTitleColor(title)}>
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        ))}
+      </div>
+      <p className="text-[10px] text-muted-foreground">Used by <code>getTitleColor</code> on every screen that shows a bot title.</p>
+    </div>
+  );
+}
+
+// keep imports referenced
+void getTitleColor;
