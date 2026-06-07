@@ -38,6 +38,12 @@ import {
   DEFAULT_BUCKET_MAP,
   STRENGTH_LABELS,
   BOT_CATEGORIES,
+  loadTitleColors,
+  subscribeTitleColors,
+  refreshTitleColors,
+  setTitleColor as saveTitleColor,
+  deleteTitleColor,
+  getTitleColor,
   type PhaseConfig,
   type StrengthBucket,
   type MoveStyle,
@@ -54,6 +60,7 @@ import { bytesToBase64 } from "@/lib/polyglot";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/useAuth";
 import { UpdateLogManager } from "./UpdateLogManager";
+import { Trash2 } from "lucide-react";
 
 
 const STYLE_LABELS: Array<[keyof MoveStyle, string]> = [
