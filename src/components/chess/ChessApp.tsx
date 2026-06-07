@@ -44,8 +44,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { BathroomBreak } from "./BathroomBreak";
 import { ProfilePage } from "./ProfilePage";
 import { SettingsPage } from "./SettingsPage";
+import { FeedbackPage } from "./FeedbackPage";
 import { BotChatBubble } from "./BotChatBubble";
 import { UpdatesPopup } from "./UpdatesPopup";
+import { getTitleColor, refreshTitleColors, subscribeTitleColors } from "@/lib/botStore";
+import { MessageCircle } from "lucide-react";
 
 type ColorChoice = "white" | "black" | "random";
 type BotStats = { wins: number; losses: number; draws: number };
