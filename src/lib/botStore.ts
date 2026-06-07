@@ -185,6 +185,10 @@ export type BotConfig = {
   createdBy?: string | null;
   lifetimeWins?: number;
   lifetimeLosses?: number;
+  /** Optional title prefix (e.g. GM, IM, FM, or any custom string). */
+  title?: string | null;
+  /** Optional per-bot color override for the title (CSS color). */
+  titleColor?: string | null;
 };
 
 export const defaultPhase = (): PhaseConfig => ({
