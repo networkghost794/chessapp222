@@ -398,6 +398,35 @@ export function OwnerPortal() {
                           </SelectContent>
                         </Select>
                       </div>
+                      <div>
+                        <Label className="text-xs">Title (optional)</Label>
+                        <Input
+                          value={botTitle}
+                          onChange={(e) => setBotTitle(e.target.value)}
+                          placeholder="GM, IM, FM, or custom"
+                          maxLength={16}
+                        />
+                        <p className="text-[10px] text-muted-foreground mt-1">Shown before the bot name everywhere.</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Title Color Override (optional)</Label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <input
+                            type="color"
+                            value={botTitleColor || "#a78bfa"}
+                            onChange={(e) => setBotTitleColor(e.target.value)}
+                            className="h-9 w-12 rounded border border-border bg-transparent cursor-pointer"
+                          />
+                          <Input
+                            value={botTitleColor}
+                            onChange={(e) => setBotTitleColor(e.target.value)}
+                            placeholder="leave empty to use global"
+                          />
+                          {botTitleColor && (
+                            <Button type="button" size="sm" variant="ghost" onClick={() => setBotTitleColor("")}>Clear</Button>
+                          )}
+                        </div>
+                      </div>
                     </div>
                     <div>
                       <Label className="text-xs">Custom Quote</Label>
