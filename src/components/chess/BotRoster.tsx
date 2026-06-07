@@ -35,14 +35,20 @@ export function BotRoster({ onSelect }: { onSelect?: (bot: BotConfig) => void })
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [dragOverCat, setDragOverCat] = useState<BotCategory | null>(null);
 
+  const [, setColorTick] = useState(0);
+
   useEffect(() => {
     const refresh = () => {
       setBots(loadBots());
       setActive(getActiveBotId());
     };
     refresh();
-    return subscribeBots(refresh);
+    refreshTitleColors();
+    const unsubBots = subscribeBots(refresh);
+    const unsubColors = subscribeTitleColors(() => setColorTick((t) => t + 1));
+    return () => { unsubBots(); unsubColors(); };
   }, []);
+  void loadTitleColors;
 
   const handleDropOnBot = async (target: BotConfig) => {
     if (!isOwner || !dragId || dragId === target.id) {
