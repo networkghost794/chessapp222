@@ -210,6 +210,7 @@ export function OwnerPortal() {
     setEndgameTrigger(defaultEndgameTrigger());
     setBucketMap({ ...DEFAULT_BUCKET_MAP });
     setHumanMistake(defaultHumanMistake());
+    setBotTitle(""); setBotTitleColor("");
     setEditingId(null);
   };
 
@@ -231,6 +232,8 @@ export function OwnerPortal() {
     setEndgameTrigger(b.endgameTrigger);
     setBucketMap(b.bucketMap);
     setHumanMistake(b.humanMistake ?? defaultHumanMistake());
+    setBotTitle(b.title ?? "");
+    setBotTitleColor(b.titleColor ?? "");
   };
 
   useEffect(() => {
