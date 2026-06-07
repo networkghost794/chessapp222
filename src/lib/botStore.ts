@@ -415,6 +415,8 @@ export async function updateBot(id: string, input: BotPublishInput): Promise<Bot
     endgame_settings: input.endgame,
     opening_settings: openingPayload,
     dialogue_lines: (input.dialogueLines ?? []).filter((s) => s.trim().length > 0),
+    title: input.title?.trim() ? input.title.trim() : null,
+    title_color: input.titleColor ?? null,
   };
   if (newAvatarUrl !== undefined) updatePayload.profile_pic_url = newAvatarUrl;
 
