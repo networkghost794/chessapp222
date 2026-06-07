@@ -799,3 +799,61 @@ export async function chooseBotMove(
   const pick = pickBotMove(game, bot);
   return pick ? { move: pick, source: "fallback" } : null;
 }
+
+// =================================================================
+//  Title color store (owner-managed globally)
+// =================================================================
+
+const DEFAULT_TITLE_COLOR = "#a78bfa"; // soft chess-purple fallback for unknown titles
+let titleColorsCache: Record<string, string> = {};
+const titleColorListeners = new Set<Listener>();
+const emitTitleColors = () => titleColorListeners.forEach((l) => l());
+
+export function loadTitleColors(): Record<string, string> {
+  return titleColorsCache;
+}
+
+export function subscribeTitleColors(fn: Listener): () => void {
+  titleColorListeners.add(fn);
+  return () => { titleColorListeners.delete(fn); };
+}
+
+export function getTitleColor(title?: string | null, override?: string | null): string | undefined {
+  if (!title) return undefined;
+  if (override) return override;
+  return titleColorsCache[title] ?? DEFAULT_TITLE_COLOR;
+}
+
+export async function refreshTitleColors(): Promise<Record<string, string>> {
+  const { data, error } = await supabase.from("title_colors").select("title,color");
+  if (error) {
+    console.warn("[botStore] title colors refresh failed:", error.message);
+    return titleColorsCache;
+  }
+  const next: Record<string, string> = {};
+  for (const row of data ?? []) {
+    if (row.title && row.color) next[row.title] = row.color;
+  }
+  titleColorsCache = next;
+  emitTitleColors();
+  return next;
+}
+
+export async function setTitleColor(title: string, color: string): Promise<void> {
+  const t = title.trim();
+  if (!t) return;
+  const { data: userData } = await supabase.auth.getUser();
+  const uid = userData.user?.id;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await supabase.from("title_colors").upsert({
+    title: t, color, updated_by: uid ?? null, updated_at: new Date().toISOString(),
+  } as any, { onConflict: "title" });
+  if (error) { console.warn("[botStore] set title color failed:", error.message); return; }
+  await refreshTitleColors();
+}
+
+export async function deleteTitleColor(title: string): Promise<void> {
+  const { error } = await supabase.from("title_colors").delete().eq("title", title);
+  if (error) { console.warn("[botStore] delete title color failed:", error.message); return; }
+  await refreshTitleColors();
+}
