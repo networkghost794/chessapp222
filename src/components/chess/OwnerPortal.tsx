@@ -584,6 +584,10 @@ export function OwnerPortal() {
                     ))}
                   </TabsContent>
 
+                  <TabsContent value="titles" className="pt-3">
+                    <TitleColorsManager />
+                  </TabsContent>
+
                   <TabsContent value="updates" className="pt-3">
                     <UpdateLogManager />
                   </TabsContent>
