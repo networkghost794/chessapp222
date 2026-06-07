@@ -100,6 +100,8 @@ export type Database = {
           profile_pic_url: string | null
           quote: string
           tier: string
+          title: string | null
+          title_color: string | null
           updated_at: string
         }
         Insert: {
@@ -118,6 +120,8 @@ export type Database = {
           profile_pic_url?: string | null
           quote?: string
           tier?: string
+          title?: string | null
+          title_color?: string | null
           updated_at?: string
         }
         Update: {
@@ -136,7 +140,36 @@ export type Database = {
           profile_pic_url?: string | null
           quote?: string
           tier?: string
+          title?: string | null
+          title_color?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      feedback: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          message: string
+          name: string
+          user_id: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          id?: string
+          message: string
+          name: string
+          user_id?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          message?: string
+          name?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -182,6 +215,27 @@ export type Database = {
           updated_at?: string
           username?: string
           wins?: number
+        }
+        Relationships: []
+      }
+      title_colors: {
+        Row: {
+          color: string
+          title: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          color: string
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          color?: string
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
