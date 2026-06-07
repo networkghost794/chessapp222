@@ -380,6 +380,8 @@ export async function publishBot(input: BotPublishInput): Promise<BotConfig | nu
     opening_settings: openingPayload,
     dialogue_lines: (input.dialogueLines ?? []).filter((s) => s.trim().length > 0),
     created_by: uid,
+    title: input.title?.trim() ? input.title.trim() : null,
+    title_color: input.titleColor ?? null,
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await supabase.from("custom_bots").insert(insertPayload as any).select("*").single();
