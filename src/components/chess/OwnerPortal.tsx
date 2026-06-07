@@ -352,7 +352,7 @@ export function OwnerPortal() {
                   </div>
                 </div>
                 <Tabs defaultValue="general">
-                  <TabsList className="grid grid-cols-8 w-full">
+                  <TabsList className="grid grid-cols-9 w-full">
                     <TabsTrigger value="general">General</TabsTrigger>
                     <TabsTrigger value="middlegame">Middlegame</TabsTrigger>
                     <TabsTrigger value="endgame">Endgame</TabsTrigger>
@@ -360,6 +360,7 @@ export function OwnerPortal() {
                     <TabsTrigger value="mistakes">Mistakes</TabsTrigger>
                     <TabsTrigger value="opening">Opening</TabsTrigger>
                     <TabsTrigger value="buckets">Buckets</TabsTrigger>
+                    <TabsTrigger value="titles">Titles</TabsTrigger>
                     <TabsTrigger value="updates">Updates</TabsTrigger>
                   </TabsList>
 
