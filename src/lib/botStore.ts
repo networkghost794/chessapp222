@@ -271,6 +271,8 @@ function rowToBot(r: Record<string, unknown>): BotConfig {
     createdBy: (r.created_by as string) ?? null,
     lifetimeWins: Number(r.lifetime_wins ?? 0),
     lifetimeLosses: Number(r.lifetime_losses ?? 0),
+    title: (r.title as string | null) ?? null,
+    titleColor: (r.title_color as string | null) ?? null,
   };
 }
 
