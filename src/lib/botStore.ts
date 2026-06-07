@@ -335,6 +335,8 @@ export type BotPublishInput = {
   endgameTrigger: EndgameTrigger;
   bucketMap: BucketMap;
   humanMistake: HumanMistake;
+  title?: string | null;
+  titleColor?: string | null;
 };
 
 async function resolveAvatarUrl(uid: string, input: BotPublishInput): Promise<string | null | undefined> {
