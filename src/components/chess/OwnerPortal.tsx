@@ -632,3 +632,69 @@ export function OwnerPortal() {
     </div>
   );
 }
+
+function TitleColorsManager() {
+  const [map, setMap] = useState<Record<string, string>>(loadTitleColors());
+  const [newTitle, setNewTitle] = useState("");
+  const [newColor, setNewColor] = useState("#b8860b");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    refreshTitleColors().then(setMap);
+    return subscribeTitleColors(() => setMap({ ...loadTitleColors() }));
+  }, []);
+
+  const add = async () => {
+    if (!newTitle.trim()) return;
+    setBusy(true);
+    await saveTitleColor(newTitle.trim(), newColor);
+    setNewTitle(""); setBusy(false);
+  };
+
+  const update = async (title: string, color: string) => {
+    await saveTitleColor(title, color);
+  };
+
+  const entries = Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-[11px] text-muted-foreground">
+        Colors here apply globally to every bot using that title (e.g. GM, IM, FM, or custom titles). Individual bots can override via the Title Color in the General tab.
+      </div>
+      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 items-end">
+        <div>
+          <Label className="text-xs">New title</Label>
+          <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="e.g. CM" maxLength={16} />
+        </div>
+        <div>
+          <Label className="text-xs">Color</Label>
+          <input type="color" value={newColor} onChange={(e) => setNewColor(e.target.value)} className="h-9 w-14 rounded border border-border cursor-pointer block" />
+        </div>
+        <Button onClick={add} disabled={busy || !newTitle.trim()} size="sm">Add</Button>
+      </div>
+      <div className="space-y-2">
+        {entries.length === 0 && <p className="text-xs text-muted-foreground">No titles configured yet.</p>}
+        {entries.map(([title, color]) => (
+          <div key={title} className="flex items-center gap-3 rounded-md border border-border/60 bg-secondary/30 px-3 py-2">
+            <span className="font-black uppercase tracking-wider text-sm w-16" style={{ color }}>{title}</span>
+            <input
+              type="color"
+              value={color}
+              onChange={(e) => update(title, e.target.value)}
+              className="h-8 w-12 rounded border border-border cursor-pointer"
+            />
+            <span className="text-xs font-mono text-muted-foreground flex-1">{color}</span>
+            <Button variant="ghost" size="icon" onClick={() => deleteTitleColor(title)}>
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        ))}
+      </div>
+      <p className="text-[10px] text-muted-foreground">Used by <code>getTitleColor</code> on every screen that shows a bot title.</p>
+    </div>
+  );
+}
+
+// keep imports referenced
+void getTitleColor;
