@@ -49,6 +49,7 @@ import { BotChatBubble } from "./BotChatBubble";
 import { UpdatesPopup } from "./UpdatesPopup";
 import { getTitleColor, refreshTitleColors, subscribeTitleColors } from "@/lib/botStore";
 import { MessageCircle } from "lucide-react";
+import { playMoveResultSound } from "@/lib/sounds";
 
 type ColorChoice = "white" | "black" | "random";
 type BotStats = { wins: number; losses: number; draws: number };
@@ -217,6 +218,7 @@ export function ChessApp() {
           promotion: pick.promotion as "q" | "r" | "b" | "n" | undefined,
         });
         if (!m) throw new Error(`Illegal engine move ${pick.from}${pick.to}`);
+        playMoveResultSound(m);
         setHistory((h) => [...h, m.san]);
         setUciHistory((h) => [...h, pick.from + pick.to + (pick.promotion ?? "")]);
         setLastMove({ from: pick.from as Square, to: pick.to as Square });
@@ -284,6 +286,7 @@ export function ChessApp() {
     (from: Square, to: Square, promo?: PieceSymbol) => {
       const move = game.move({ from, to, promotion: promo as "q" | "r" | "b" | "n" | undefined });
       if (!move) return false;
+      playMoveResultSound(move);
       const uci = from + to + (promo ?? "");
       setHistory((h) => [...h, move.san]);
       setUciHistory((h) => [...h, uci]);

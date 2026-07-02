@@ -1,4 +1,5 @@
 // Wikipedia-style SVG chess pieces (Cburnett set, public domain)
+import type React from "react";
 import type { Color, PieceSymbol } from "chess.js";
 
 const pieceMap: Record<string, string> = {
@@ -27,12 +28,14 @@ export function PieceImg({
   className,
   draggable = true,
   onDragStart,
+  onPointerDown,
 }: {
   color: Color;
   type: PieceSymbol;
   className?: string;
   draggable?: boolean;
   onDragStart?: (e: React.DragEvent) => void;
+  onPointerDown?: (e: React.PointerEvent) => void;
 }) {
   return (
     <img
@@ -40,8 +43,9 @@ export function PieceImg({
       alt={`${color}${type}`}
       draggable={draggable}
       onDragStart={onDragStart}
+      onPointerDown={onPointerDown}
       className={className}
-      style={{ userSelect: "none", pointerEvents: draggable ? "auto" : "none" }}
+      style={{ userSelect: "none", WebkitUserDrag: "none", pointerEvents: "auto" } as React.CSSProperties}
     />
   );
 }
