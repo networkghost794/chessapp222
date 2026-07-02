@@ -562,6 +562,8 @@ export function ChessApp() {
               name={activeBot.name}
               avatar={activeBot.avatar}
               elo={activeBot.elo}
+              title={activeBot.title}
+              titleColor={activeBot.titleColor}
               subtitle={activeBot.category}
               side="right"
             />
