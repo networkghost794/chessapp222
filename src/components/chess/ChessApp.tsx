@@ -217,6 +217,7 @@ export function ChessApp() {
           promotion: pick.promotion as "q" | "r" | "b" | "n" | undefined,
         });
         if (!m) throw new Error(`Illegal engine move ${pick.from}${pick.to}`);
+        playMoveResultSound(m);
         setHistory((h) => [...h, m.san]);
         setUciHistory((h) => [...h, pick.from + pick.to + (pick.promotion ?? "")]);
         setLastMove({ from: pick.from as Square, to: pick.to as Square });
