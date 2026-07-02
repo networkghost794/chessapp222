@@ -912,21 +912,3 @@ function VsCard({
     </div>
   );
 }
-  return (
-    <div className={cn("flex flex-col items-center gap-3", side === "right" ? "text-right" : "text-left")}>
-      <div className="w-24 h-24 md:w-32 md:h-32 rounded-md bg-secondary grid place-items-center overflow-hidden ring-2 ring-primary/40 shadow-[0_0_30px_hsl(var(--primary)/0.3)]">
-        {avatar ? (
-          <img src={avatar} alt={name} className="w-full h-full object-cover" />
-        ) : (
-          <User className="w-10 h-10 text-muted-foreground" />
-        )}
-      </div>
-      <div className="text-center">
-        {title && <div className="text-[10px] text-primary font-black uppercase tracking-widest">{title}</div>}
-        <div className="text-base md:text-xl font-bold">{name}</div>
-        <div className="text-xs text-muted-foreground">({elo})</div>
-        {subtitle && <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">{subtitle}</div>}
-      </div>
-    </div>
-  );
-}
