@@ -27,12 +27,14 @@ export function PieceImg({
   className,
   draggable = true,
   onDragStart,
+  onPointerDown,
 }: {
   color: Color;
   type: PieceSymbol;
   className?: string;
   draggable?: boolean;
   onDragStart?: (e: React.DragEvent) => void;
+  onPointerDown?: (e: React.PointerEvent) => void;
 }) {
   return (
     <img
@@ -40,8 +42,9 @@ export function PieceImg({
       alt={`${color}${type}`}
       draggable={draggable}
       onDragStart={onDragStart}
+      onPointerDown={onPointerDown}
       className={className}
-      style={{ userSelect: "none", pointerEvents: draggable ? "auto" : "none" }}
+      style={{ userSelect: "none", WebkitUserDrag: "none", pointerEvents: "auto" } as React.CSSProperties}
     />
   );
 }
