@@ -150,16 +150,16 @@ export function BotRoster({ onSelect }: { onSelect?: (bot: BotConfig) => void })
                             )}
                           </div>
                           <div className="w-full min-w-0">
-                            <div className="text-xs font-semibold truncate">
+                            <div className="text-xs font-semibold truncate inline-flex items-center gap-1 max-w-full">
                               {b.title && (
                                 <span
-                                  className="font-black uppercase tracking-wider mr-1"
-                                  style={{ color: getTitleColor(b.title, b.titleColor) }}
+                                  className="inline-flex items-center justify-center rounded-[3px] px-1.5 py-[1px] text-[10px] font-black uppercase tracking-wide text-white leading-none shrink-0"
+                                  style={{ backgroundColor: getTitleColor(b.title, b.titleColor) ?? "#dc2626" }}
                                 >
                                   {b.title}
                                 </span>
                               )}
-                              {b.name}
+                              <span className="truncate">{b.name}</span>
                             </div>
                             <div className="text-[10px] text-muted-foreground">ELO {b.elo}</div>
                           </div>

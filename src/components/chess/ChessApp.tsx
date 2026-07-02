@@ -57,25 +57,51 @@ type SidebarKey = "home" | "play" | "profile" | "updates" | "settings";
 
 const EMPTY_STATS: BotStats = { wins: 0, losses: 0, draws: 0 };
 
+export function TitleBadge({
+  title,
+  color,
+  size = "md",
+}: {
+  title?: string | null;
+  color?: string | null;
+  size?: "sm" | "md" | "lg";
+}) {
+  if (!title) return null;
+  const resolved = getTitleColor(title, color) ?? "#dc2626";
+  const px = size === "lg" ? "px-2 py-0.5 text-xs" : size === "sm" ? "px-1.5 py-[1px] text-[10px]" : "px-1.5 py-0.5 text-[11px]";
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center justify-center rounded-[3px] font-black uppercase tracking-wide text-white leading-none shrink-0",
+        px,
+      )}
+      style={{ backgroundColor: resolved }}
+    >
+      {title}
+    </span>
+  );
+}
+
 function PlayerIdentity({
   username,
   elo,
   title,
+  titleColor,
   icon,
   size = "md",
 }: {
   username: string;
   elo: number;
   title?: string | null;
+  titleColor?: string | null;
   icon?: string | null;
   size?: "sm" | "md" | "lg";
 }) {
   const cls = size === "lg" ? "text-2xl" : size === "sm" ? "text-sm" : "text-base";
+  const badgeSize = size === "lg" ? "md" : "sm";
   return (
-    <span className={cn("inline-flex items-baseline gap-2 font-semibold tracking-tight max-w-full min-w-0", cls)}>
-      {title && (
-        <span className="text-primary font-black uppercase tracking-wider text-[0.7em] shrink-0">{title}</span>
-      )}
+    <span className={cn("inline-flex items-center gap-2 font-semibold tracking-tight max-w-full min-w-0", cls)}>
+      <TitleBadge title={title} color={titleColor} size={badgeSize} />
       {icon && <span className="text-[0.9em] leading-none shrink-0">{icon}</span>}
       <span className="text-foreground truncate min-w-0">{username}</span>
       <span className="text-muted-foreground/70 font-normal text-[0.85em] shrink-0">({elo})</span>
@@ -536,6 +562,8 @@ export function ChessApp() {
               name={activeBot.name}
               avatar={activeBot.avatar}
               elo={activeBot.elo}
+              title={activeBot.title}
+              titleColor={activeBot.titleColor}
               subtitle={activeBot.category}
               side="right"
             />
@@ -778,8 +806,10 @@ function MatchView({
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold truncate">
-                  {activeBot.name} <span className="text-muted-foreground/70 font-normal">({activeBot.elo})</span>
+                <div className="text-sm font-semibold truncate inline-flex items-center gap-2">
+                  <TitleBadge title={activeBot.title} color={activeBot.titleColor} size="sm" />
+                  <span className="truncate">{activeBot.name}</span>
+                  <span className="text-muted-foreground/70 font-normal">({activeBot.elo})</span>
                 </div>
                 <div className="text-[11px] text-muted-foreground truncate">{activeBot.category}</div>
               </div>
@@ -856,6 +886,7 @@ function VsCard({
   avatar,
   elo,
   title,
+  titleColor,
   subtitle,
   side,
 }: {
@@ -863,6 +894,7 @@ function VsCard({
   avatar?: string | null;
   elo: number;
   title?: string | null;
+  titleColor?: string | null;
   subtitle?: string;
   side: "left" | "right";
 }) {
@@ -875,8 +907,8 @@ function VsCard({
           <User className="w-10 h-10 text-muted-foreground" />
         )}
       </div>
-      <div className="text-center">
-        {title && <div className="text-[10px] text-primary font-black uppercase tracking-widest">{title}</div>}
+      <div className="text-center flex flex-col items-center gap-1">
+        <TitleBadge title={title} color={titleColor} size="md" />
         <div className="text-base md:text-xl font-bold">{name}</div>
         <div className="text-xs text-muted-foreground">({elo})</div>
         {subtitle && <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">{subtitle}</div>}
