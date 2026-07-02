@@ -1,6 +1,7 @@
 import { useAuth } from "@/lib/useAuth";
 import { User } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { TitleBadge } from "./ChessApp";
 
 export function ProfilePage() {
   const { profile } = useAuth();
