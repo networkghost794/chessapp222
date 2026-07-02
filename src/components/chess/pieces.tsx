@@ -1,4 +1,5 @@
 // Wikipedia-style SVG chess pieces (Cburnett set, public domain)
+import type React from "react";
 import type { Color, PieceSymbol } from "chess.js";
 
 const pieceMap: Record<string, string> = {
