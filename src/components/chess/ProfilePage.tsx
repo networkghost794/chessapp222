@@ -23,8 +23,8 @@ export function ProfilePage() {
           </div>
           <div className="min-w-0">
             {profile.title_badge && (
-              <div className="text-xs text-primary font-black uppercase tracking-widest mb-1">
-                {profile.title_badge}
+              <div className="mb-2">
+                <TitleBadge title={profile.title_badge} size="lg" />
               </div>
             )}
             <div className="text-2xl font-bold tracking-tight truncate">{profile.username}</div>
