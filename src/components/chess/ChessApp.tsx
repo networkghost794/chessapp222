@@ -49,6 +49,7 @@ import { BotChatBubble } from "./BotChatBubble";
 import { UpdatesPopup } from "./UpdatesPopup";
 import { getTitleColor, refreshTitleColors, subscribeTitleColors } from "@/lib/botStore";
 import { MessageCircle } from "lucide-react";
+import { playMoveResultSound } from "@/lib/sounds";
 
 type ColorChoice = "white" | "black" | "random";
 type BotStats = { wins: number; losses: number; draws: number };
