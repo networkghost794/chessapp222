@@ -806,8 +806,10 @@ function MatchView({
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold truncate">
-                  {activeBot.name} <span className="text-muted-foreground/70 font-normal">({activeBot.elo})</span>
+                <div className="text-sm font-semibold truncate inline-flex items-center gap-2">
+                  <TitleBadge title={activeBot.title} color={activeBot.titleColor} size="sm" />
+                  <span className="truncate">{activeBot.name}</span>
+                  <span className="text-muted-foreground/70 font-normal">({activeBot.elo})</span>
                 </div>
                 <div className="text-[11px] text-muted-foreground truncate">{activeBot.category}</div>
               </div>
