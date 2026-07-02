@@ -286,6 +286,7 @@ export function ChessApp() {
     (from: Square, to: Square, promo?: PieceSymbol) => {
       const move = game.move({ from, to, promotion: promo as "q" | "r" | "b" | "n" | undefined });
       if (!move) return false;
+      playMoveResultSound(move);
       const uci = from + to + (promo ?? "");
       setHistory((h) => [...h, move.san]);
       setUciHistory((h) => [...h, uci]);
