@@ -267,7 +267,7 @@ export function ChessApp() {
     } else {
       setPending(false);
     }
-  }, [colorChoice, force]);
+  }, [colorChoice, force, activeBot]);
 
   const triggerPlay = useCallback(() => {
     if (!activeBot) return;
