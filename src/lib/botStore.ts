@@ -428,6 +428,9 @@ export async function updateBot(id: string, input: BotPublishInput): Promise<Bot
     endgameTrigger: input.endgameTrigger,
     bucketMap: input.bucketMap,
     humanMistake: input.humanMistake,
+    thinking: input.thinking ?? defaultThinkingTime(),
+    whiteRepertoire: input.whiteRepertoire ?? [],
+    blackRepertoire: input.blackRepertoire ?? [],
   };
 
   const updatePayload: Record<string, unknown> = {
