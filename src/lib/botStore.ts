@@ -144,6 +144,12 @@ export const defaultHumanMistake = (): HumanMistake => ({
   randomMoveChance: 0,
 });
 
+/** Per-bot thinking time (milliseconds) — cosmetic pacing, never affects strength. */
+export type ThinkingTime = { minMs: number; maxMs: number };
+export const defaultThinkingTime = (): ThinkingTime => ({ minMs: 800, maxMs: 2000 });
+
+
+
 export type BotCategory =
   | "Beginner"
   | "Intermediate"
