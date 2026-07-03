@@ -387,6 +387,9 @@ export async function publishBot(input: BotPublishInput): Promise<BotConfig | nu
     endgameTrigger: input.endgameTrigger,
     bucketMap: input.bucketMap,
     humanMistake: input.humanMistake,
+    thinking: input.thinking ?? defaultThinkingTime(),
+    whiteRepertoire: input.whiteRepertoire ?? [],
+    blackRepertoire: input.blackRepertoire ?? [],
   };
 
   const insertPayload = {
