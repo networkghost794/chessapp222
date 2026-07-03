@@ -444,6 +444,36 @@ export function OwnerPortal() {
                         </div>
                       </div>
                     </div>
+                    <div className="rounded-md border border-border/60 bg-background/30 p-3">
+                      <div className="text-xs font-semibold mb-1">Thinking Time</div>
+                      <p className="text-[10px] text-muted-foreground mb-2">
+                        Before each move the bot pauses a random duration between min and max. Cosmetic pacing only — does not affect playing strength.
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label className="text-xs">Minimum (seconds)</Label>
+                          <Input
+                            type="number" min={0} max={30} step={0.1}
+                            value={(thinking.minMs / 1000).toFixed(1)}
+                            onChange={(e) => {
+                              const s = Math.max(0, Number(e.target.value) || 0);
+                              setThinking((t) => ({ ...t, minMs: Math.round(s * 1000) }));
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Maximum (seconds)</Label>
+                          <Input
+                            type="number" min={0} max={30} step={0.1}
+                            value={(thinking.maxMs / 1000).toFixed(1)}
+                            onChange={(e) => {
+                              const s = Math.max(0, Number(e.target.value) || 0);
+                              setThinking((t) => ({ ...t, maxMs: Math.round(s * 1000) }));
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
                     <div>
                       <Label className="text-xs">Custom Quote</Label>
                       <Textarea value={quote} onChange={(e) => setQuote(e.target.value)} placeholder="Say something memorable…" rows={2} />
