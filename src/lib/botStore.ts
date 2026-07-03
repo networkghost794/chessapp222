@@ -355,6 +355,9 @@ export type BotPublishInput = {
   humanMistake: HumanMistake;
   title?: string | null;
   titleColor?: string | null;
+  thinking?: ThinkingTime;
+  whiteRepertoire?: string[];
+  blackRepertoire?: string[];
 };
 
 async function resolveAvatarUrl(uid: string, input: BotPublishInput): Promise<string | null | undefined> {
