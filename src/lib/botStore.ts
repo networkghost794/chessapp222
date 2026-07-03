@@ -820,6 +820,19 @@ export async function chooseBotMove(
           }
           if (myBishops >= 2) bias *= Math.max(0.2, 1 - exp.keepBishopPair / 150);
         }
+        // Opening repertoire bias — heavily favour the book move for the
+        // chosen opening while it is still available in the ELO/personality
+        // pool. Beyond ply 8 the bias tapers so bots gradually leave theory
+        // even in main lines.
+        if (repertoireSan && s.vm.san === repertoireSan) {
+          const ply = sanHistory.length;
+          const taper = ply < 6 ? 40 : ply < 10 ? 20 : 8;
+          bias *= taper;
+        }
+        return { vm: s.vm, w: sty * closeness * bias };
+      });
+          if (myBishops >= 2) bias *= Math.max(0.2, 1 - exp.keepBishopPair / 150);
+        }
         return { vm: s.vm, w: sty * closeness * bias };
       });
       const total = weighted.reduce((a, b) => a + b.w, 0);
