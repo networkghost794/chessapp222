@@ -244,6 +244,9 @@ export function OwnerPortal() {
     setHumanMistake(b.humanMistake ?? defaultHumanMistake());
     setBotTitle(b.title ?? "");
     setBotTitleColor(b.titleColor ?? "");
+    setThinking(b.thinking ?? defaultThinkingTime());
+    setWhiteRepertoire(b.whiteRepertoire ?? []);
+    setBlackRepertoire(b.blackRepertoire ?? []);
   };
 
   useEffect(() => {
