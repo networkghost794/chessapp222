@@ -252,6 +252,9 @@ function rowToBot(r: Record<string, unknown>): BotConfig {
     errorRules?: Partial<ErrorRules>;
     endgameTrigger?: Partial<EndgameTrigger>;
     bucketMap?: Partial<BucketMap>;
+    thinking?: Partial<ThinkingTime>;
+    whiteRepertoire?: string[];
+    blackRepertoire?: string[];
   };
   const rawTier = String(r.tier ?? "Intermediate") as BotCategory;
   const category: BotCategory = VALID_CATEGORIES.has(rawTier) ? rawTier : "Intermediate";
