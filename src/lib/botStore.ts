@@ -831,10 +831,6 @@ export async function chooseBotMove(
         }
         return { vm: s.vm, w: sty * closeness * bias };
       });
-          if (myBishops >= 2) bias *= Math.max(0.2, 1 - exp.keepBishopPair / 150);
-        }
-        return { vm: s.vm, w: sty * closeness * bias };
-      });
       const total = weighted.reduce((a, b) => a + b.w, 0);
       let r = Math.random() * total;
       for (const x of weighted) {
