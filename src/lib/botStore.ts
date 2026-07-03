@@ -288,6 +288,9 @@ function rowToBot(r: Record<string, unknown>): BotConfig {
     lifetimeLosses: Number(r.lifetime_losses ?? 0),
     title: (r.title as string | null) ?? null,
     titleColor: (r.title_color as string | null) ?? null,
+    thinking: { ...defaultThinkingTime(), ...(op.thinking ?? {}) },
+    whiteRepertoire: Array.isArray(op.whiteRepertoire) ? op.whiteRepertoire.filter((x) => typeof x === "string") : [],
+    blackRepertoire: Array.isArray(op.blackRepertoire) ? op.blackRepertoire.filter((x) => typeof x === "string") : [],
   };
 }
 
