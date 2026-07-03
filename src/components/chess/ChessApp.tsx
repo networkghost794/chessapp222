@@ -254,6 +254,9 @@ export function ChessApp() {
     else color = Math.random() < 0.5 ? "w" : "b";
     setPlayerColor(color);
     setFlipped(color === "b");
+    // Pick this game's opening from the bot's repertoire for its color.
+    const botColor: "w" | "b" = color === "w" ? "b" : "w";
+    currentOpeningRef.current = pickOpeningForBot(activeBot, botColor);
     setMatchActive(true);
     setMode("match");
     force();
