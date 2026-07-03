@@ -311,6 +311,9 @@ export function OwnerPortal() {
         humanMistake,
         title: botTitle.trim() || null,
         titleColor: botTitleColor.trim() || null,
+        thinking,
+        whiteRepertoire,
+        blackRepertoire,
       };
       if (editingId) await updateBot(editingId, payload);
       else await publishBot(payload);
