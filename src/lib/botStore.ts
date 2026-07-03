@@ -4,6 +4,7 @@ import {
   base64ToBytes, lookupPolyglot, pickWeighted, polyglotHash, polyglotMoveToUci,
 } from "./polyglot";
 import { analyseTopMoves, type TopMove } from "./stockfishEngine";
+import { OPENINGS_BY_ID, nextBookMove, type OpeningDef } from "./openingLibrary";
 
 // ---------- Lucas Chess–style personality types ----------
 
