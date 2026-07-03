@@ -755,3 +755,76 @@ function TitleColorsManager() {
 
 // keep imports referenced
 void getTitleColor;
+
+function RepertoirePicker({
+  side,
+  value,
+  onChange,
+}: {
+  side: "white" | "black";
+  value: string[];
+  onChange: (v: string[]) => void;
+}) {
+  // Show openings intended for this side plus any "any"-color entries.
+  const available: OpeningDef[] = OPENING_LIBRARY.filter(
+    (o) => o.color === side || o.color === "any",
+  );
+  const grouped = new Map<string, OpeningDef[]>();
+  for (const o of available) {
+    if (!grouped.has(o.category)) grouped.set(o.category, []);
+    grouped.get(o.category)!.push(o);
+  }
+  const toggle = (id: string) => {
+    if (value.includes(id)) onChange(value.filter((x) => x !== id));
+    else {
+      if (value.length >= 6) return;
+      onChange([...value, id]);
+    }
+  };
+  return (
+    <div className="rounded-md border border-border/60 bg-background/30 p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="text-xs font-semibold capitalize">{side} Repertoire</div>
+        <div className="text-[10px] text-muted-foreground">
+          {value.length}/6 selected · pick 2–6
+        </div>
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        At the start of every game the bot randomly picks one opening from this list.
+        The chosen opening biases early moves (~first 10 plies) without overriding the
+        strength or mistake systems.
+      </p>
+      <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+        {Array.from(grouped.entries()).map(([cat, list]) => (
+          <div key={cat}>
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">{cat}</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+              {list.map((o) => {
+                const active = value.includes(o.id);
+                const disabled = !active && value.length >= 6;
+                return (
+                  <button
+                    type="button"
+                    key={o.id}
+                    onClick={() => toggle(o.id)}
+                    disabled={disabled}
+                    className={cn(
+                      "text-left text-xs rounded-md px-2 py-1.5 border transition-colors",
+                      active
+                        ? "bg-primary/20 border-primary text-foreground"
+                        : "bg-secondary/30 border-border/60 hover:bg-secondary/60",
+                      disabled && "opacity-40 cursor-not-allowed",
+                    )}
+                  >
+                    {o.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
