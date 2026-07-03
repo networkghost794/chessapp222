@@ -607,9 +607,21 @@ function topToCp(tm: TopMove): { cp: number; mate: number | null } {
 export async function chooseBotMove(
   game: Chess,
   bot: BotConfig | null,
+  opts?: { openingLine?: string[] | null },
 ): Promise<{ move: EngineMove; source: "book" | "engine" | "fallback" } | null> {
   const legal = game.moves({ verbose: true }) as VerboseMove[];
   if (legal.length === 0) return null;
+
+  // ---------- 0) Repertoire opening bias ----------
+  // If the bot has a chosen opening for this game AND the game history is
+  // still a prefix of that opening's main line AND the phase is early game,
+  // capture the expected SAN to bias candidate selection later.
+  let repertoireSan: string | null = null;
+  const sanHistory = game.history();
+  if (opts?.openingLine && sanHistory.length < opts.openingLine.length) {
+    const prefixOk = sanHistory.every((san, i) => san === opts.openingLine![i]);
+    if (prefixOk) repertoireSan = opts.openingLine[sanHistory.length];
+  }
 
   // ---------- 1) Polyglot opening book ----------
   if (bot?.opening.enabled && bot.opening.bookBin) {
