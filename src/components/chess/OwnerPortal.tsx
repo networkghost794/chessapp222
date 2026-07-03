@@ -219,6 +219,8 @@ export function OwnerPortal() {
     setBucketMap({ ...DEFAULT_BUCKET_MAP });
     setHumanMistake(defaultHumanMistake());
     setBotTitle(""); setBotTitleColor("");
+    setThinking(defaultThinkingTime());
+    setWhiteRepertoire([]); setBlackRepertoire([]);
     setEditingId(null);
   };
 
