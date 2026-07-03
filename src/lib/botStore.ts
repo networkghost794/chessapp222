@@ -848,6 +848,27 @@ export async function chooseBotMove(
   return pick ? { move: pick, source: "fallback" } : null;
 }
 
+/** Pick a random opening from the bot's repertoire for the given side, or null. */
+export function pickOpeningForBot(bot: BotConfig | null, side: "w" | "b"): OpeningDef | null {
+  if (!bot) return null;
+  const ids = side === "w" ? bot.whiteRepertoire : bot.blackRepertoire;
+  if (!ids || ids.length === 0) return null;
+  const valid = ids.map((id) => OPENINGS_BY_ID[id]).filter(Boolean);
+  if (valid.length === 0) return null;
+  return valid[Math.floor(Math.random() * valid.length)];
+}
+
+/** Compute a per-move thinking delay in ms for this bot (min..max, uniform). */
+export function pickThinkingDelayMs(bot: BotConfig | null): number {
+  const t = bot?.thinking ?? defaultThinkingTime();
+  const lo = Math.max(0, Math.min(t.minMs, t.maxMs));
+  const hi = Math.max(t.minMs, t.maxMs);
+  return Math.round(lo + Math.random() * (hi - lo));
+}
+
+// Keep util imports referenced (helper only used indirectly by callers).
+void nextBookMove;
+
 // =================================================================
 //  Title color store (owner-managed globally)
 // =================================================================
