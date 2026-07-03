@@ -37,8 +37,11 @@ import {
   loadBots,
   refreshFromCloud,
   subscribeBots,
+  pickOpeningForBot,
+  pickThinkingDelayMs,
   type BotConfig,
 } from "@/lib/botStore";
+import type { OpeningDef } from "@/lib/openingLibrary";
 import { useAuth } from "@/lib/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { BathroomBreak } from "./BathroomBreak";
