@@ -35,6 +35,7 @@ import {
   defaultMoveStyle,
   defaultExpectedMoves,
   defaultHumanMistake,
+  defaultThinkingTime,
   DEFAULT_BUCKET_MAP,
   STRENGTH_LABELS,
   BOT_CATEGORIES,
@@ -55,7 +56,9 @@ import {
   type BotCategory,
   type BotConfig,
   type HumanMistake,
+  type ThinkingTime,
 } from "@/lib/botStore";
+import { OPENING_LIBRARY, type OpeningDef } from "@/lib/openingLibrary";
 import { bytesToBase64 } from "@/lib/polyglot";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/useAuth";
