@@ -37,8 +37,11 @@ import {
   loadBots,
   refreshFromCloud,
   subscribeBots,
+  pickOpeningForBot,
+  pickThinkingDelayMs,
   type BotConfig,
 } from "@/lib/botStore";
+import type { OpeningDef } from "@/lib/openingLibrary";
 import { useAuth } from "@/lib/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { BathroomBreak } from "./BathroomBreak";
@@ -195,6 +198,9 @@ export function ChessApp() {
 
   useEffect(() => { loadBotStats(activeBot); }, [activeBot, loadBotStats]);
 
+  // Opening chosen for the current match (from bot's repertoire).
+  const currentOpeningRef = useRef<OpeningDef | null>(null);
+
   const requestBotMoveRef = useRef<() => void>(() => {});
 
   const requestBotMove = useCallback(
@@ -202,14 +208,13 @@ export function ChessApp() {
       if (game.isGameOver()) { setPending(false); return; }
       const startedAt = Date.now();
       try {
-        const result = await chooseBotMove(game, activeBot);
+        const result = await chooseBotMove(game, activeBot, {
+          openingLine: currentOpeningRef.current?.line ?? null,
+        });
         if (!result) { setPending(false); return; }
         const { move: pick } = result;
-        const elo = activeBot?.elo ?? 1500;
-        const targetMs =
-          elo <= 800 ? 2000 :
-          elo >= 2200 ? 1000 :
-          Math.round(2000 - ((elo - 800) / 1400) * 1000);
+        // Per-bot thinking delay (min..max ms). Cosmetic pacing only.
+        const targetMs = pickThinkingDelayMs(activeBot);
         const elapsed = Date.now() - startedAt;
         if (elapsed < targetMs) await new Promise((r) => setTimeout(r, targetMs - elapsed));
         const m = game.move({
@@ -249,6 +254,9 @@ export function ChessApp() {
     else color = Math.random() < 0.5 ? "w" : "b";
     setPlayerColor(color);
     setFlipped(color === "b");
+    // Pick this game's opening from the bot's repertoire for its color.
+    const botColor: "w" | "b" = color === "w" ? "b" : "w";
+    currentOpeningRef.current = pickOpeningForBot(activeBot, botColor);
     setMatchActive(true);
     setMode("match");
     force();
@@ -259,7 +267,7 @@ export function ChessApp() {
     } else {
       setPending(false);
     }
-  }, [colorChoice, force]);
+  }, [colorChoice, force, activeBot]);
 
   const triggerPlay = useCallback(() => {
     if (!activeBot) return;

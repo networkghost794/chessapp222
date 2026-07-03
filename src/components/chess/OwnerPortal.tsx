@@ -35,6 +35,7 @@ import {
   defaultMoveStyle,
   defaultExpectedMoves,
   defaultHumanMistake,
+  defaultThinkingTime,
   DEFAULT_BUCKET_MAP,
   STRENGTH_LABELS,
   BOT_CATEGORIES,
@@ -55,7 +56,9 @@ import {
   type BotCategory,
   type BotConfig,
   type HumanMistake,
+  type ThinkingTime,
 } from "@/lib/botStore";
+import { OPENING_LIBRARY, type OpeningDef } from "@/lib/openingLibrary";
 import { bytesToBase64 } from "@/lib/polyglot";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/useAuth";
@@ -194,6 +197,11 @@ export function OwnerPortal() {
   const [botTitle, setBotTitle] = useState<string>("");
   const [botTitleColor, setBotTitleColor] = useState<string>("");
 
+  // Per-bot thinking delay (ms) and opening repertoire.
+  const [thinking, setThinking] = useState<ThinkingTime>(defaultThinkingTime());
+  const [whiteRepertoire, setWhiteRepertoire] = useState<string[]>([]);
+  const [blackRepertoire, setBlackRepertoire] = useState<string[]>([]);
+
   // ---- Edit mode ----
   const [editingId, setEditingId] = useState<string | null>(null);
   const [allBots, setAllBots] = useState<BotConfig[]>(loadBots());
@@ -211,6 +219,8 @@ export function OwnerPortal() {
     setBucketMap({ ...DEFAULT_BUCKET_MAP });
     setHumanMistake(defaultHumanMistake());
     setBotTitle(""); setBotTitleColor("");
+    setThinking(defaultThinkingTime());
+    setWhiteRepertoire([]); setBlackRepertoire([]);
     setEditingId(null);
   };
 
@@ -234,6 +244,9 @@ export function OwnerPortal() {
     setHumanMistake(b.humanMistake ?? defaultHumanMistake());
     setBotTitle(b.title ?? "");
     setBotTitleColor(b.titleColor ?? "");
+    setThinking(b.thinking ?? defaultThinkingTime());
+    setWhiteRepertoire(b.whiteRepertoire ?? []);
+    setBlackRepertoire(b.blackRepertoire ?? []);
   };
 
   useEffect(() => {
@@ -298,6 +311,9 @@ export function OwnerPortal() {
         humanMistake,
         title: botTitle.trim() || null,
         titleColor: botTitleColor.trim() || null,
+        thinking,
+        whiteRepertoire,
+        blackRepertoire,
       };
       if (editingId) await updateBot(editingId, payload);
       else await publishBot(payload);
@@ -425,6 +441,36 @@ export function OwnerPortal() {
                           {botTitleColor && (
                             <Button type="button" size="sm" variant="ghost" onClick={() => setBotTitleColor("")}>Clear</Button>
                           )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="rounded-md border border-border/60 bg-background/30 p-3">
+                      <div className="text-xs font-semibold mb-1">Thinking Time</div>
+                      <p className="text-[10px] text-muted-foreground mb-2">
+                        Before each move the bot pauses a random duration between min and max. Cosmetic pacing only — does not affect playing strength.
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label className="text-xs">Minimum (seconds)</Label>
+                          <Input
+                            type="number" min={0} max={30} step={0.1}
+                            value={(thinking.minMs / 1000).toFixed(1)}
+                            onChange={(e) => {
+                              const s = Math.max(0, Number(e.target.value) || 0);
+                              setThinking((t) => ({ ...t, minMs: Math.round(s * 1000) }));
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Maximum (seconds)</Label>
+                          <Input
+                            type="number" min={0} max={30} step={0.1}
+                            value={(thinking.maxMs / 1000).toFixed(1)}
+                            onChange={(e) => {
+                              const s = Math.max(0, Number(e.target.value) || 0);
+                              setThinking((t) => ({ ...t, maxMs: Math.round(s * 1000) }));
+                            }}
+                          />
                         </div>
                       </div>
                     </div>
@@ -559,6 +605,17 @@ export function OwnerPortal() {
                       <Slider min={0} max={100} step={1} value={[opening.influence]}
                         onValueChange={([v]) => setOpening({ ...opening, influence: v })} />
                     </div>
+
+                    <RepertoirePicker
+                      side="white"
+                      value={whiteRepertoire}
+                      onChange={setWhiteRepertoire}
+                    />
+                    <RepertoirePicker
+                      side="black"
+                      value={blackRepertoire}
+                      onChange={setBlackRepertoire}
+                    />
                   </TabsContent>
 
                   <TabsContent value="buckets" className="pt-3 space-y-3">
@@ -698,3 +755,76 @@ function TitleColorsManager() {
 
 // keep imports referenced
 void getTitleColor;
+
+function RepertoirePicker({
+  side,
+  value,
+  onChange,
+}: {
+  side: "white" | "black";
+  value: string[];
+  onChange: (v: string[]) => void;
+}) {
+  // Show openings intended for this side plus any "any"-color entries.
+  const available: OpeningDef[] = OPENING_LIBRARY.filter(
+    (o) => o.color === side || o.color === "any",
+  );
+  const grouped = new Map<string, OpeningDef[]>();
+  for (const o of available) {
+    if (!grouped.has(o.category)) grouped.set(o.category, []);
+    grouped.get(o.category)!.push(o);
+  }
+  const toggle = (id: string) => {
+    if (value.includes(id)) onChange(value.filter((x) => x !== id));
+    else {
+      if (value.length >= 6) return;
+      onChange([...value, id]);
+    }
+  };
+  return (
+    <div className="rounded-md border border-border/60 bg-background/30 p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="text-xs font-semibold capitalize">{side} Repertoire</div>
+        <div className="text-[10px] text-muted-foreground">
+          {value.length}/6 selected · pick 2–6
+        </div>
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        At the start of every game the bot randomly picks one opening from this list.
+        The chosen opening biases early moves (~first 10 plies) without overriding the
+        strength or mistake systems.
+      </p>
+      <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+        {Array.from(grouped.entries()).map(([cat, list]) => (
+          <div key={cat}>
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">{cat}</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+              {list.map((o) => {
+                const active = value.includes(o.id);
+                const disabled = !active && value.length >= 6;
+                return (
+                  <button
+                    type="button"
+                    key={o.id}
+                    onClick={() => toggle(o.id)}
+                    disabled={disabled}
+                    className={cn(
+                      "text-left text-xs rounded-md px-2 py-1.5 border transition-colors",
+                      active
+                        ? "bg-primary/20 border-primary text-foreground"
+                        : "bg-secondary/30 border-border/60 hover:bg-secondary/60",
+                      disabled && "opacity-40 cursor-not-allowed",
+                    )}
+                  >
+                    {o.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+

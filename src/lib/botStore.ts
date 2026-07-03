@@ -4,6 +4,7 @@ import {
   base64ToBytes, lookupPolyglot, pickWeighted, polyglotHash, polyglotMoveToUci,
 } from "./polyglot";
 import { analyseTopMoves, type TopMove } from "./stockfishEngine";
+import { OPENINGS_BY_ID, nextBookMove, type OpeningDef } from "./openingLibrary";
 
 // ---------- Lucas Chess–style personality types ----------
 
@@ -143,6 +144,12 @@ export const defaultHumanMistake = (): HumanMistake => ({
   randomMoveChance: 0,
 });
 
+/** Per-bot thinking time (milliseconds) — cosmetic pacing, never affects strength. */
+export type ThinkingTime = { minMs: number; maxMs: number };
+export const defaultThinkingTime = (): ThinkingTime => ({ minMs: 800, maxMs: 2000 });
+
+
+
 export type BotCategory =
   | "Beginner"
   | "Intermediate"
@@ -189,6 +196,11 @@ export type BotConfig = {
   title?: string | null;
   /** Optional per-bot color override for the title (CSS color). */
   titleColor?: string | null;
+  /** Per-bot thinking delay range (ms). */
+  thinking: ThinkingTime;
+  /** Opening repertoire — arrays of opening IDs from openingLibrary. */
+  whiteRepertoire: string[];
+  blackRepertoire: string[];
 };
 
 export const defaultPhase = (): PhaseConfig => ({
@@ -240,6 +252,9 @@ function rowToBot(r: Record<string, unknown>): BotConfig {
     errorRules?: Partial<ErrorRules>;
     endgameTrigger?: Partial<EndgameTrigger>;
     bucketMap?: Partial<BucketMap>;
+    thinking?: Partial<ThinkingTime>;
+    whiteRepertoire?: string[];
+    blackRepertoire?: string[];
   };
   const rawTier = String(r.tier ?? "Intermediate") as BotCategory;
   const category: BotCategory = VALID_CATEGORIES.has(rawTier) ? rawTier : "Intermediate";
@@ -273,6 +288,9 @@ function rowToBot(r: Record<string, unknown>): BotConfig {
     lifetimeLosses: Number(r.lifetime_losses ?? 0),
     title: (r.title as string | null) ?? null,
     titleColor: (r.title_color as string | null) ?? null,
+    thinking: { ...defaultThinkingTime(), ...(op.thinking ?? {}) },
+    whiteRepertoire: Array.isArray(op.whiteRepertoire) ? op.whiteRepertoire.filter((x) => typeof x === "string") : [],
+    blackRepertoire: Array.isArray(op.blackRepertoire) ? op.blackRepertoire.filter((x) => typeof x === "string") : [],
   };
 }
 
@@ -337,6 +355,9 @@ export type BotPublishInput = {
   humanMistake: HumanMistake;
   title?: string | null;
   titleColor?: string | null;
+  thinking?: ThinkingTime;
+  whiteRepertoire?: string[];
+  blackRepertoire?: string[];
 };
 
 async function resolveAvatarUrl(uid: string, input: BotPublishInput): Promise<string | null | undefined> {
@@ -366,6 +387,9 @@ export async function publishBot(input: BotPublishInput): Promise<BotConfig | nu
     endgameTrigger: input.endgameTrigger,
     bucketMap: input.bucketMap,
     humanMistake: input.humanMistake,
+    thinking: input.thinking ?? defaultThinkingTime(),
+    whiteRepertoire: input.whiteRepertoire ?? [],
+    blackRepertoire: input.blackRepertoire ?? [],
   };
 
   const insertPayload = {
@@ -404,6 +428,9 @@ export async function updateBot(id: string, input: BotPublishInput): Promise<Bot
     endgameTrigger: input.endgameTrigger,
     bucketMap: input.bucketMap,
     humanMistake: input.humanMistake,
+    thinking: input.thinking ?? defaultThinkingTime(),
+    whiteRepertoire: input.whiteRepertoire ?? [],
+    blackRepertoire: input.blackRepertoire ?? [],
   };
 
   const updatePayload: Record<string, unknown> = {
@@ -580,9 +607,21 @@ function topToCp(tm: TopMove): { cp: number; mate: number | null } {
 export async function chooseBotMove(
   game: Chess,
   bot: BotConfig | null,
+  opts?: { openingLine?: string[] | null },
 ): Promise<{ move: EngineMove; source: "book" | "engine" | "fallback" } | null> {
   const legal = game.moves({ verbose: true }) as VerboseMove[];
   if (legal.length === 0) return null;
+
+  // ---------- 0) Repertoire opening bias ----------
+  // If the bot has a chosen opening for this game AND the game history is
+  // still a prefix of that opening's main line AND the phase is early game,
+  // capture the expected SAN to bias candidate selection later.
+  let repertoireSan: string | null = null;
+  const sanHistory = game.history();
+  if (opts?.openingLine && sanHistory.length < opts.openingLine.length) {
+    const prefixOk = sanHistory.every((san, i) => san === opts.openingLine![i]);
+    if (prefixOk) repertoireSan = opts.openingLine[sanHistory.length];
+  }
 
   // ---------- 1) Polyglot opening book ----------
   if (bot?.opening.enabled && bot.opening.bookBin) {
@@ -781,6 +820,15 @@ export async function chooseBotMove(
           }
           if (myBishops >= 2) bias *= Math.max(0.2, 1 - exp.keepBishopPair / 150);
         }
+        // Opening repertoire bias — heavily favour the book move for the
+        // chosen opening while it is still available in the ELO/personality
+        // pool. Beyond ply 8 the bias tapers so bots gradually leave theory
+        // even in main lines.
+        if (repertoireSan && s.vm.san === repertoireSan) {
+          const ply = sanHistory.length;
+          const taper = ply < 6 ? 40 : ply < 10 ? 20 : 8;
+          bias *= taper;
+        }
         return { vm: s.vm, w: sty * closeness * bias };
       });
       const total = weighted.reduce((a, b) => a + b.w, 0);
@@ -799,6 +847,27 @@ export async function chooseBotMove(
   const pick = pickBotMove(game, bot);
   return pick ? { move: pick, source: "fallback" } : null;
 }
+
+/** Pick a random opening from the bot's repertoire for the given side, or null. */
+export function pickOpeningForBot(bot: BotConfig | null, side: "w" | "b"): OpeningDef | null {
+  if (!bot) return null;
+  const ids = side === "w" ? bot.whiteRepertoire : bot.blackRepertoire;
+  if (!ids || ids.length === 0) return null;
+  const valid = ids.map((id) => OPENINGS_BY_ID[id]).filter(Boolean);
+  if (valid.length === 0) return null;
+  return valid[Math.floor(Math.random() * valid.length)];
+}
+
+/** Compute a per-move thinking delay in ms for this bot (min..max, uniform). */
+export function pickThinkingDelayMs(bot: BotConfig | null): number {
+  const t = bot?.thinking ?? defaultThinkingTime();
+  const lo = Math.max(0, Math.min(t.minMs, t.maxMs));
+  const hi = Math.max(t.minMs, t.maxMs);
+  return Math.round(lo + Math.random() * (hi - lo));
+}
+
+// Keep util imports referenced (helper only used indirectly by callers).
+void nextBookMove;
 
 // =================================================================
 //  Title color store (owner-managed globally)
