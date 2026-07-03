@@ -196,6 +196,11 @@ export type BotConfig = {
   title?: string | null;
   /** Optional per-bot color override for the title (CSS color). */
   titleColor?: string | null;
+  /** Per-bot thinking delay range (ms). */
+  thinking: ThinkingTime;
+  /** Opening repertoire — arrays of opening IDs from openingLibrary. */
+  whiteRepertoire: string[];
+  blackRepertoire: string[];
 };
 
 export const defaultPhase = (): PhaseConfig => ({
