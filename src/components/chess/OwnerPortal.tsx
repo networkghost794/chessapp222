@@ -605,6 +605,17 @@ export function OwnerPortal() {
                       <Slider min={0} max={100} step={1} value={[opening.influence]}
                         onValueChange={([v]) => setOpening({ ...opening, influence: v })} />
                     </div>
+
+                    <RepertoirePicker
+                      side="white"
+                      value={whiteRepertoire}
+                      onChange={setWhiteRepertoire}
+                    />
+                    <RepertoirePicker
+                      side="black"
+                      value={blackRepertoire}
+                      onChange={setBlackRepertoire}
+                    />
                   </TabsContent>
 
                   <TabsContent value="buckets" className="pt-3 space-y-3">
