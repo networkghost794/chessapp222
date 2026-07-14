@@ -27,6 +27,7 @@ import {
   User,
   Bell,
   ExternalLink,
+  Bot,
 } from "lucide-react";
 import { UpdateLogButton } from "./UpdateLogButton";
 import { cn } from "@/lib/utils";
