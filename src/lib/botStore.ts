@@ -655,14 +655,21 @@ export async function chooseBotMove(
     try {
       const phase = isEndgame(game, bot.endgameTrigger) ? bot.endgame : bot.middlegame;
       const multipv = Math.min(legal.length, 24);
-      // Depth cap by ELO — weaker bots search shallower
+      // Depth cap by ELO — weaker bots search shallower.
+      // NOTE: strength is controlled by the candidate-filter pipeline below,
+      // NOT by search depth. We deliberately keep depth modest even for
+      // Master bots so internal calculation stays under ~1s and the
+      // player only ever waits the Owner-Portal configured thinking delay
+      // (see requestBotMove in ChessApp). Higher depths were making Master
+      // bots take 15+ seconds per move while adding nothing to move quality
+      // once the candidate filter runs.
       const elo = Math.max(100, Math.min(3200, bot.elo ?? 1500));
       const depth =
         elo < 400 ? 4 :
         elo < 800 ? 6 :
         elo < 1400 ? 8 :
-        elo < 2000 ? 11 :
-        elo < 2500 ? 14 : 16;
+        elo < 2000 ? 9 :
+        elo < 2500 ? 10 : 11;
       // NOTE: do NOT pass Elo to UCI_LimitStrength — we control strength via candidate filtering below.
       const top = await analyseTopMoves(game.fen(), { multipv, depth });
 
