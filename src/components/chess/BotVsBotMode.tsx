@@ -167,9 +167,6 @@ function SidePicker({
               <span className="truncate">{selected.name}</span>
             </div>
             <div className="text-[11px] text-muted-foreground">ELO {selected.elo} · {selected.category}</div>
-            {selected.personality && (
-              <div className="text-[11px] text-muted-foreground truncate">{selected.personality}</div>
-            )}
           </div>
         </div>
       ) : (
