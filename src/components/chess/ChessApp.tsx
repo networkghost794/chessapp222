@@ -446,6 +446,7 @@ export function ChessApp() {
             const active =
               item.key === "home" ? mode === "home" :
               item.key === "play" ? mode === "hub" || mode === "match" :
+              item.key === "modes" ? mode === "modes" :
               item.key === "profile" ? mode === "profile" :
               item.key === "settings" ? mode === "settings" :
               false;
