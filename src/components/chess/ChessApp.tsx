@@ -54,7 +54,7 @@ import { UpdatesPopup } from "./UpdatesPopup";
 import { getTitleColor, refreshTitleColors, subscribeTitleColors } from "@/lib/botStore";
 import { MessageCircle } from "lucide-react";
 import { playMoveResultSound } from "@/lib/sounds";
-import { BotVsBotMode } from "./BotVsBotMode";
+import { GameModesHub } from "./GameModesHub";
 
 type ColorChoice = "white" | "black" | "random";
 type BotStats = { wins: number; losses: number; draws: number };
@@ -537,7 +537,7 @@ export function ChessApp() {
           )}
           {mode === "profile" && profile && <ProfilePage />}
           {mode === "settings" && <SettingsPage />}
-          {mode === "modes" && <BotVsBotMode />}
+          {mode === "modes" && <GameModesHub />}
         </main>
 
         {/* Owner Portal — always at the bottom */}
