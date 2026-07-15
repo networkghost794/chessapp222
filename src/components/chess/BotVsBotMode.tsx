@@ -9,6 +9,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
+  ArrowLeft,
   ChevronFirst,
   ChevronLast,
   ChevronLeft,
@@ -19,6 +20,9 @@ import {
   Swords,
   User,
   X,
+  Rabbit,
+  Turtle,
+  Zap,
 } from "lucide-react";
 import { Board } from "./Board";
 import { TitleBadge } from "./ChessApp";
@@ -31,14 +35,66 @@ import {
   pickThinkingDelayMs,
   subscribeBots,
   type BotConfig,
-  type BotCategory,
 } from "@/lib/botStore";
 import type { OpeningDef } from "@/lib/openingLibrary";
 import { playMoveResultSound } from "@/lib/sounds";
 
+/* ───────── Speed control ───────── */
+
+export type SpeedSetting = "slow" | "normal" | "fast";
+
+export const SPEED_RANGES: Record<SpeedSetting, { min: number; max: number }> = {
+  slow: { min: 7000, max: 8000 },
+  normal: { min: 3000, max: 4000 },
+  fast: { min: 1000, max: 2000 },
+};
+
+export function resolveDelayMs(bot: BotConfig, speed: SpeedSetting | null): number {
+  if (!speed) return pickThinkingDelayMs(bot);
+  const { min, max } = SPEED_RANGES[speed];
+  return Math.floor(min + Math.random() * (max - min));
+}
+
+export function SpeedSelector({
+  value,
+  onChange,
+  className,
+}: {
+  value: SpeedSetting;
+  onChange: (v: SpeedSetting) => void;
+  className?: string;
+}) {
+  const opts: { key: SpeedSetting; label: string; sub: string; icon: React.ReactNode }[] = [
+    { key: "slow", label: "Slow", sub: "7–8s / move", icon: <Turtle className="w-4 h-4" /> },
+    { key: "normal", label: "Normal", sub: "3–4s / move", icon: <Zap className="w-4 h-4" /> },
+    { key: "fast", label: "Fast", sub: "1–2s / move", icon: <Rabbit className="w-4 h-4" /> },
+  ];
+  return (
+    <div className={cn("grid grid-cols-3 gap-2", className)}>
+      {opts.map((o) => (
+        <button
+          key={o.key}
+          onClick={() => onChange(o.key)}
+          className={cn(
+            "flex flex-col items-center gap-1 rounded-lg py-3 px-2 border text-center transition-colors",
+            value === o.key
+              ? "bg-primary/15 border-primary/50 text-primary"
+              : "bg-secondary/30 border-transparent hover:bg-secondary/60",
+          )}
+        >
+          <div className="flex items-center gap-1.5 text-sm font-semibold">{o.icon}{o.label}</div>
+          <div className="text-[10px] text-muted-foreground">{o.sub}</div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ───────── Bot vs Bot single-match mode ───────── */
+
 type Stage = "select" | "vs" | "match";
 
-export function BotVsBotMode() {
+export function BotVsBotMode({ onBack }: { onBack?: () => void }) {
   const [bots, setBots] = useState<BotConfig[]>([]);
   useEffect(() => {
     setBots(loadBots());
@@ -47,9 +103,9 @@ export function BotVsBotMode() {
 
   const [botA, setBotA] = useState<BotConfig | null>(null);
   const [botB, setBotB] = useState<BotConfig | null>(null);
+  const [speed, setSpeed] = useState<SpeedSetting>("normal");
   const [stage, setStage] = useState<Stage>("select");
 
-  // Keep selection in sync when bot library refreshes.
   useEffect(() => {
     if (botA && !bots.find((b) => b.id === botA.id)) setBotA(null);
     if (botB && !bots.find((b) => b.id === botB.id)) setBotB(null);
@@ -71,6 +127,7 @@ export function BotVsBotMode() {
       <BotVsBotMatch
         white={botA}
         black={botB}
+        speed={speed}
         onExit={() => { setStage("select"); }}
       />
     );
@@ -78,15 +135,30 @@ export function BotVsBotMode() {
 
   return (
     <div className="max-w-[1500px] mx-auto space-y-6">
-      <header className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-md bg-primary/15 grid place-items-center ring-1 ring-primary/30">
-          <Swords className="w-5 h-5 text-primary" />
+      <div className="flex items-center justify-between gap-3">
+        <header className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-md bg-primary/15 grid place-items-center ring-1 ring-primary/30">
+            <Swords className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <div className="text-xl font-bold leading-tight">Bot vs Bot · Single Match</div>
+            <div className="text-xs text-muted-foreground">Pick two bots and watch them battle.</div>
+          </div>
+        </header>
+        {onBack && (
+          <Button variant="ghost" size="sm" onClick={onBack}>
+            <ArrowLeft className="w-4 h-4 mr-1.5" /> Back
+          </Button>
+        )}
+      </div>
+
+      <Card className="bg-card p-4">
+        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Match Speed</div>
+        <SpeedSelector value={speed} onChange={setSpeed} />
+        <div className="text-[10px] text-muted-foreground mt-2">
+          Only affects delay between visible moves. Bot strength, openings, personality, and ELO are unchanged.
         </div>
-        <div>
-          <div className="text-xl font-bold leading-tight">Bot vs Bot</div>
-          <div className="text-xs text-muted-foreground">Pick two bots and watch them battle.</div>
-        </div>
-      </header>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-6 items-start">
         <SidePicker label="White" selected={botA} onSelect={setBotA} bots={bots} otherId={botB?.id ?? null} />
@@ -125,7 +197,7 @@ export function BotVsBotMode() {
 
 /* ───────── Bot picker (categorized) ───────── */
 
-function SidePicker({
+export function SidePicker({
   label,
   selected,
   onSelect,
@@ -237,7 +309,7 @@ function SidePicker({
   );
 }
 
-function VsBotCard({ bot, side }: { bot: BotConfig; side: "left" | "right" }) {
+export function VsBotCard({ bot, side }: { bot: BotConfig; side: "left" | "right" }) {
   return (
     <div className={cn("flex flex-col items-center gap-3", side === "right" ? "text-right" : "text-left")}>
       <div className="w-24 h-24 md:w-32 md:h-32 rounded-md bg-secondary grid place-items-center overflow-hidden ring-2 ring-primary/40 shadow-[0_0_30px_hsl(var(--primary)/0.3)]">
@@ -259,14 +331,28 @@ function VsBotCard({ bot, side }: { bot: BotConfig; side: "left" | "right" }) {
 
 /* ───────── The auto-play match with replay ───────── */
 
-function BotVsBotMatch({
+export type MatchResult = {
+  winner: "white" | "black" | "draw";
+  reason: string;
+  history: string[];
+};
+
+export function BotVsBotMatch({
   white,
   black,
   onExit,
+  speed = null,
+  onFinished,
+  hideExit = false,
+  headerExtra,
 }: {
   white: BotConfig;
   black: BotConfig;
-  onExit: () => void;
+  onExit?: () => void;
+  speed?: SpeedSetting | null;
+  onFinished?: (r: MatchResult) => void;
+  hideExit?: boolean;
+  headerExtra?: React.ReactNode;
 }) {
   const gameRef = useRef(new Chess());
   const [history, setHistory] = useState<string[]>([]);
@@ -279,6 +365,7 @@ function BotVsBotMatch({
 
   const [gameOver, setGameOver] = useState(false);
   const [replayIndex, setReplayIndex] = useState<number | null>(null);
+  const finishedRef = useRef(false);
 
   const whiteOpeningRef = useRef<OpeningDef | null>(pickOpeningForBot(white, "w"));
   const blackOpeningRef = useRef<OpeningDef | null>(pickOpeningForBot(black, "b"));
@@ -310,7 +397,7 @@ function BotVsBotMatch({
         const result = await chooseBotMove(game, bot, { openingLine: opening?.line ?? null });
         if (cancelledRef.current) return;
         if (!result) { setGameOver(true); return; }
-        const targetMs = pickThinkingDelayMs(bot);
+        const targetMs = resolveDelayMs(bot, speed);
         const elapsed = Date.now() - startedAt;
         if (elapsed < targetMs) await new Promise((r) => setTimeout(r, targetMs - elapsed));
         if (cancelledRef.current) return;
@@ -332,9 +419,26 @@ function BotVsBotMatch({
         setThinking(false);
       }
     })();
-    // Re-run whenever history changes (i.e. a move was made).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [history.length, gameOver, replayIndex, white, black]);
+  }, [history.length, gameOver, replayIndex, white, black, speed]);
+
+  // Fire onFinished exactly once when game ends.
+  useEffect(() => {
+    if (!gameOver || finishedRef.current) return;
+    finishedRef.current = true;
+    const g = gameRef.current;
+    let winner: MatchResult["winner"] = "draw";
+    let reason = "Draw";
+    if (g.isCheckmate()) {
+      // Whoever is to move just got mated.
+      winner = g.turn() === "w" ? "black" : "white";
+      reason = "Checkmate";
+    } else if (g.isStalemate()) { reason = "Stalemate"; }
+    else if (g.isThreefoldRepetition()) { reason = "Threefold repetition"; }
+    else if (g.isInsufficientMaterial()) { reason = "Insufficient material"; }
+    else if (g.isDraw()) { reason = "Draw"; }
+    onFinished?.({ winner, reason, history: [...history] });
+  }, [gameOver, history, onFinished]);
 
   const statusText = useMemo(() => {
     const g = gameRef.current;
@@ -359,7 +463,6 @@ function BotVsBotMatch({
     return rows;
   }, [history]);
 
-  // Board to render: live game, or a replay snapshot.
   const replayGame = useMemo(() => {
     if (replayIndex === null) return null;
     const g = new Chess();
@@ -383,6 +486,7 @@ function BotVsBotMatch({
   return (
     <div className="max-w-[1500px] mx-auto grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6 lg:gap-8">
       <section className="space-y-4 min-w-0">
+        {headerExtra}
         <BotHeaderCard bot={flipped ? white : black} sideLabel={flipped ? "White" : "Black"} />
 
         <Card className="p-5 md:p-6 bg-card min-w-0">
@@ -472,20 +576,18 @@ function BotVsBotMatch({
             )}
           </div>
         </Card>
-        {gameOver ? (
-          <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              onClick={onExit}
-              className="flex-1"
-            >
-              <RotateCcw className="w-4 h-4 mr-2" /> New match
+        {!hideExit && (
+          gameOver ? (
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={onExit} className="flex-1">
+                <RotateCcw className="w-4 h-4 mr-2" /> New match
+              </Button>
+            </div>
+          ) : (
+            <Button variant="destructive" onClick={onExit} className="w-full">
+              Stop match
             </Button>
-          </div>
-        ) : (
-          <Button variant="destructive" onClick={onExit} className="w-full">
-            Stop match
-          </Button>
+          )
         )}
       </aside>
     </div>
@@ -522,7 +624,7 @@ function MoveCell({
   );
 }
 
-function BotHeaderCard({ bot, sideLabel }: { bot: BotConfig; sideLabel: string }) {
+export function BotHeaderCard({ bot, sideLabel }: { bot: BotConfig; sideLabel: string }) {
   return (
     <Card className="bg-card p-3 flex items-center gap-3">
       <div className="w-11 h-11 rounded-full bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-primary/40">
