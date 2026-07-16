@@ -38,6 +38,10 @@ import {
 } from "@/lib/botStore";
 import type { OpeningDef } from "@/lib/openingLibrary";
 import { playMoveResultSound } from "@/lib/sounds";
+import { EvaluationBar } from "./EvaluationBar";
+import { evaluatePosition, type PositionEval } from "@/lib/stockfishEval";
+import { PositionEditor } from "./PositionEditor";
+import { Switch } from "@/components/ui/switch";
 
 /* ───────── Speed control ───────── */
 
