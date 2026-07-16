@@ -566,10 +566,10 @@ export function BotVsBotMatch({
 
   const replayGame = useMemo(() => {
     if (replayIndex === null) return null;
-    const g = new Chess();
+    const g = startFen ? new Chess(startFen) : new Chess();
     for (let i = 0; i <= replayIndex && i < history.length; i++) g.move(history[i]);
     return g;
-  }, [replayIndex, history]);
+  }, [replayIndex, history, startFen]);
 
   const displayGame = replayGame ?? gameRef.current;
 
@@ -604,14 +604,21 @@ export function BotVsBotMatch({
               </Button>
             </div>
           </div>
-          <div className="mx-auto w-full max-w-[min(65vh,560px)]">
-            <Board
-              game={displayGame}
-              flipped={flipped}
-              disabled
-              lastMove={displayLastMove}
-              onAttemptMove={() => false}
-            />
+          <div className="mx-auto w-full max-w-[min(65vh,560px)] flex gap-3 items-stretch">
+            {showEval && (
+              <div className="flex items-stretch">
+                <EvaluationBar evalData={evalData} loading={evalLoading} height={undefined as unknown as number} />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <Board
+                game={displayGame}
+                flipped={flipped}
+                disabled
+                lastMove={displayLastMove}
+                onAttemptMove={() => false}
+              />
+            </div>
           </div>
 
           {canReplay && (
