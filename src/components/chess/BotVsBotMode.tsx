@@ -108,6 +108,10 @@ export function BotVsBotMode({ onBack }: { onBack?: () => void }) {
   const [botA, setBotA] = useState<BotConfig | null>(null);
   const [botB, setBotB] = useState<BotConfig | null>(null);
   const [speed, setSpeed] = useState<SpeedSetting>("normal");
+  const [showEval, setShowEval] = useState(true);
+  const [gameType, setGameType] = useState<"standard" | "custom">("standard");
+  const [customFen, setCustomFen] = useState<string | null>(null);
+  const [editingPosition, setEditingPosition] = useState(false);
   const [stage, setStage] = useState<Stage>("select");
 
   useEffect(() => {
@@ -117,8 +121,9 @@ export function BotVsBotMode({ onBack }: { onBack?: () => void }) {
 
   const start = useCallback(() => {
     if (!botA || !botB) return;
+    if (gameType === "custom" && !customFen) return;
     setStage("vs");
-  }, [botA, botB]);
+  }, [botA, botB, gameType, customFen]);
 
   useEffect(() => {
     if (stage !== "vs") return;
@@ -132,8 +137,27 @@ export function BotVsBotMode({ onBack }: { onBack?: () => void }) {
         white={botA}
         black={botB}
         speed={speed}
+        showEval={showEval}
+        startFen={gameType === "custom" ? customFen : null}
         onExit={() => { setStage("select"); }}
       />
+    );
+  }
+
+  if (editingPosition) {
+    return (
+      <div className="max-w-[1200px] mx-auto space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-lg font-bold">Custom Position</div>
+          <Button variant="ghost" size="sm" onClick={() => setEditingPosition(false)}>
+            <ArrowLeft className="w-4 h-4 mr-1.5" /> Back to setup
+          </Button>
+        </div>
+        <PositionEditor
+          onCancel={() => setEditingPosition(false)}
+          onConfirm={(fen) => { setCustomFen(fen); setEditingPosition(false); }}
+        />
+      </div>
     );
   }
 
@@ -156,13 +180,62 @@ export function BotVsBotMode({ onBack }: { onBack?: () => void }) {
         )}
       </div>
 
-      <Card className="bg-card p-4">
-        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Match Speed</div>
-        <SpeedSelector value={speed} onChange={setSpeed} />
-        <div className="text-[10px] text-muted-foreground mt-2">
-          Only affects delay between visible moves. Bot strength, openings, personality, and ELO are unchanged.
-        </div>
-      </Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="bg-card p-4">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Match Speed</div>
+          <SpeedSelector value={speed} onChange={setSpeed} />
+          <div className="text-[10px] text-muted-foreground mt-2">
+            Only affects delay between visible moves. Bot strength is unchanged.
+          </div>
+        </Card>
+
+        <Card className="bg-card p-4 space-y-3">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Starting Position</div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => { setGameType("standard"); setCustomFen(null); }}
+                className={cn(
+                  "rounded-lg py-3 px-2 border text-center transition-colors",
+                  gameType === "standard"
+                    ? "bg-primary/15 border-primary/50 text-primary"
+                    : "bg-secondary/30 border-transparent hover:bg-secondary/60",
+                )}
+              >
+                <div className="text-sm font-semibold">Standard Game</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">Normal chess start</div>
+              </button>
+              <button
+                onClick={() => setGameType("custom")}
+                className={cn(
+                  "rounded-lg py-3 px-2 border text-center transition-colors",
+                  gameType === "custom"
+                    ? "bg-primary/15 border-primary/50 text-primary"
+                    : "bg-secondary/30 border-transparent hover:bg-secondary/60",
+                )}
+              >
+                <div className="text-sm font-semibold">Custom Position</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">
+                  {customFen ? "Position set ✓" : "Design your own"}
+                </div>
+              </button>
+            </div>
+            {gameType === "custom" && (
+              <Button size="sm" variant="secondary" className="w-full mt-2" onClick={() => setEditingPosition(true)}>
+                {customFen ? "Edit position" : "Open board editor"}
+              </Button>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between border-t border-border/60 pt-3">
+            <div>
+              <div className="text-xs font-semibold">Show Evaluation Bar</div>
+              <div className="text-[10px] text-muted-foreground">Stockfish eval — display only, does not affect bots.</div>
+            </div>
+            <Switch checked={showEval} onCheckedChange={setShowEval} />
+          </div>
+        </Card>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-6 items-start">
         <SidePicker label="White" selected={botA} onSelect={setBotA} bots={bots} otherId={botB?.id ?? null} />
@@ -173,7 +246,7 @@ export function BotVsBotMode({ onBack }: { onBack?: () => void }) {
       <div className="flex justify-center">
         <Button
           onClick={start}
-          disabled={!botA || !botB}
+          disabled={!botA || !botB || (gameType === "custom" && !customFen)}
           className="bg-success text-primary-foreground hover:bg-success/90 font-bold h-12 px-8 text-base"
         >
           <Play className="w-5 h-5 mr-2" /> Start Match
