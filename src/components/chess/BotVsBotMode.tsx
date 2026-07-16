@@ -422,6 +422,8 @@ export function BotVsBotMatch({
   onFinished,
   hideExit = false,
   headerExtra,
+  showEval = false,
+  startFen = null,
 }: {
   white: BotConfig;
   black: BotConfig;
@@ -430,8 +432,10 @@ export function BotVsBotMatch({
   onFinished?: (r: MatchResult) => void;
   hideExit?: boolean;
   headerExtra?: React.ReactNode;
+  showEval?: boolean;
+  startFen?: string | null;
 }) {
-  const gameRef = useRef(new Chess());
+  const gameRef = useRef(startFen ? new Chess(startFen) : new Chess());
   const [history, setHistory] = useState<string[]>([]);
   const [uciHistory, setUciHistory] = useState<string[]>([]);
   const [lastMove, setLastMove] = useState<{ from: Square; to: Square } | null>(null);
@@ -444,16 +448,36 @@ export function BotVsBotMatch({
   const [replayIndex, setReplayIndex] = useState<number | null>(null);
   const finishedRef = useRef(false);
 
-  const whiteOpeningRef = useRef<OpeningDef | null>(pickOpeningForBot(white, "w"));
-  const blackOpeningRef = useRef<OpeningDef | null>(pickOpeningForBot(black, "b"));
+  // Custom starting positions skip the opening repertoire.
+  const whiteOpeningRef = useRef<OpeningDef | null>(startFen ? null : pickOpeningForBot(white, "w"));
+  const blackOpeningRef = useRef<OpeningDef | null>(startFen ? null : pickOpeningForBot(black, "b"));
 
   const cancelledRef = useRef(false);
   const busyRef = useRef(false);
+
+  // Live evaluation (Stockfish, display-only).
+  const [evalData, setEvalData] = useState<PositionEval | null>(null);
+  const [evalLoading, setEvalLoading] = useState(false);
 
   useEffect(() => {
     cancelledRef.current = false;
     return () => { cancelledRef.current = true; };
   }, []);
+
+  // Evaluate current position after every move (and initial load) when enabled.
+  useEffect(() => {
+    if (!showEval) return;
+    const g = gameRef.current;
+    if (g.isGameOver()) return;
+    setEvalLoading(true);
+    let stale = false;
+    evaluatePosition(g.fen()).then((res) => {
+      if (stale) return;
+      if (res) setEvalData(res);
+      setEvalLoading(false);
+    });
+    return () => { stale = true; };
+  }, [showEval, history.length]);
 
   // Auto-play loop
   useEffect(() => {
