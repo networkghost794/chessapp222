@@ -46,7 +46,7 @@ export function EvaluationBar({
   const whiteAhead = whitePct >= 50;
 
   return (
-    <div className="flex flex-col items-center gap-1 select-none" style={{ height }}>
+    <div className="flex flex-col items-stretch gap-1 select-none self-stretch" style={height ? { height } : undefined}>
       <div className="text-[10px] font-mono text-muted-foreground min-h-[14px]">
         {whiteAhead ? label : ""}
       </div>
