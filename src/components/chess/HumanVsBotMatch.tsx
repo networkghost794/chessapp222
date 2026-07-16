@@ -172,7 +172,7 @@ export function HumanVsBotMatch({
         {headerExtra}
         <ParticipantHeader
           name={bot.name}
-          avatar={bot.avatar}
+          avatar={bot.avatar ?? null}
           elo={bot.elo}
           title={bot.title}
           titleColor={bot.titleColor}
