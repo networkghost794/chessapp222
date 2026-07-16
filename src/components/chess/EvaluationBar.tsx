@@ -11,7 +11,7 @@ import type { PositionEval } from "@/lib/stockfishEval";
 export function EvaluationBar({
   evalData,
   loading,
-  height = 560,
+  height,
 }: {
   evalData: PositionEval | null;
   loading?: boolean;
