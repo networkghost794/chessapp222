@@ -940,17 +940,16 @@ function labelForType(t: TournamentType): string {
 
 /* ───────── Schedule builders ───────── */
 
-function buildInitialSchedule(type: TournamentType, bots: BotConfig[]): Pairing[] {
+function buildInitialSchedule(type: TournamentType, ids: string[]): Pairing[] {
   if (type === "round-robin") {
     const out: Pairing[] = [];
-    for (let i = 0; i < bots.length; i++) {
-      for (let j = i + 1; j < bots.length; j++) {
-        // Alternate colors across pairings for fairness.
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
         const whiteFirst = (i + j) % 2 === 0;
         out.push({
           round: 1,
-          whiteId: whiteFirst ? bots[i].id : bots[j].id,
-          blackId: whiteFirst ? bots[j].id : bots[i].id,
+          whiteId: whiteFirst ? ids[i] : ids[j],
+          blackId: whiteFirst ? ids[j] : ids[i],
           result: null,
         });
       }
@@ -958,23 +957,22 @@ function buildInitialSchedule(type: TournamentType, bots: BotConfig[]): Pairing[
     return out;
   }
   if (type === "championship") {
-    const [a, b] = bots;
+    const [a, b] = ids;
     return [
-      { round: 1, whiteId: a.id, blackId: b.id, result: null },
-      { round: 2, whiteId: b.id, blackId: a.id, result: null },
-      { round: 3, whiteId: a.id, blackId: b.id, result: null },
-      { round: 4, whiteId: b.id, blackId: a.id, result: null },
+      { round: 1, whiteId: a, blackId: b, result: null },
+      { round: 2, whiteId: b, blackId: a, result: null },
+      { round: 3, whiteId: a, blackId: b, result: null },
+      { round: 4, whiteId: b, blackId: a, result: null },
     ];
   }
-  // knockout — round 1 pairings; more rounds appended as results come in
-  const shuffled = [...bots].sort(() => Math.random() - 0.5);
+  const shuffled = [...ids].sort(() => Math.random() - 0.5);
   const out: Pairing[] = [];
   for (let i = 0; i + 1 < shuffled.length; i += 2) {
-    out.push({ round: 1, whiteId: shuffled[i].id, blackId: shuffled[i + 1].id, result: null });
+    out.push({ round: 1, whiteId: shuffled[i], blackId: shuffled[i + 1], result: null });
   }
   if (shuffled.length % 2 === 1) {
     const bye = shuffled[shuffled.length - 1];
-    out.push({ round: 1, whiteId: bye.id, blackId: bye.id, result: "white", reason: "Bye" });
+    out.push({ round: 1, whiteId: bye, blackId: bye, result: "white", reason: "Bye" });
   }
   return out;
 }
