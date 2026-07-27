@@ -725,10 +725,10 @@ function TournamentRunning({
 
 function StandingsCard({
   standings,
-  bots,
+  participants,
 }: {
   standings: Standing[];
-  bots: Map<string, BotConfig>;
+  participants: Map<string, Participant>;
 }) {
   return (
     <Card className="bg-card p-3">
@@ -738,7 +738,7 @@ function StandingsCard({
           <thead className="text-[10px] uppercase tracking-wider text-muted-foreground">
             <tr>
               <th className="text-left px-2 py-1 w-6">#</th>
-              <th className="text-left px-2 py-1">Bot</th>
+              <th className="text-left px-2 py-1">Player</th>
               <th className="text-center px-1 py-1">W</th>
               <th className="text-center px-1 py-1">L</th>
               <th className="text-center px-1 py-1">D</th>
@@ -747,17 +747,19 @@ function StandingsCard({
           </thead>
           <tbody>
             {standings.map((s, i) => {
-              const b = bots.get(s.botId);
-              if (!b) return null;
+              const p = participants.get(s.botId);
+              if (!p) return null;
+              const t = pTitle(p);
               return (
-                <tr key={s.botId} className="odd:bg-secondary/30">
+                <tr key={s.botId} className={cn("odd:bg-secondary/30", p.kind === "player" && "bg-primary/10")}>
                   <td className="px-2 py-1 font-semibold">{i + 1}</td>
                   <td className="px-2 py-1">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <BotAvatar bot={b} size={20} />
+                      <ParticipantAvatar participant={p} size={20} />
                       <span className="truncate inline-flex items-center gap-1">
-                        {b.title && <TitleBadge title={b.title} color={b.titleColor} size="sm" />}
-                        <span className="truncate">{b.name}</span>
+                        {t.title && <TitleBadge title={t.title} color={t.color} size="sm" />}
+                        <span className="truncate">{pName(p)}</span>
+                        {p.kind === "player" && <span className="text-[9px] text-primary/80 uppercase">You</span>}
                       </span>
                     </div>
                   </td>
@@ -777,11 +779,11 @@ function StandingsCard({
 
 function ScheduleCard({
   schedule,
-  bots,
+  participants,
   currentIdx,
 }: {
   schedule: Pairing[];
-  bots: Map<string, BotConfig>;
+  participants: Map<string, Participant>;
   currentIdx: number;
 }) {
   return (
@@ -789,8 +791,8 @@ function ScheduleCard({
       <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1 mb-2">Schedule</div>
       <div className="overflow-auto scroll-thin max-h-[300px] space-y-1">
         {schedule.map((p, i) => {
-          const w = bots.get(p.whiteId);
-          const b = bots.get(p.blackId);
+          const w = participants.get(p.whiteId);
+          const b = participants.get(p.blackId);
           if (!w || !b) return null;
           const isCurrent = i === currentIdx;
           const done = p.result != null;
@@ -803,13 +805,12 @@ function ScheduleCard({
               )}
             >
               <span className="text-[10px] text-muted-foreground w-8 shrink-0">R{p.round}·{i + 1}</span>
-              <span className={cn("flex-1 truncate", p.result === "white" && "font-semibold text-primary")}>{w.name}</span>
+              <span className={cn("flex-1 truncate", p.result === "white" && "font-semibold text-primary")}>{pName(w)}</span>
               <span className="text-muted-foreground text-[10px]">vs</span>
-              <span className={cn("flex-1 truncate text-right", p.result === "black" && "font-semibold text-primary")}>{b.name}</span>
+              <span className={cn("flex-1 truncate text-right", p.result === "black" && "font-semibold text-primary")}>{pName(b)}</span>
               <span className="w-10 text-right shrink-0">
                 {done ? (
                   p.result === "draw" ? <span className="text-muted-foreground">½–½</span>
-                  : p.result === "white" ? <Check className="w-3.5 h-3.5 text-success inline" />
                   : <Check className="w-3.5 h-3.5 text-success inline" />
                 ) : isCurrent ? <span className="text-primary text-[10px] uppercase">Live</span>
                 : <span className="text-muted-foreground text-[10px]">—</span>}
@@ -819,6 +820,25 @@ function ScheduleCard({
         })}
       </div>
     </Card>
+  );
+}
+
+function ParticipantAvatar({ participant, size = 32 }: { participant: Participant; size?: number }) {
+  const src = pAvatar(participant);
+  return (
+    <div
+      className={cn(
+        "rounded-md bg-secondary grid place-items-center overflow-hidden shrink-0",
+        participant.kind === "player" ? "ring-1 ring-primary/50" : "ring-1 ring-border",
+      )}
+      style={{ width: size, height: size }}
+    >
+      {src ? (
+        <img src={src} alt={pName(participant)} className="w-full h-full object-cover" />
+      ) : (
+        <User className="w-1/2 h-1/2 text-muted-foreground" />
+      )}
+    </div>
   );
 }
 
