@@ -35,7 +35,26 @@ import {
   type MatchResult,
   type SpeedSetting,
 } from "./BotVsBotMode";
+import { HumanVsBotMatch, type PlayerProfileLite } from "./HumanVsBotMatch";
 import { TitleBadge } from "./ChessApp";
+import { useAuth } from "@/lib/useAuth";
+import type { Color } from "chess.js";
+
+const PLAYER_ID = "__player__";
+type Participant =
+  | { kind: "bot"; id: string; bot: BotConfig }
+  | { kind: "player"; id: string; profile: PlayerProfileLite };
+
+function pName(p: Participant): string { return p.kind === "bot" ? p.bot.name : p.profile.name; }
+function pElo(p: Participant): number { return p.kind === "bot" ? p.bot.elo : p.profile.elo; }
+function pTitle(p: Participant): { title?: string | null; color?: string | null } {
+  return p.kind === "bot"
+    ? { title: p.bot.title, color: p.bot.titleColor }
+    : { title: p.profile.title, color: p.profile.titleColor };
+}
+function pAvatar(p: Participant): string | null {
+  return p.kind === "bot" ? (p.bot.avatar ?? null) : p.profile.avatar;
+}
 
 /* ============================================================
    Top-level Game Modes hub
