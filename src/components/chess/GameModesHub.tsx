@@ -377,11 +377,40 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
             </div>
           </Card>
 
+          {playerProfile && (
+            <Card className="bg-card p-3 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-md bg-primary/15 grid place-items-center ring-1 ring-primary/40 overflow-hidden shrink-0">
+                {playerProfile.avatar ? (
+                  <img src={playerProfile.avatar} alt={playerProfile.name} className="w-full h-full object-cover" />
+                ) : (
+                  <User className="w-4 h-4 text-primary" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold truncate">Play as yourself</div>
+                <div className="text-[11px] text-muted-foreground truncate">
+                  {playerProfile.name} · ELO {playerProfile.elo}
+                </div>
+              </div>
+              <button
+                onClick={() => setIncludePlayer((v) => !v)}
+                className={cn(
+                  "rounded-md px-3 py-1.5 text-xs font-semibold border transition-colors",
+                  includePlayer
+                    ? "bg-primary/15 border-primary/50 text-primary"
+                    : "bg-secondary/40 border-transparent hover:bg-secondary/60",
+                )}
+              >
+                {includePlayer ? "Joined" : "Join"}
+              </button>
+            </Card>
+          )}
+
           <MultiBotPicker
             bots={bots}
             selectedIds={selectedIds}
             onToggle={toggle}
-            max={type === "championship" ? 2 : undefined}
+            max={type === "championship" ? (includePlayer ? 1 : 2) : undefined}
           />
         </div>
 
@@ -390,25 +419,37 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
             <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Selected ({participants.length})</div>
             {participants.length === 0 ? (
               <div className="text-xs text-muted-foreground py-3 text-center border border-dashed border-border/60 rounded-md">
-                No bots selected yet
+                No participants yet
               </div>
             ) : (
               <div className="space-y-1.5 max-h-[280px] overflow-auto scroll-thin">
-                {participants.map((b) => (
-                  <div key={b.id} className="flex items-center gap-2 bg-secondary/40 rounded-md p-2">
-                    <BotAvatar bot={b} size={28} />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-xs font-semibold truncate inline-flex items-center gap-1">
-                        {b.title && <TitleBadge title={b.title} color={b.titleColor} size="sm" />}
-                        <span className="truncate">{b.name}</span>
+                {participants.map((p) => {
+                  const t = pTitle(p);
+                  return (
+                    <div key={p.id} className="flex items-center gap-2 bg-secondary/40 rounded-md p-2">
+                      <ParticipantAvatar participant={p} size={28} />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-semibold truncate inline-flex items-center gap-1">
+                          {t.title && <TitleBadge title={t.title} color={t.color} size="sm" />}
+                          <span className="truncate">{pName(p)}</span>
+                          {p.kind === "player" && (
+                            <span className="text-[9px] uppercase tracking-wider text-primary/80">You</span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">ELO {pElo(p)}</div>
                       </div>
-                      <div className="text-[10px] text-muted-foreground">ELO {b.elo}</div>
+                      <button
+                        onClick={() => {
+                          if (p.kind === "player") setIncludePlayer(false);
+                          else toggle(p.id);
+                        }}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
                     </div>
-                    <button onClick={() => toggle(b.id)} className="text-muted-foreground hover:text-destructive">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </Card>
