@@ -504,7 +504,7 @@ function TournamentRunning({
 }: {
   name: string;
   type: TournamentType;
-  participants: BotConfig[];
+  participants: Participant[];
   schedule: Pairing[];
   setSchedule: React.Dispatch<React.SetStateAction<Pairing[]>>;
   currentIdx: number;
@@ -516,15 +516,14 @@ function TournamentRunning({
   setCountdown: React.Dispatch<React.SetStateAction<number | null>>;
   onExit: () => void;
 }) {
-  const byId = useMemo(() => new Map(participants.map((b) => [b.id, b])), [participants]);
+  const byId = useMemo(() => new Map(participants.map((p) => [p.id, p])), [participants]);
 
   const current = schedule[currentIdx];
   const done = !current;
 
-  // Compute standings from schedule.
   const standings = useMemo<Standing[]>(() => {
     const map = new Map<string, Standing>();
-    for (const b of participants) map.set(b.id, { botId: b.id, wins: 0, losses: 0, draws: 0, points: 0 });
+    for (const p of participants) map.set(p.id, { botId: p.id, wins: 0, losses: 0, draws: 0, points: 0 });
     for (const p of schedule) {
       if (!p.result) continue;
       const w = map.get(p.whiteId)!;
@@ -543,40 +542,32 @@ function TournamentRunning({
         const p = next[currentIdx];
         if (!p || p.result != null) return prev;
         let outcome = res.winner;
-        // Knockout tiebreak on draw — higher ELO advances.
         if (type === "knockout" && outcome === "draw") {
           const w = byId.get(p.whiteId)!;
           const b = byId.get(p.blackId)!;
-          outcome = w.elo >= b.elo ? "white" : "black";
+          outcome = pElo(w) >= pElo(b) ? "white" : "black";
         }
         next[currentIdx] = { ...p, result: outcome, reason: res.reason };
         return next;
       });
-      // Start 20s countdown to next match.
       setCountdown(20);
     },
     [currentIdx, setSchedule, setCountdown, type, byId],
   );
 
-  // For knockout, once the current round completes, generate the next round.
   useEffect(() => {
     if (type !== "knockout") return;
-    // Find rounds present & their status
     const rounds = Array.from(new Set(schedule.map((p) => p.round))).sort((a, b) => a - b);
     const last = rounds[rounds.length - 1];
     const lastRoundPairs = schedule.filter((p) => p.round === last);
     if (lastRoundPairs.some((p) => p.result == null)) return;
-    if (lastRoundPairs.length <= 1) return; // final done
-    // Build next round from winners
+    if (lastRoundPairs.length <= 1) return;
     const winners = lastRoundPairs.map((p) => (p.result === "white" ? p.whiteId : p.result === "black" ? p.blackId : p.whiteId));
     const nextRound: Pairing[] = [];
     for (let i = 0; i + 1 < winners.length; i += 2) {
       nextRound.push({ round: last + 1, whiteId: winners[i], blackId: winners[i + 1], result: null });
     }
-    // Odd bye — advance last winner
     if (winners.length % 2 === 1) {
-      // Give the odd one a bye by immediately advancing (create a "pairing" with itself as white and a null result won't work; simpler: propagate to next round via schedule note).
-      // For simplicity: schedule vs themselves marked as a walkover — we'll represent by adding a self-pairing that auto-resolves.
       const bye = winners[winners.length - 1];
       nextRound.push({ round: last + 1, whiteId: bye, blackId: bye, result: "white", reason: "Bye" });
     }
@@ -584,7 +575,6 @@ function TournamentRunning({
     setSchedule((prev) => [...prev, ...nextRound]);
   }, [schedule, type, setSchedule]);
 
-  // Countdown to next match
   useEffect(() => {
     if (countdown == null) return;
     if (paused) return;
@@ -597,7 +587,7 @@ function TournamentRunning({
     return () => clearTimeout(t);
   }, [countdown, paused, setCountdown, setCurrentIdx]);
 
-  const champion: BotConfig | undefined = useMemo(() => {
+  const champion: Participant | undefined = useMemo(() => {
     if (!done) return undefined;
     if (type === "knockout") {
       const rounds = Array.from(new Set(schedule.map((p) => p.round))).sort((a, b) => a - b);
@@ -621,7 +611,7 @@ function TournamentRunning({
           <div className="min-w-0">
             <div className="text-xl font-bold leading-tight truncate">{name}</div>
             <div className="text-xs text-muted-foreground">
-              {labelForType(type)} · {participants.length} bots · Speed: {speed}
+              {labelForType(type)} · {participants.length} players · Speed: {speed}
             </div>
           </div>
         </header>
@@ -645,12 +635,17 @@ function TournamentRunning({
               <div className="text-2xl font-black">Tournament Complete</div>
               {champion && (
                 <div className="flex flex-col items-center gap-2">
-                  <BotAvatar bot={champion} size={80} />
+                  <ParticipantAvatar participant={champion} size={80} />
                   <div className="text-lg font-bold inline-flex items-center gap-2">
-                    {champion.title && <TitleBadge title={champion.title} color={champion.titleColor} size="md" />}
-                    {champion.name}
+                    {pTitle(champion).title && (
+                      <TitleBadge title={pTitle(champion).title} color={pTitle(champion).color} size="md" />
+                    )}
+                    {pName(champion)}
+                    {champion.kind === "player" && (
+                      <span className="text-xs uppercase tracking-wider text-primary/80">You</span>
+                    )}
                   </div>
-                  <div className="text-xs text-muted-foreground">Champion · ELO {champion.elo}</div>
+                  <div className="text-xs text-muted-foreground">Champion · ELO {pElo(champion)}</div>
                 </div>
               )}
               <Button onClick={onExit} className="mt-2">Back to setup</Button>
@@ -674,28 +669,54 @@ function TournamentRunning({
               </Button>
             </Card>
           ) : current ? (
-            <BotVsBotMatch
-              key={currentIdx}
-              white={byId.get(current.whiteId)!}
-              black={byId.get(current.blackId)!}
-              speed={speed}
-              hideExit
-              onFinished={onMatchFinished}
-              headerExtra={
+            (() => {
+              const whiteP = byId.get(current.whiteId);
+              const blackP = byId.get(current.blackId);
+              if (!whiteP || !blackP) return null;
+              const header = (
                 <Card className="bg-card p-2.5 flex items-center justify-between text-xs">
                   <span className="font-semibold">
                     {labelForType(type)} · Round {current.round} · Game {currentIdx + 1} of {schedule.length}
                   </span>
                   <span className="text-muted-foreground">Speed: {speed}</span>
                 </Card>
+              );
+              // Player is involved → Human vs Bot match.
+              if (whiteP.kind === "player" || blackP.kind === "player") {
+                const playerIsWhite = whiteP.kind === "player";
+                const player = (playerIsWhite ? whiteP : blackP) as Extract<Participant, { kind: "player" }>;
+                const botP = (playerIsWhite ? blackP : whiteP) as Extract<Participant, { kind: "bot" }>;
+                const playerColor: Color = playerIsWhite ? "w" : "b";
+                return (
+                  <HumanVsBotMatch
+                    key={currentIdx}
+                    bot={botP.bot}
+                    player={player.profile}
+                    playerColor={playerColor}
+                    onFinished={onMatchFinished}
+                    headerExtra={header}
+                  />
+                );
               }
-            />
+              // Bot vs Bot.
+              return (
+                <BotVsBotMatch
+                  key={currentIdx}
+                  white={(whiteP as Extract<Participant, { kind: "bot" }>).bot}
+                  black={(blackP as Extract<Participant, { kind: "bot" }>).bot}
+                  speed={speed}
+                  hideExit
+                  onFinished={onMatchFinished}
+                  headerExtra={header}
+                />
+              );
+            })()
           ) : null}
         </div>
 
         <aside className="space-y-3">
-          <StandingsCard standings={standings} bots={byId} />
-          <ScheduleCard schedule={schedule} bots={byId} currentIdx={currentIdx} />
+          <StandingsCard standings={standings} participants={byId} />
+          <ScheduleCard schedule={schedule} participants={byId} currentIdx={currentIdx} />
         </aside>
       </div>
     </div>
