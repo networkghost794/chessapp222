@@ -35,7 +35,26 @@ import {
   type MatchResult,
   type SpeedSetting,
 } from "./BotVsBotMode";
+import { HumanVsBotMatch, type PlayerProfileLite } from "./HumanVsBotMatch";
 import { TitleBadge } from "./ChessApp";
+import { useAuth } from "@/lib/useAuth";
+import type { Color } from "chess.js";
+
+const PLAYER_ID = "__player__";
+type Participant =
+  | { kind: "bot"; id: string; bot: BotConfig }
+  | { kind: "player"; id: string; profile: PlayerProfileLite };
+
+function pName(p: Participant): string { return p.kind === "bot" ? p.bot.name : p.profile.name; }
+function pElo(p: Participant): number { return p.kind === "bot" ? p.bot.elo : p.profile.elo; }
+function pTitle(p: Participant): { title?: string | null; color?: string | null } {
+  return p.kind === "bot"
+    ? { title: p.bot.title, color: p.bot.titleColor }
+    : { title: p.profile.title, color: p.profile.titleColor };
+}
+function pAvatar(p: Participant): string | null {
+  return p.kind === "bot" ? (p.bot.avatar ?? null) : p.profile.avatar;
+}
 
 /* ============================================================
    Top-level Game Modes hub
@@ -210,6 +229,7 @@ type Standing = {
 };
 
 function TournamentMode({ onBack }: { onBack: () => void }) {
+  const { profile } = useAuth();
   const [bots, setBots] = useState<BotConfig[]>([]);
   useEffect(() => {
     setBots(loadBots());
@@ -220,6 +240,7 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
   const [name, setName] = useState("New Tournament");
   const [type, setType] = useState<TournamentType>("round-robin");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [includePlayer, setIncludePlayer] = useState(false);
   const [speed, setSpeed] = useState<SpeedSetting>("normal");
   const [schedule, setSchedule] = useState<Pairing[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -227,12 +248,30 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [matchKey, setMatchKey] = useState(0);
 
-  const participants = useMemo(
-    () => selectedIds.map((id) => bots.find((b) => b.id === id)).filter(Boolean) as BotConfig[],
-    [selectedIds, bots],
-  );
+  const playerProfile: PlayerProfileLite | null = useMemo(() => {
+    if (!profile) return null;
+    return {
+      name: profile.username || "You",
+      avatar: profile.avatar_url,
+      elo: profile.elo_rating,
+      title: profile.title_badge ?? null,
+      titleColor: null,
+    };
+  }, [profile]);
 
-  const requiredCount = type === "championship" ? 2 : 2;
+  const participants = useMemo<Participant[]>(() => {
+    const list: Participant[] = selectedIds
+      .map((id) => {
+        const b = bots.find((x) => x.id === id);
+        return b ? ({ kind: "bot", id: b.id, bot: b } as Participant) : null;
+      })
+      .filter(Boolean) as Participant[];
+    if (includePlayer && playerProfile) {
+      list.push({ kind: "player", id: PLAYER_ID, profile: playerProfile });
+    }
+    return list;
+  }, [selectedIds, bots, includePlayer, playerProfile]);
+
   const canStart =
     (type === "championship" && participants.length === 2) ||
     (type === "round-robin" && participants.length >= 3) ||
@@ -242,7 +281,7 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   const startTournament = () => {
-    const initial = buildInitialSchedule(type, participants);
+    const initial = buildInitialSchedule(type, participants.map((p) => p.id));
     setSchedule(initial);
     setCurrentIdx(0);
     setPaused(false);
@@ -338,11 +377,40 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
             </div>
           </Card>
 
+          {playerProfile && (
+            <Card className="bg-card p-3 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-md bg-primary/15 grid place-items-center ring-1 ring-primary/40 overflow-hidden shrink-0">
+                {playerProfile.avatar ? (
+                  <img src={playerProfile.avatar} alt={playerProfile.name} className="w-full h-full object-cover" />
+                ) : (
+                  <User className="w-4 h-4 text-primary" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold truncate">Play as yourself</div>
+                <div className="text-[11px] text-muted-foreground truncate">
+                  {playerProfile.name} · ELO {playerProfile.elo}
+                </div>
+              </div>
+              <button
+                onClick={() => setIncludePlayer((v) => !v)}
+                className={cn(
+                  "rounded-md px-3 py-1.5 text-xs font-semibold border transition-colors",
+                  includePlayer
+                    ? "bg-primary/15 border-primary/50 text-primary"
+                    : "bg-secondary/40 border-transparent hover:bg-secondary/60",
+                )}
+              >
+                {includePlayer ? "Joined" : "Join"}
+              </button>
+            </Card>
+          )}
+
           <MultiBotPicker
             bots={bots}
             selectedIds={selectedIds}
             onToggle={toggle}
-            max={type === "championship" ? 2 : undefined}
+            max={type === "championship" ? (includePlayer ? 1 : 2) : undefined}
           />
         </div>
 
@@ -351,25 +419,37 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
             <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Selected ({participants.length})</div>
             {participants.length === 0 ? (
               <div className="text-xs text-muted-foreground py-3 text-center border border-dashed border-border/60 rounded-md">
-                No bots selected yet
+                No participants yet
               </div>
             ) : (
               <div className="space-y-1.5 max-h-[280px] overflow-auto scroll-thin">
-                {participants.map((b) => (
-                  <div key={b.id} className="flex items-center gap-2 bg-secondary/40 rounded-md p-2">
-                    <BotAvatar bot={b} size={28} />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-xs font-semibold truncate inline-flex items-center gap-1">
-                        {b.title && <TitleBadge title={b.title} color={b.titleColor} size="sm" />}
-                        <span className="truncate">{b.name}</span>
+                {participants.map((p) => {
+                  const t = pTitle(p);
+                  return (
+                    <div key={p.id} className="flex items-center gap-2 bg-secondary/40 rounded-md p-2">
+                      <ParticipantAvatar participant={p} size={28} />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-semibold truncate inline-flex items-center gap-1">
+                          {t.title && <TitleBadge title={t.title} color={t.color} size="sm" />}
+                          <span className="truncate">{pName(p)}</span>
+                          {p.kind === "player" && (
+                            <span className="text-[9px] uppercase tracking-wider text-primary/80">You</span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">ELO {pElo(p)}</div>
                       </div>
-                      <div className="text-[10px] text-muted-foreground">ELO {b.elo}</div>
+                      <button
+                        onClick={() => {
+                          if (p.kind === "player") setIncludePlayer(false);
+                          else toggle(p.id);
+                        }}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
                     </div>
-                    <button onClick={() => toggle(b.id)} className="text-muted-foreground hover:text-destructive">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </Card>
@@ -424,7 +504,7 @@ function TournamentRunning({
 }: {
   name: string;
   type: TournamentType;
-  participants: BotConfig[];
+  participants: Participant[];
   schedule: Pairing[];
   setSchedule: React.Dispatch<React.SetStateAction<Pairing[]>>;
   currentIdx: number;
@@ -436,15 +516,14 @@ function TournamentRunning({
   setCountdown: React.Dispatch<React.SetStateAction<number | null>>;
   onExit: () => void;
 }) {
-  const byId = useMemo(() => new Map(participants.map((b) => [b.id, b])), [participants]);
+  const byId = useMemo(() => new Map(participants.map((p) => [p.id, p])), [participants]);
 
   const current = schedule[currentIdx];
   const done = !current;
 
-  // Compute standings from schedule.
   const standings = useMemo<Standing[]>(() => {
     const map = new Map<string, Standing>();
-    for (const b of participants) map.set(b.id, { botId: b.id, wins: 0, losses: 0, draws: 0, points: 0 });
+    for (const p of participants) map.set(p.id, { botId: p.id, wins: 0, losses: 0, draws: 0, points: 0 });
     for (const p of schedule) {
       if (!p.result) continue;
       const w = map.get(p.whiteId)!;
@@ -463,40 +542,32 @@ function TournamentRunning({
         const p = next[currentIdx];
         if (!p || p.result != null) return prev;
         let outcome = res.winner;
-        // Knockout tiebreak on draw — higher ELO advances.
         if (type === "knockout" && outcome === "draw") {
           const w = byId.get(p.whiteId)!;
           const b = byId.get(p.blackId)!;
-          outcome = w.elo >= b.elo ? "white" : "black";
+          outcome = pElo(w) >= pElo(b) ? "white" : "black";
         }
         next[currentIdx] = { ...p, result: outcome, reason: res.reason };
         return next;
       });
-      // Start 20s countdown to next match.
       setCountdown(20);
     },
     [currentIdx, setSchedule, setCountdown, type, byId],
   );
 
-  // For knockout, once the current round completes, generate the next round.
   useEffect(() => {
     if (type !== "knockout") return;
-    // Find rounds present & their status
     const rounds = Array.from(new Set(schedule.map((p) => p.round))).sort((a, b) => a - b);
     const last = rounds[rounds.length - 1];
     const lastRoundPairs = schedule.filter((p) => p.round === last);
     if (lastRoundPairs.some((p) => p.result == null)) return;
-    if (lastRoundPairs.length <= 1) return; // final done
-    // Build next round from winners
+    if (lastRoundPairs.length <= 1) return;
     const winners = lastRoundPairs.map((p) => (p.result === "white" ? p.whiteId : p.result === "black" ? p.blackId : p.whiteId));
     const nextRound: Pairing[] = [];
     for (let i = 0; i + 1 < winners.length; i += 2) {
       nextRound.push({ round: last + 1, whiteId: winners[i], blackId: winners[i + 1], result: null });
     }
-    // Odd bye — advance last winner
     if (winners.length % 2 === 1) {
-      // Give the odd one a bye by immediately advancing (create a "pairing" with itself as white and a null result won't work; simpler: propagate to next round via schedule note).
-      // For simplicity: schedule vs themselves marked as a walkover — we'll represent by adding a self-pairing that auto-resolves.
       const bye = winners[winners.length - 1];
       nextRound.push({ round: last + 1, whiteId: bye, blackId: bye, result: "white", reason: "Bye" });
     }
@@ -504,7 +575,6 @@ function TournamentRunning({
     setSchedule((prev) => [...prev, ...nextRound]);
   }, [schedule, type, setSchedule]);
 
-  // Countdown to next match
   useEffect(() => {
     if (countdown == null) return;
     if (paused) return;
@@ -517,7 +587,7 @@ function TournamentRunning({
     return () => clearTimeout(t);
   }, [countdown, paused, setCountdown, setCurrentIdx]);
 
-  const champion: BotConfig | undefined = useMemo(() => {
+  const champion: Participant | undefined = useMemo(() => {
     if (!done) return undefined;
     if (type === "knockout") {
       const rounds = Array.from(new Set(schedule.map((p) => p.round))).sort((a, b) => a - b);
@@ -541,7 +611,7 @@ function TournamentRunning({
           <div className="min-w-0">
             <div className="text-xl font-bold leading-tight truncate">{name}</div>
             <div className="text-xs text-muted-foreground">
-              {labelForType(type)} · {participants.length} bots · Speed: {speed}
+              {labelForType(type)} · {participants.length} players · Speed: {speed}
             </div>
           </div>
         </header>
@@ -565,12 +635,17 @@ function TournamentRunning({
               <div className="text-2xl font-black">Tournament Complete</div>
               {champion && (
                 <div className="flex flex-col items-center gap-2">
-                  <BotAvatar bot={champion} size={80} />
+                  <ParticipantAvatar participant={champion} size={80} />
                   <div className="text-lg font-bold inline-flex items-center gap-2">
-                    {champion.title && <TitleBadge title={champion.title} color={champion.titleColor} size="md" />}
-                    {champion.name}
+                    {pTitle(champion).title && (
+                      <TitleBadge title={pTitle(champion).title} color={pTitle(champion).color} size="md" />
+                    )}
+                    {pName(champion)}
+                    {champion.kind === "player" && (
+                      <span className="text-xs uppercase tracking-wider text-primary/80">You</span>
+                    )}
                   </div>
-                  <div className="text-xs text-muted-foreground">Champion · ELO {champion.elo}</div>
+                  <div className="text-xs text-muted-foreground">Champion · ELO {pElo(champion)}</div>
                 </div>
               )}
               <Button onClick={onExit} className="mt-2">Back to setup</Button>
@@ -594,28 +669,54 @@ function TournamentRunning({
               </Button>
             </Card>
           ) : current ? (
-            <BotVsBotMatch
-              key={currentIdx}
-              white={byId.get(current.whiteId)!}
-              black={byId.get(current.blackId)!}
-              speed={speed}
-              hideExit
-              onFinished={onMatchFinished}
-              headerExtra={
+            (() => {
+              const whiteP = byId.get(current.whiteId);
+              const blackP = byId.get(current.blackId);
+              if (!whiteP || !blackP) return null;
+              const header = (
                 <Card className="bg-card p-2.5 flex items-center justify-between text-xs">
                   <span className="font-semibold">
                     {labelForType(type)} · Round {current.round} · Game {currentIdx + 1} of {schedule.length}
                   </span>
                   <span className="text-muted-foreground">Speed: {speed}</span>
                 </Card>
+              );
+              // Player is involved → Human vs Bot match.
+              if (whiteP.kind === "player" || blackP.kind === "player") {
+                const playerIsWhite = whiteP.kind === "player";
+                const player = (playerIsWhite ? whiteP : blackP) as Extract<Participant, { kind: "player" }>;
+                const botP = (playerIsWhite ? blackP : whiteP) as Extract<Participant, { kind: "bot" }>;
+                const playerColor: Color = playerIsWhite ? "w" : "b";
+                return (
+                  <HumanVsBotMatch
+                    key={currentIdx}
+                    bot={botP.bot}
+                    player={player.profile}
+                    playerColor={playerColor}
+                    onFinished={onMatchFinished}
+                    headerExtra={header}
+                  />
+                );
               }
-            />
+              // Bot vs Bot.
+              return (
+                <BotVsBotMatch
+                  key={currentIdx}
+                  white={(whiteP as Extract<Participant, { kind: "bot" }>).bot}
+                  black={(blackP as Extract<Participant, { kind: "bot" }>).bot}
+                  speed={speed}
+                  hideExit
+                  onFinished={onMatchFinished}
+                  headerExtra={header}
+                />
+              );
+            })()
           ) : null}
         </div>
 
         <aside className="space-y-3">
-          <StandingsCard standings={standings} bots={byId} />
-          <ScheduleCard schedule={schedule} bots={byId} currentIdx={currentIdx} />
+          <StandingsCard standings={standings} participants={byId} />
+          <ScheduleCard schedule={schedule} participants={byId} currentIdx={currentIdx} />
         </aside>
       </div>
     </div>
@@ -624,10 +725,10 @@ function TournamentRunning({
 
 function StandingsCard({
   standings,
-  bots,
+  participants,
 }: {
   standings: Standing[];
-  bots: Map<string, BotConfig>;
+  participants: Map<string, Participant>;
 }) {
   return (
     <Card className="bg-card p-3">
@@ -637,7 +738,7 @@ function StandingsCard({
           <thead className="text-[10px] uppercase tracking-wider text-muted-foreground">
             <tr>
               <th className="text-left px-2 py-1 w-6">#</th>
-              <th className="text-left px-2 py-1">Bot</th>
+              <th className="text-left px-2 py-1">Player</th>
               <th className="text-center px-1 py-1">W</th>
               <th className="text-center px-1 py-1">L</th>
               <th className="text-center px-1 py-1">D</th>
@@ -646,17 +747,19 @@ function StandingsCard({
           </thead>
           <tbody>
             {standings.map((s, i) => {
-              const b = bots.get(s.botId);
-              if (!b) return null;
+              const p = participants.get(s.botId);
+              if (!p) return null;
+              const t = pTitle(p);
               return (
-                <tr key={s.botId} className="odd:bg-secondary/30">
+                <tr key={s.botId} className={cn("odd:bg-secondary/30", p.kind === "player" && "bg-primary/10")}>
                   <td className="px-2 py-1 font-semibold">{i + 1}</td>
                   <td className="px-2 py-1">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <BotAvatar bot={b} size={20} />
+                      <ParticipantAvatar participant={p} size={20} />
                       <span className="truncate inline-flex items-center gap-1">
-                        {b.title && <TitleBadge title={b.title} color={b.titleColor} size="sm" />}
-                        <span className="truncate">{b.name}</span>
+                        {t.title && <TitleBadge title={t.title} color={t.color} size="sm" />}
+                        <span className="truncate">{pName(p)}</span>
+                        {p.kind === "player" && <span className="text-[9px] text-primary/80 uppercase">You</span>}
                       </span>
                     </div>
                   </td>
@@ -676,11 +779,11 @@ function StandingsCard({
 
 function ScheduleCard({
   schedule,
-  bots,
+  participants,
   currentIdx,
 }: {
   schedule: Pairing[];
-  bots: Map<string, BotConfig>;
+  participants: Map<string, Participant>;
   currentIdx: number;
 }) {
   return (
@@ -688,8 +791,8 @@ function ScheduleCard({
       <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1 mb-2">Schedule</div>
       <div className="overflow-auto scroll-thin max-h-[300px] space-y-1">
         {schedule.map((p, i) => {
-          const w = bots.get(p.whiteId);
-          const b = bots.get(p.blackId);
+          const w = participants.get(p.whiteId);
+          const b = participants.get(p.blackId);
           if (!w || !b) return null;
           const isCurrent = i === currentIdx;
           const done = p.result != null;
@@ -702,13 +805,12 @@ function ScheduleCard({
               )}
             >
               <span className="text-[10px] text-muted-foreground w-8 shrink-0">R{p.round}·{i + 1}</span>
-              <span className={cn("flex-1 truncate", p.result === "white" && "font-semibold text-primary")}>{w.name}</span>
+              <span className={cn("flex-1 truncate", p.result === "white" && "font-semibold text-primary")}>{pName(w)}</span>
               <span className="text-muted-foreground text-[10px]">vs</span>
-              <span className={cn("flex-1 truncate text-right", p.result === "black" && "font-semibold text-primary")}>{b.name}</span>
+              <span className={cn("flex-1 truncate text-right", p.result === "black" && "font-semibold text-primary")}>{pName(b)}</span>
               <span className="w-10 text-right shrink-0">
                 {done ? (
                   p.result === "draw" ? <span className="text-muted-foreground">½–½</span>
-                  : p.result === "white" ? <Check className="w-3.5 h-3.5 text-success inline" />
                   : <Check className="w-3.5 h-3.5 text-success inline" />
                 ) : isCurrent ? <span className="text-primary text-[10px] uppercase">Live</span>
                 : <span className="text-muted-foreground text-[10px]">—</span>}
@@ -718,6 +820,25 @@ function ScheduleCard({
         })}
       </div>
     </Card>
+  );
+}
+
+function ParticipantAvatar({ participant, size = 32 }: { participant: Participant; size?: number }) {
+  const src = pAvatar(participant);
+  return (
+    <div
+      className={cn(
+        "rounded-md bg-secondary grid place-items-center overflow-hidden shrink-0",
+        participant.kind === "player" ? "ring-1 ring-primary/50" : "ring-1 ring-border",
+      )}
+      style={{ width: size, height: size }}
+    >
+      {src ? (
+        <img src={src} alt={pName(participant)} className="w-full h-full object-cover" />
+      ) : (
+        <User className="w-1/2 h-1/2 text-muted-foreground" />
+      )}
+    </div>
   );
 }
 
@@ -819,17 +940,16 @@ function labelForType(t: TournamentType): string {
 
 /* ───────── Schedule builders ───────── */
 
-function buildInitialSchedule(type: TournamentType, bots: BotConfig[]): Pairing[] {
+function buildInitialSchedule(type: TournamentType, ids: string[]): Pairing[] {
   if (type === "round-robin") {
     const out: Pairing[] = [];
-    for (let i = 0; i < bots.length; i++) {
-      for (let j = i + 1; j < bots.length; j++) {
-        // Alternate colors across pairings for fairness.
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
         const whiteFirst = (i + j) % 2 === 0;
         out.push({
           round: 1,
-          whiteId: whiteFirst ? bots[i].id : bots[j].id,
-          blackId: whiteFirst ? bots[j].id : bots[i].id,
+          whiteId: whiteFirst ? ids[i] : ids[j],
+          blackId: whiteFirst ? ids[j] : ids[i],
           result: null,
         });
       }
@@ -837,23 +957,22 @@ function buildInitialSchedule(type: TournamentType, bots: BotConfig[]): Pairing[
     return out;
   }
   if (type === "championship") {
-    const [a, b] = bots;
+    const [a, b] = ids;
     return [
-      { round: 1, whiteId: a.id, blackId: b.id, result: null },
-      { round: 2, whiteId: b.id, blackId: a.id, result: null },
-      { round: 3, whiteId: a.id, blackId: b.id, result: null },
-      { round: 4, whiteId: b.id, blackId: a.id, result: null },
+      { round: 1, whiteId: a, blackId: b, result: null },
+      { round: 2, whiteId: b, blackId: a, result: null },
+      { round: 3, whiteId: a, blackId: b, result: null },
+      { round: 4, whiteId: b, blackId: a, result: null },
     ];
   }
-  // knockout — round 1 pairings; more rounds appended as results come in
-  const shuffled = [...bots].sort(() => Math.random() - 0.5);
+  const shuffled = [...ids].sort(() => Math.random() - 0.5);
   const out: Pairing[] = [];
   for (let i = 0; i + 1 < shuffled.length; i += 2) {
-    out.push({ round: 1, whiteId: shuffled[i].id, blackId: shuffled[i + 1].id, result: null });
+    out.push({ round: 1, whiteId: shuffled[i], blackId: shuffled[i + 1], result: null });
   }
   if (shuffled.length % 2 === 1) {
     const bye = shuffled[shuffled.length - 1];
-    out.push({ round: 1, whiteId: bye.id, blackId: bye.id, result: "white", reason: "Bye" });
+    out.push({ round: 1, whiteId: bye, blackId: bye, result: "white", reason: "Bye" });
   }
   return out;
 }
