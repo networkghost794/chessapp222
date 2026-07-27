@@ -229,6 +229,7 @@ type Standing = {
 };
 
 function TournamentMode({ onBack }: { onBack: () => void }) {
+  const { profile } = useAuth();
   const [bots, setBots] = useState<BotConfig[]>([]);
   useEffect(() => {
     setBots(loadBots());
@@ -239,6 +240,7 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
   const [name, setName] = useState("New Tournament");
   const [type, setType] = useState<TournamentType>("round-robin");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [includePlayer, setIncludePlayer] = useState(false);
   const [speed, setSpeed] = useState<SpeedSetting>("normal");
   const [schedule, setSchedule] = useState<Pairing[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -246,12 +248,30 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [matchKey, setMatchKey] = useState(0);
 
-  const participants = useMemo(
-    () => selectedIds.map((id) => bots.find((b) => b.id === id)).filter(Boolean) as BotConfig[],
-    [selectedIds, bots],
-  );
+  const playerProfile: PlayerProfileLite | null = useMemo(() => {
+    if (!profile) return null;
+    return {
+      name: profile.username || "You",
+      avatar: profile.avatar_url,
+      elo: profile.elo_rating,
+      title: profile.title_badge ?? null,
+      titleColor: null,
+    };
+  }, [profile]);
 
-  const requiredCount = type === "championship" ? 2 : 2;
+  const participants = useMemo<Participant[]>(() => {
+    const list: Participant[] = selectedIds
+      .map((id) => {
+        const b = bots.find((x) => x.id === id);
+        return b ? ({ kind: "bot", id: b.id, bot: b } as Participant) : null;
+      })
+      .filter(Boolean) as Participant[];
+    if (includePlayer && playerProfile) {
+      list.push({ kind: "player", id: PLAYER_ID, profile: playerProfile });
+    }
+    return list;
+  }, [selectedIds, bots, includePlayer, playerProfile]);
+
   const canStart =
     (type === "championship" && participants.length === 2) ||
     (type === "round-robin" && participants.length >= 3) ||
@@ -261,7 +281,7 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   const startTournament = () => {
-    const initial = buildInitialSchedule(type, participants);
+    const initial = buildInitialSchedule(type, participants.map((p) => p.id));
     setSchedule(initial);
     setCurrentIdx(0);
     setPaused(false);
