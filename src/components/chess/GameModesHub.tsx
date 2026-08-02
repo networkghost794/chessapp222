@@ -16,6 +16,7 @@ import {
   Pause,
   Play,
   Sparkles,
+  Eye,
   Swords,
   Trophy,
   User,
@@ -36,6 +37,7 @@ import {
   type SpeedSetting,
 } from "./BotVsBotMode";
 import { HumanVsBotMatch, type PlayerProfileLite } from "./HumanVsBotMatch";
+import { PerspectiveMode } from "./PerspectiveMode";
 import { TitleBadge } from "./ChessApp";
 import { useAuth } from "@/lib/useAuth";
 import type { Color } from "chess.js";
@@ -60,13 +62,14 @@ function pAvatar(p: Participant): string | null {
    Top-level Game Modes hub
    ============================================================ */
 
-type HubView = "home" | "bvb-entry" | "bvb-single" | "bvb-tournament";
+type HubView = "home" | "bvb-entry" | "bvb-single" | "bvb-tournament" | "perspective";
 
 export function GameModesHub() {
   const [view, setView] = useState<HubView>("home");
 
   if (view === "bvb-single") return <BotVsBotMode onBack={() => setView("bvb-entry")} />;
   if (view === "bvb-tournament") return <TournamentMode onBack={() => setView("bvb-entry")} />;
+  if (view === "perspective") return <PerspectiveMode onBack={() => setView("home")} />;
   if (view === "bvb-entry") return <BotVsBotEntry onBack={() => setView("home")} onPick={setView} />;
 
   return (
@@ -90,9 +93,11 @@ export function GameModesHub() {
           onOpen={() => setView("bvb-entry")}
         />
         <ModeCard
-          title="Coming Soon"
-          desc="More game modes are in the works."
-          icon={<BotIcon className="w-6 h-6" />}
+          title="Play Through Their Eyes"
+          desc="Experience chess from the perspective of different playing strengths while making every move yourself."
+          icon={<Eye className="w-6 h-6" />}
+          available
+          onOpen={() => setView("perspective")}
         />
         <ModeCard
           title="More Game Modes"
