@@ -61,11 +61,21 @@ export function PerspectiveMode({ onBack }: { onBack: () => void }) {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => { setResult(null); setMatchKey((k) => k + 1); }}
+              onClick={() => {
+                setResult(null);
+                setMatchKey((k) => k + 1);
+              }}
             >
               <RotateCcw className="w-4 h-4 mr-1.5" /> Restart
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => { setStage("setup"); setResult(null); }}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setStage("setup");
+                setResult(null);
+              }}
+            >
               <ArrowLeft className="w-4 h-4 mr-1.5" /> Exit
             </Button>
           </div>
@@ -101,7 +111,8 @@ export function PerspectiveMode({ onBack }: { onBack: () => void }) {
           <div>
             <div className="text-xl font-bold leading-tight">Play Through Their Eyes</div>
             <div className="text-xs text-muted-foreground">
-              Experience chess from the perspective of different playing strengths — you still make every move.
+              Experience chess from the perspective of different playing strengths — you still make
+              every move.
             </div>
           </div>
         </header>
@@ -172,7 +183,11 @@ export function PerspectiveMode({ onBack }: { onBack: () => void }) {
       <Button
         className="w-full font-bold"
         disabled={!bot}
-        onClick={() => { setResult(null); setMatchKey((k) => k + 1); setStage("match"); }}
+        onClick={() => {
+          setResult(null);
+          setMatchKey((k) => k + 1);
+          setStage("match");
+        }}
       >
         <Play className="w-4 h-4 mr-1.5" /> Start Game
       </Button>
@@ -201,7 +216,9 @@ function SingleBotPicker({
               <AccordionTrigger className="text-xs font-semibold py-2.5 hover:no-underline">
                 <span className="flex items-center gap-2">
                   {section.label}
-                  <span className="text-[10px] font-normal text-muted-foreground">({list.length})</span>
+                  <span className="text-[10px] font-normal text-muted-foreground">
+                    ({list.length})
+                  </span>
                 </span>
               </AccordionTrigger>
               <AccordionContent>
@@ -224,14 +241,20 @@ function SingleBotPicker({
                         >
                           <div className="w-8 h-8 rounded-md bg-secondary grid place-items-center overflow-hidden ring-1 ring-border shrink-0">
                             {b.avatar ? (
-                              <img src={b.avatar} alt={b.name} className="w-full h-full object-cover" />
+                              <img
+                                src={b.avatar}
+                                alt={b.name}
+                                className="w-full h-full object-cover"
+                              />
                             ) : (
                               <User className="w-4 h-4 text-muted-foreground" />
                             )}
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="text-xs font-semibold truncate inline-flex items-center gap-1 max-w-full">
-                              {b.title && <TitleBadge title={b.title} color={b.titleColor} size="sm" />}
+                              {b.title && (
+                                <TitleBadge title={b.title} color={b.titleColor} size="sm" />
+                              )}
                               <span className="truncate">{b.name}</span>
                             </div>
                             <div className="text-[10px] text-muted-foreground">ELO {b.elo}</div>

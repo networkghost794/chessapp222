@@ -51,10 +51,7 @@ function scoreOf(cp: number | null, mate: number | null): number {
 /**
  * Evaluate every legal move from the given FEN through the lens of `rating`.
  */
-export async function evaluatePerspective(
-  fen: string,
-  rating: number,
-): Promise<PerspectiveResult> {
+export async function evaluatePerspective(fen: string, rating: number): Promise<PerspectiveResult> {
   const chess = new Chess(fen);
   const legal = chess.moves({ verbose: true }) as Array<{
     from: string;
