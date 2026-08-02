@@ -8,13 +8,18 @@ const RANKS = [8, 7, 6, 5, 4, 3, 2, 1] as const;
 
 export type PromotionRequest = { from: Square; to: Square };
 
+export type MoveIndicator = "green" | "yellow" | "red";
+
 interface BoardProps {
   game: Chess;
   flipped: boolean;
   disabled: boolean;
   lastMove: { from: Square; to: Square } | null;
   onAttemptMove: (from: Square, to: Square) => boolean;
+  /** Optional perspective indicators keyed by destination square. */
+  indicators?: Record<string, MoveIndicator> | null;
 }
+
 
 type DragState = {
   from: Square;
