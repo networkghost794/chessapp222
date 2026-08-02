@@ -33,7 +33,7 @@ type DragState = {
   moved: boolean;
 };
 
-export function Board({ game, flipped, disabled, lastMove, onAttemptMove }: BoardProps) {
+export function Board({ game, flipped, disabled, lastMove, onAttemptMove, indicators }: BoardProps) {
   const [selected, setSelected] = useState<Square | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [hoverSq, setHoverSq] = useState<Square | null>(null);
@@ -205,6 +205,17 @@ export function Board({ game, flipped, disabled, lastMove, onAttemptMove }: Boar
                   )}>
                     {file}
                   </span>
+                )}
+
+                {indicators?.[sq] && (
+                  <span
+                    className={cn(
+                      "absolute top-1 right-1 w-2 h-2 rounded-full pointer-events-none ring-1 ring-black/30",
+                      indicators[sq] === "green" && "bg-emerald-400",
+                      indicators[sq] === "yellow" && "bg-amber-400",
+                      indicators[sq] === "red" && "bg-rose-500",
+                    )}
+                  />
                 )}
 
                 {isLegal && !piece && (
