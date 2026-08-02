@@ -10,24 +10,19 @@ import {
 } from "@/components/ui/accordion";
 import {
   ArrowLeft,
-  Bot as BotIcon,
   Check,
   Crown,
   Pause,
   Play,
   Sparkles,
+  Eye,
   Swords,
   Trophy,
   User,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  BOT_CATEGORIES,
-  loadBots,
-  subscribeBots,
-  type BotConfig,
-} from "@/lib/botStore";
+import { BOT_CATEGORIES, loadBots, subscribeBots, type BotConfig } from "@/lib/botStore";
 import {
   BotVsBotMatch,
   BotVsBotMode,
@@ -36,6 +31,7 @@ import {
   type SpeedSetting,
 } from "./BotVsBotMode";
 import { HumanVsBotMatch, type PlayerProfileLite } from "./HumanVsBotMatch";
+import { PerspectiveMode } from "./PerspectiveMode";
 import { TitleBadge } from "./ChessApp";
 import { useAuth } from "@/lib/useAuth";
 import type { Color } from "chess.js";
@@ -45,8 +41,12 @@ type Participant =
   | { kind: "bot"; id: string; bot: BotConfig }
   | { kind: "player"; id: string; profile: PlayerProfileLite };
 
-function pName(p: Participant): string { return p.kind === "bot" ? p.bot.name : p.profile.name; }
-function pElo(p: Participant): number { return p.kind === "bot" ? p.bot.elo : p.profile.elo; }
+function pName(p: Participant): string {
+  return p.kind === "bot" ? p.bot.name : p.profile.name;
+}
+function pElo(p: Participant): number {
+  return p.kind === "bot" ? p.bot.elo : p.profile.elo;
+}
 function pTitle(p: Participant): { title?: string | null; color?: string | null } {
   return p.kind === "bot"
     ? { title: p.bot.title, color: p.bot.titleColor }
@@ -60,14 +60,16 @@ function pAvatar(p: Participant): string | null {
    Top-level Game Modes hub
    ============================================================ */
 
-type HubView = "home" | "bvb-entry" | "bvb-single" | "bvb-tournament";
+type HubView = "home" | "bvb-entry" | "bvb-single" | "bvb-tournament" | "perspective";
 
 export function GameModesHub() {
   const [view, setView] = useState<HubView>("home");
 
   if (view === "bvb-single") return <BotVsBotMode onBack={() => setView("bvb-entry")} />;
   if (view === "bvb-tournament") return <TournamentMode onBack={() => setView("bvb-entry")} />;
-  if (view === "bvb-entry") return <BotVsBotEntry onBack={() => setView("home")} onPick={setView} />;
+  if (view === "perspective") return <PerspectiveMode onBack={() => setView("home")} />;
+  if (view === "bvb-entry")
+    return <BotVsBotEntry onBack={() => setView("home")} onPick={setView} />;
 
   return (
     <div className="max-w-[1200px] mx-auto space-y-6">
@@ -90,9 +92,11 @@ export function GameModesHub() {
           onOpen={() => setView("bvb-entry")}
         />
         <ModeCard
-          title="Coming Soon"
-          desc="More game modes are in the works."
-          icon={<BotIcon className="w-6 h-6" />}
+          title="Play Through Their Eyes"
+          desc="Experience chess from the perspective of different playing strengths while making every move yourself."
+          icon={<Eye className="w-6 h-6" />}
+          available
+          onOpen={() => setView("perspective")}
         />
         <ModeCard
           title="More Game Modes"
@@ -124,10 +128,14 @@ function ModeCard({
         available ? "bg-card hover:border-primary/40 transition-colors" : "bg-card/50 opacity-70",
       )}
     >
-      <div className={cn(
-        "w-11 h-11 rounded-md grid place-items-center",
-        available ? "bg-primary/15 text-primary ring-1 ring-primary/30" : "bg-secondary text-muted-foreground",
-      )}>
+      <div
+        className={cn(
+          "w-11 h-11 rounded-md grid place-items-center",
+          available
+            ? "bg-primary/15 text-primary ring-1 ring-primary/30"
+            : "bg-secondary text-muted-foreground",
+        )}
+      >
         {icon}
       </div>
       <div className="flex-1">
@@ -151,13 +159,7 @@ function ModeCard({
    Bot vs Bot entry: Single Match | Tournament
    ============================================================ */
 
-function BotVsBotEntry({
-  onBack,
-  onPick,
-}: {
-  onBack: () => void;
-  onPick: (v: HubView) => void;
-}) {
+function BotVsBotEntry({ onBack, onPick }: { onBack: () => void; onPick: (v: HubView) => void }) {
   return (
     <div className="max-w-[1100px] mx-auto space-y-6">
       <div className="flex items-center justify-between gap-3">
@@ -182,7 +184,9 @@ function BotVsBotEntry({
           </div>
           <div>
             <div className="text-lg font-bold">Single Match</div>
-            <div className="text-xs text-muted-foreground mt-1">One-off exhibition between two bots. Includes speed control and replay.</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              One-off exhibition between two bots. Includes speed control and replay.
+            </div>
           </div>
           <Button className="w-full font-semibold" onClick={() => onPick("bvb-single")}>
             <Play className="w-4 h-4 mr-1.5" /> Start Single Match
@@ -195,7 +199,10 @@ function BotVsBotEntry({
           </div>
           <div>
             <div className="text-lg font-bold">Tournament</div>
-            <div className="text-xs text-muted-foreground mt-1">Round robin, knockout, or championship match. Watch broadcast-style, one game at a time.</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Round robin, knockout, or championship match. Watch broadcast-style, one game at a
+              time.
+            </div>
           </div>
           <Button className="w-full font-semibold" onClick={() => onPick("bvb-tournament")}>
             <Trophy className="w-4 h-4 mr-1.5" /> Create Tournament
@@ -281,7 +288,10 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   const startTournament = () => {
-    const initial = buildInitialSchedule(type, participants.map((p) => p.id));
+    const initial = buildInitialSchedule(
+      type,
+      participants.map((p) => p.id),
+    );
     setSchedule(initial);
     setCurrentIdx(0);
     setPaused(false);
@@ -332,12 +342,20 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
         <div className="space-y-4 min-w-0">
           <Card className="bg-card p-4 space-y-3">
             <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Tournament Name</div>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Summer Championship" />
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
+                Tournament Name
+              </div>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Summer Championship"
+              />
             </div>
 
             <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Format</div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
+                Format
+              </div>
               <div className="grid grid-cols-3 gap-2">
                 {(
                   [
@@ -369,7 +387,9 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
             </div>
 
             <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Match Speed</div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
+                Match Speed
+              </div>
               <SpeedSelector value={speed} onChange={setSpeed} />
               <div className="text-[10px] text-muted-foreground mt-1.5">
                 Only changes the visible pace between moves. Bot strength is unchanged.
@@ -381,7 +401,11 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
             <Card className="bg-card p-3 flex items-center gap-3">
               <div className="w-9 h-9 rounded-md bg-primary/15 grid place-items-center ring-1 ring-primary/40 overflow-hidden shrink-0">
                 {playerProfile.avatar ? (
-                  <img src={playerProfile.avatar} alt={playerProfile.name} className="w-full h-full object-cover" />
+                  <img
+                    src={playerProfile.avatar}
+                    alt={playerProfile.name}
+                    className="w-full h-full object-cover"
+                  />
                 ) : (
                   <User className="w-4 h-4 text-primary" />
                 )}
@@ -416,7 +440,9 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
 
         <aside className="space-y-3">
           <Card className="bg-card p-4">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Selected ({participants.length})</div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+              Selected ({participants.length})
+            </div>
             {participants.length === 0 ? (
               <div className="text-xs text-muted-foreground py-3 text-center border border-dashed border-border/60 rounded-md">
                 No participants yet
@@ -426,14 +452,19 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
                 {participants.map((p) => {
                   const t = pTitle(p);
                   return (
-                    <div key={p.id} className="flex items-center gap-2 bg-secondary/40 rounded-md p-2">
+                    <div
+                      key={p.id}
+                      className="flex items-center gap-2 bg-secondary/40 rounded-md p-2"
+                    >
                       <ParticipantAvatar participant={p} size={28} />
                       <div className="min-w-0 flex-1">
                         <div className="text-xs font-semibold truncate inline-flex items-center gap-1">
                           {t.title && <TitleBadge title={t.title} color={t.color} size="sm" />}
                           <span className="truncate">{pName(p)}</span>
                           {p.kind === "player" && (
-                            <span className="text-[9px] uppercase tracking-wider text-primary/80">You</span>
+                            <span className="text-[9px] uppercase tracking-wider text-primary/80">
+                              You
+                            </span>
                           )}
                         </div>
                         <div className="text-[10px] text-muted-foreground">ELO {pElo(p)}</div>
@@ -457,13 +488,20 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
           <Card className="bg-card p-4 space-y-2 text-xs">
             <div className="font-semibold">Format rules</div>
             {type === "round-robin" && (
-              <div className="text-muted-foreground">Every bot plays every other bot once. Min 3 bots. Win = 1 pt, Draw = 0.5, Loss = 0.</div>
+              <div className="text-muted-foreground">
+                Every bot plays every other bot once. Min 3 bots. Win = 1 pt, Draw = 0.5, Loss = 0.
+              </div>
             )}
             {type === "knockout" && (
-              <div className="text-muted-foreground">Single-elimination bracket. Loser is out; draws re-decided by higher ELO. Min 2 bots.</div>
+              <div className="text-muted-foreground">
+                Single-elimination bracket. Loser is out; draws re-decided by higher ELO. Min 2
+                bots.
+              </div>
             )}
             {type === "championship" && (
-              <div className="text-muted-foreground">Best of 4 games between exactly 2 bots. Colors alternate each game.</div>
+              <div className="text-muted-foreground">
+                Best of 4 games between exactly 2 bots. Colors alternate each game.
+              </div>
             )}
           </Card>
 
@@ -476,7 +514,11 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
           </Button>
           {!canStart && (
             <div className="text-[10px] text-center text-muted-foreground">
-              {type === "championship" ? "Select exactly 2 bots." : type === "round-robin" ? "Select at least 3 bots." : "Select at least 2 bots."}
+              {type === "championship"
+                ? "Select exactly 2 bots."
+                : type === "round-robin"
+                  ? "Select at least 3 bots."
+                  : "Select at least 2 bots."}
             </div>
           )}
         </aside>
@@ -523,14 +565,26 @@ function TournamentRunning({
 
   const standings = useMemo<Standing[]>(() => {
     const map = new Map<string, Standing>();
-    for (const p of participants) map.set(p.id, { botId: p.id, wins: 0, losses: 0, draws: 0, points: 0 });
+    for (const p of participants)
+      map.set(p.id, { botId: p.id, wins: 0, losses: 0, draws: 0, points: 0 });
     for (const p of schedule) {
       if (!p.result) continue;
       const w = map.get(p.whiteId)!;
       const bl = map.get(p.blackId)!;
-      if (p.result === "white") { w.wins++; w.points += 1; bl.losses++; }
-      else if (p.result === "black") { bl.wins++; bl.points += 1; w.losses++; }
-      else { w.draws++; bl.draws++; w.points += 0.5; bl.points += 0.5; }
+      if (p.result === "white") {
+        w.wins++;
+        w.points += 1;
+        bl.losses++;
+      } else if (p.result === "black") {
+        bl.wins++;
+        bl.points += 1;
+        w.losses++;
+      } else {
+        w.draws++;
+        bl.draws++;
+        w.points += 0.5;
+        bl.points += 0.5;
+      }
     }
     return Array.from(map.values()).sort((a, b) => b.points - a.points || b.wins - a.wins);
   }, [schedule, participants]);
@@ -562,14 +616,27 @@ function TournamentRunning({
     const lastRoundPairs = schedule.filter((p) => p.round === last);
     if (lastRoundPairs.some((p) => p.result == null)) return;
     if (lastRoundPairs.length <= 1) return;
-    const winners = lastRoundPairs.map((p) => (p.result === "white" ? p.whiteId : p.result === "black" ? p.blackId : p.whiteId));
+    const winners = lastRoundPairs.map((p) =>
+      p.result === "white" ? p.whiteId : p.result === "black" ? p.blackId : p.whiteId,
+    );
     const nextRound: Pairing[] = [];
     for (let i = 0; i + 1 < winners.length; i += 2) {
-      nextRound.push({ round: last + 1, whiteId: winners[i], blackId: winners[i + 1], result: null });
+      nextRound.push({
+        round: last + 1,
+        whiteId: winners[i],
+        blackId: winners[i + 1],
+        result: null,
+      });
     }
     if (winners.length % 2 === 1) {
       const bye = winners[winners.length - 1];
-      nextRound.push({ round: last + 1, whiteId: bye, blackId: bye, result: "white", reason: "Bye" });
+      nextRound.push({
+        round: last + 1,
+        whiteId: bye,
+        blackId: bye,
+        result: "white",
+        reason: "Bye",
+      });
     }
     if (nextRound.length === 0) return;
     setSchedule((prev) => [...prev, ...nextRound]);
@@ -593,7 +660,8 @@ function TournamentRunning({
       const rounds = Array.from(new Set(schedule.map((p) => p.round))).sort((a, b) => a - b);
       const finalRound = schedule.filter((p) => p.round === rounds[rounds.length - 1]);
       if (finalRound.length === 1 && finalRound[0].result) {
-        const winnerId = finalRound[0].result === "white" ? finalRound[0].whiteId : finalRound[0].blackId;
+        const winnerId =
+          finalRound[0].result === "white" ? finalRound[0].whiteId : finalRound[0].blackId;
         return byId.get(winnerId);
       }
       return undefined;
@@ -618,7 +686,15 @@ function TournamentRunning({
         <div className="flex items-center gap-2">
           {!done && (
             <Button variant="secondary" size="sm" onClick={() => setPaused((p) => !p)}>
-              {paused ? <><Play className="w-4 h-4 mr-1.5" /> Resume</> : <><Pause className="w-4 h-4 mr-1.5" /> Pause</>}
+              {paused ? (
+                <>
+                  <Play className="w-4 h-4 mr-1.5" /> Resume
+                </>
+              ) : (
+                <>
+                  <Pause className="w-4 h-4 mr-1.5" /> Pause
+                </>
+              )}
             </Button>
           )}
           <Button variant="ghost" size="sm" onClick={onExit}>
@@ -638,33 +714,51 @@ function TournamentRunning({
                   <ParticipantAvatar participant={champion} size={80} />
                   <div className="text-lg font-bold inline-flex items-center gap-2">
                     {pTitle(champion).title && (
-                      <TitleBadge title={pTitle(champion).title} color={pTitle(champion).color} size="md" />
+                      <TitleBadge
+                        title={pTitle(champion).title}
+                        color={pTitle(champion).color}
+                        size="md"
+                      />
                     )}
                     {pName(champion)}
                     {champion.kind === "player" && (
                       <span className="text-xs uppercase tracking-wider text-primary/80">You</span>
                     )}
                   </div>
-                  <div className="text-xs text-muted-foreground">Champion · ELO {pElo(champion)}</div>
+                  <div className="text-xs text-muted-foreground">
+                    Champion · ELO {pElo(champion)}
+                  </div>
                 </div>
               )}
-              <Button onClick={onExit} className="mt-2">Back to setup</Button>
+              <Button onClick={onExit} className="mt-2">
+                Back to setup
+              </Button>
             </Card>
           ) : paused ? (
             <Card className="bg-card p-8 text-center space-y-4">
               <Pause className="w-12 h-12 text-primary mx-auto" />
               <div className="text-lg font-bold">Tournament paused</div>
-              <div className="text-xs text-muted-foreground">Review the standings and resume whenever you're ready.</div>
+              <div className="text-xs text-muted-foreground">
+                Review the standings and resume whenever you're ready.
+              </div>
               <Button onClick={() => setPaused(false)}>
                 <Play className="w-4 h-4 mr-1.5" /> Resume Tournament
               </Button>
             </Card>
           ) : countdown != null && current && current.result != null ? (
             <Card className="bg-card p-8 text-center space-y-3">
-              <div className="text-xs uppercase tracking-wider text-muted-foreground">Next match in</div>
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                Next match in
+              </div>
               <div className="text-6xl font-black text-primary">{countdown}</div>
               <div className="text-xs text-muted-foreground">Get ready…</div>
-              <Button variant="secondary" size="sm" onClick={() => { setCountdown(0); }}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setCountdown(0);
+                }}
+              >
                 Skip
               </Button>
             </Card>
@@ -676,7 +770,8 @@ function TournamentRunning({
               const header = (
                 <Card className="bg-card p-2.5 flex items-center justify-between text-xs">
                   <span className="font-semibold">
-                    {labelForType(type)} · Round {current.round} · Game {currentIdx + 1} of {schedule.length}
+                    {labelForType(type)} · Round {current.round} · Game {currentIdx + 1} of{" "}
+                    {schedule.length}
                   </span>
                   <span className="text-muted-foreground">Speed: {speed}</span>
                 </Card>
@@ -684,8 +779,14 @@ function TournamentRunning({
               // Player is involved → Human vs Bot match.
               if (whiteP.kind === "player" || blackP.kind === "player") {
                 const playerIsWhite = whiteP.kind === "player";
-                const player = (playerIsWhite ? whiteP : blackP) as Extract<Participant, { kind: "player" }>;
-                const botP = (playerIsWhite ? blackP : whiteP) as Extract<Participant, { kind: "bot" }>;
+                const player = (playerIsWhite ? whiteP : blackP) as Extract<
+                  Participant,
+                  { kind: "player" }
+                >;
+                const botP = (playerIsWhite ? blackP : whiteP) as Extract<
+                  Participant,
+                  { kind: "bot" }
+                >;
                 const playerColor: Color = playerIsWhite ? "w" : "b";
                 return (
                   <HumanVsBotMatch
@@ -732,7 +833,9 @@ function StandingsCard({
 }) {
   return (
     <Card className="bg-card p-3">
-      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1 mb-2">Standings</div>
+      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1 mb-2">
+        Standings
+      </div>
       <div className="overflow-auto scroll-thin max-h-[320px]">
         <table className="w-full text-xs">
           <thead className="text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -751,7 +854,10 @@ function StandingsCard({
               if (!p) return null;
               const t = pTitle(p);
               return (
-                <tr key={s.botId} className={cn("odd:bg-secondary/30", p.kind === "player" && "bg-primary/10")}>
+                <tr
+                  key={s.botId}
+                  className={cn("odd:bg-secondary/30", p.kind === "player" && "bg-primary/10")}
+                >
                   <td className="px-2 py-1 font-semibold">{i + 1}</td>
                   <td className="px-2 py-1">
                     <div className="flex items-center gap-1.5 min-w-0">
@@ -759,14 +865,18 @@ function StandingsCard({
                       <span className="truncate inline-flex items-center gap-1">
                         {t.title && <TitleBadge title={t.title} color={t.color} size="sm" />}
                         <span className="truncate">{pName(p)}</span>
-                        {p.kind === "player" && <span className="text-[9px] text-primary/80 uppercase">You</span>}
+                        {p.kind === "player" && (
+                          <span className="text-[9px] text-primary/80 uppercase">You</span>
+                        )}
                       </span>
                     </div>
                   </td>
                   <td className="text-center px-1 py-1">{s.wins}</td>
                   <td className="text-center px-1 py-1">{s.losses}</td>
                   <td className="text-center px-1 py-1">{s.draws}</td>
-                  <td className="text-right px-2 py-1 font-mono font-semibold">{s.points.toFixed(1)}</td>
+                  <td className="text-right px-2 py-1 font-mono font-semibold">
+                    {s.points.toFixed(1)}
+                  </td>
                 </tr>
               );
             })}
@@ -788,7 +898,9 @@ function ScheduleCard({
 }) {
   return (
     <Card className="bg-card p-3">
-      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1 mb-2">Schedule</div>
+      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1 mb-2">
+        Schedule
+      </div>
       <div className="overflow-auto scroll-thin max-h-[300px] space-y-1">
         {schedule.map((p, i) => {
           const w = participants.get(p.whiteId);
@@ -804,16 +916,38 @@ function ScheduleCard({
                 isCurrent && !done ? "bg-primary/15 ring-1 ring-primary/40" : "bg-secondary/30",
               )}
             >
-              <span className="text-[10px] text-muted-foreground w-8 shrink-0">R{p.round}·{i + 1}</span>
-              <span className={cn("flex-1 truncate", p.result === "white" && "font-semibold text-primary")}>{pName(w)}</span>
+              <span className="text-[10px] text-muted-foreground w-8 shrink-0">
+                R{p.round}·{i + 1}
+              </span>
+              <span
+                className={cn(
+                  "flex-1 truncate",
+                  p.result === "white" && "font-semibold text-primary",
+                )}
+              >
+                {pName(w)}
+              </span>
               <span className="text-muted-foreground text-[10px]">vs</span>
-              <span className={cn("flex-1 truncate text-right", p.result === "black" && "font-semibold text-primary")}>{pName(b)}</span>
+              <span
+                className={cn(
+                  "flex-1 truncate text-right",
+                  p.result === "black" && "font-semibold text-primary",
+                )}
+              >
+                {pName(b)}
+              </span>
               <span className="w-10 text-right shrink-0">
                 {done ? (
-                  p.result === "draw" ? <span className="text-muted-foreground">½–½</span>
-                  : <Check className="w-3.5 h-3.5 text-success inline" />
-                ) : isCurrent ? <span className="text-primary text-[10px] uppercase">Live</span>
-                : <span className="text-muted-foreground text-[10px]">—</span>}
+                  p.result === "draw" ? (
+                    <span className="text-muted-foreground">½–½</span>
+                  ) : (
+                    <Check className="w-3.5 h-3.5 text-success inline" />
+                  )
+                ) : isCurrent ? (
+                  <span className="text-primary text-[10px] uppercase">Live</span>
+                ) : (
+                  <span className="text-muted-foreground text-[10px]">—</span>
+                )}
               </span>
             </div>
           );
@@ -823,7 +957,13 @@ function ScheduleCard({
   );
 }
 
-function ParticipantAvatar({ participant, size = 32 }: { participant: Participant; size?: number }) {
+function ParticipantAvatar({
+  participant,
+  size = 32,
+}: {
+  participant: Participant;
+  size?: number;
+}) {
   const src = pAvatar(participant);
   return (
     <div
@@ -859,7 +999,9 @@ function MultiBotPicker({
   return (
     <Card className="bg-card p-3">
       <div className="flex items-center justify-between px-1 mb-2">
-        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Bot Library</div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Bot Library
+        </div>
         {max && <div className="text-[10px] text-muted-foreground">Max {max}</div>}
       </div>
       <Accordion type="multiple" className="w-full">
@@ -872,7 +1014,9 @@ function MultiBotPicker({
               <AccordionTrigger className="text-xs font-semibold py-2.5 hover:no-underline">
                 <span className="flex items-center gap-2">
                   {section.label}
-                  <span className="text-[10px] font-normal text-muted-foreground">({list.length})</span>
+                  <span className="text-[10px] font-normal text-muted-foreground">
+                    ({list.length})
+                  </span>
                 </span>
               </AccordionTrigger>
               <AccordionContent>
@@ -899,7 +1043,9 @@ function MultiBotPicker({
                           <BotAvatar bot={b} size={32} />
                           <div className="min-w-0 flex-1">
                             <div className="text-xs font-semibold truncate inline-flex items-center gap-1 max-w-full">
-                              {b.title && <TitleBadge title={b.title} color={b.titleColor} size="sm" />}
+                              {b.title && (
+                                <TitleBadge title={b.title} color={b.titleColor} size="sm" />
+                              )}
                               <span className="truncate">{b.name}</span>
                             </div>
                             <div className="text-[10px] text-muted-foreground">ELO {b.elo}</div>
