@@ -16,6 +16,7 @@ import {
 import type { OpeningDef } from "@/lib/openingLibrary";
 import { playMoveResultSound } from "@/lib/sounds";
 import type { MatchResult } from "./BotVsBotMode";
+import { evaluatePerspective, type MoveVerdict } from "@/lib/perspectiveEval";
 
 export type PlayerProfileLite = {
   name: string;
@@ -35,12 +36,15 @@ export function HumanVsBotMatch({
   playerColor,
   headerExtra,
   onFinished,
+  perspectiveRating,
 }: {
   bot: BotConfig;
   player: PlayerProfileLite;
   playerColor: Color;
   headerExtra?: React.ReactNode;
   onFinished: (r: MatchResult) => void;
+  /** When set, shows "Play Through Their Eyes" move indicators for this rating. */
+  perspectiveRating?: number;
 }) {
   const gameRef = useRef(new Chess());
   const game = gameRef.current;
@@ -51,6 +55,7 @@ export function HumanVsBotMatch({
   const [pending, setPending] = useState(false);
   const [promotion, setPromotion] = useState<{ from: Square; to: Square } | null>(null);
   const [resigned, setResigned] = useState(false);
+  const [indicators, setIndicators] = useState<Record<string, MoveVerdict> | null>(null);
   const [, setTick] = useState(0);
   const force = useCallback(() => setTick((t) => t + 1), []);
   const finishedRef = useRef(false);
@@ -102,6 +107,7 @@ export function HumanVsBotMatch({
       playMoveResultSound(m);
       setHistory((h) => [...h, m.san]);
       setLastMove({ from, to });
+      setIndicators(null);
       force();
       if (!game.isGameOver()) {
         setPending(true);
@@ -151,6 +157,22 @@ export function HumanVsBotMatch({
     onFinished({ winner, reason, history: [...history] });
   }, [history.length, resigned, game, playerColor, onFinished, history]);
 
+  // Perspective indicators: recompute whenever it becomes the player's turn.
+  useEffect(() => {
+    if (!perspectiveRating) return;
+    if (pending || resigned || game.isGameOver() || game.turn() !== playerColor) {
+      setIndicators(null);
+      return;
+    }
+    let cancelled = false;
+    const fen = game.fen();
+    void evaluatePerspective(fen, perspectiveRating).then((res) => {
+      if (!cancelled) setIndicators(res.bySquare as Record<string, MoveVerdict>);
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [perspectiveRating, pending, resigned, history.length, playerColor]);
+
   const moveRows = useMemo(() => {
     const rows: Array<{ n: number; w: string; b?: string }> = [];
     for (let i = 0; i < history.length; i += 2) rows.push({ n: i / 2 + 1, w: history[i], b: history[i + 1] });
@@ -196,9 +218,19 @@ export function HumanVsBotMatch({
               disabled={pending || resigned || game.isGameOver()}
               lastMove={lastMove}
               onAttemptMove={handleAttemptMove}
+              indicators={indicators}
             />
           </div>
         </Card>
+
+        {perspectiveRating != null && (
+          <Card className="bg-card p-3 flex flex-wrap items-center gap-4 text-[11px] text-muted-foreground">
+            <span className="font-semibold text-foreground">Through the eyes of {perspectiveRating}</span>
+            <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400" /> Likely choice</span>
+            <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400" /> Playable</span>
+            <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-rose-500" /> Would avoid</span>
+          </Card>
+        )}
 
         <ParticipantHeader
           name={player.name}
