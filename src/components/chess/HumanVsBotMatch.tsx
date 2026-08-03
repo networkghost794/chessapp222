@@ -167,7 +167,10 @@ export function HumanVsBotMatch({
     let cancelled = false;
     const fen = game.fen();
     void evaluatePerspective(fen, perspectiveRating).then((res) => {
-      if (!cancelled) setIndicators(res.bySquare as Record<string, MoveVerdict>);
+      if (cancelled) return;
+      setIndicators(res.bySquare as Record<string, MoveVerdict>);
+      const bestKey = Object.entries(res.byMove).find(([, v]) => v === "purple")?.[0] ?? null;
+      setBestFrom(bestKey ? bestKey.slice(0, 2) : null);
     });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
