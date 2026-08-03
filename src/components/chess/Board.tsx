@@ -8,7 +8,7 @@ const RANKS = [8, 7, 6, 5, 4, 3, 2, 1] as const;
 
 export type PromotionRequest = { from: Square; to: Square };
 
-export type MoveIndicator = "green" | "yellow" | "red";
+export type MoveIndicator = "purple" | "green" | "yellow" | "red";
 
 interface BoardProps {
   game: Chess;
@@ -211,6 +211,7 @@ export function Board({ game, flipped, disabled, lastMove, onAttemptMove, indica
                   <span
                     className={cn(
                       "absolute top-1 right-1 w-2 h-2 rounded-full pointer-events-none ring-1 ring-black/30",
+                      indicators[sq] === "purple" && "bg-violet-500",
                       indicators[sq] === "green" && "bg-emerald-400",
                       indicators[sq] === "yellow" && "bg-amber-400",
                       indicators[sq] === "red" && "bg-rose-500",
