@@ -18,6 +18,8 @@ interface BoardProps {
   onAttemptMove: (from: Square, to: Square) => boolean;
   /** Optional perspective indicators keyed by destination square. */
   indicators?: Record<string, MoveIndicator> | null;
+  /** Origin square of the best (purple) perspective move. */
+  bestFrom?: string | null;
 }
 
 
