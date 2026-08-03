@@ -7,7 +7,7 @@
 import { Chess } from "chess.js";
 import { analyseTopMoves } from "./stockfishEngine";
 
-export type MoveVerdict = "green" | "yellow" | "red";
+export type MoveVerdict = "purple" | "green" | "yellow" | "red";
 
 export type PerspectiveResult = {
   /** keyed by `${from}${to}` */
@@ -92,6 +92,7 @@ export async function evaluatePerspective(fen: string, rating: number): Promise<
 
   // Tolerance widens with strength — a master recognises many playable ideas,
   // a beginner only spots one or two.
+  const bestTol = 8; // ties with the top move stay purple
   const greenTol = 15 + rating * 0.05;
   const yellowTol = 60 + rating * 0.14;
   const maxGreens = Math.max(1, Math.min(8, Math.round(1 + rating / 400)));
@@ -101,7 +102,9 @@ export async function evaluatePerspective(fen: string, rating: number): Promise<
   for (const [key, score] of sorted) {
     const loss = best - score;
     let verdict: MoveVerdict;
-    if (loss <= greenTol && greens < maxGreens) {
+    if (loss <= bestTol) {
+      verdict = "purple";
+    } else if (loss <= greenTol && greens < maxGreens) {
       verdict = "green";
       greens++;
     } else if (loss <= yellowTol) {
@@ -112,7 +115,7 @@ export async function evaluatePerspective(fen: string, rating: number): Promise<
     byMove[key] = verdict;
   }
 
-  const rank: Record<MoveVerdict, number> = { green: 3, yellow: 2, red: 1 };
+  const rank: Record<MoveVerdict, number> = { purple: 4, green: 3, yellow: 2, red: 1 };
   const bySquare: Record<string, MoveVerdict> = {};
   for (const [key, verdict] of Object.entries(byMove)) {
     const to = key.slice(2, 4);
