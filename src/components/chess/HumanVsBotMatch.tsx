@@ -224,6 +224,7 @@ export function HumanVsBotMatch({
               lastMove={lastMove}
               onAttemptMove={handleAttemptMove}
               indicators={indicators}
+              bestFrom={bestFrom}
             />
           </div>
         </Card>
