@@ -56,6 +56,7 @@ export function HumanVsBotMatch({
   const [promotion, setPromotion] = useState<{ from: Square; to: Square } | null>(null);
   const [resigned, setResigned] = useState(false);
   const [indicators, setIndicators] = useState<Record<string, MoveVerdict> | null>(null);
+  const [bestFrom, setBestFrom] = useState<string | null>(null);
   const [, setTick] = useState(0);
   const force = useCallback(() => setTick((t) => t + 1), []);
   const finishedRef = useRef(false);
