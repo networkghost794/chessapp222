@@ -189,6 +189,9 @@ export function Board({ game, flipped, disabled, lastMove, onAttemptMove, indica
                 )}
                 {isSelected && <div className="absolute inset-0 bg-board-highlight" />}
                 {isCheck && <div className="absolute inset-0 bg-board-check" />}
+                {bestFrom === sq && (
+                  <div className="absolute inset-0 pointer-events-none bg-violet-500/20 ring-2 ring-inset ring-violet-400/70 shadow-[inset_0_0_12px_rgba(139,92,246,0.45)]" />
+                )}
                 {isDragOver && <div className="absolute inset-0 ring-4 ring-primary/70 ring-inset" />}
 
                 {/* coord labels */}
