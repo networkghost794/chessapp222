@@ -56,6 +56,7 @@ export function HumanVsBotMatch({
   const [promotion, setPromotion] = useState<{ from: Square; to: Square } | null>(null);
   const [resigned, setResigned] = useState(false);
   const [indicators, setIndicators] = useState<Record<string, MoveVerdict> | null>(null);
+  const [bestFrom, setBestFrom] = useState<string | null>(null);
   const [, setTick] = useState(0);
   const force = useCallback(() => setTick((t) => t + 1), []);
   const finishedRef = useRef(false);
@@ -162,12 +163,16 @@ export function HumanVsBotMatch({
     if (!perspectiveRating) return;
     if (pending || resigned || game.isGameOver() || game.turn() !== playerColor) {
       setIndicators(null);
+      setBestFrom(null);
       return;
     }
     let cancelled = false;
     const fen = game.fen();
     void evaluatePerspective(fen, perspectiveRating).then((res) => {
-      if (!cancelled) setIndicators(res.bySquare as Record<string, MoveVerdict>);
+      if (cancelled) return;
+      setIndicators(res.bySquare as Record<string, MoveVerdict>);
+      const bestKey = Object.entries(res.byMove).find(([, v]) => v === "purple")?.[0] ?? null;
+      setBestFrom(bestKey ? bestKey.slice(0, 2) : null);
     });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -219,6 +224,7 @@ export function HumanVsBotMatch({
               lastMove={lastMove}
               onAttemptMove={handleAttemptMove}
               indicators={indicators}
+              bestFrom={bestFrom}
             />
           </div>
         </Card>
