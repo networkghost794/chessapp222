@@ -35,7 +35,7 @@ type DragState = {
   moved: boolean;
 };
 
-export function Board({ game, flipped, disabled, lastMove, onAttemptMove, indicators }: BoardProps) {
+export function Board({ game, flipped, disabled, lastMove, onAttemptMove, indicators, bestFrom }: BoardProps) {
   const [selected, setSelected] = useState<Square | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [hoverSq, setHoverSq] = useState<Square | null>(null);
