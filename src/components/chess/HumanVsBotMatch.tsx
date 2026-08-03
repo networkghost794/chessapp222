@@ -163,6 +163,7 @@ export function HumanVsBotMatch({
     if (!perspectiveRating) return;
     if (pending || resigned || game.isGameOver() || game.turn() !== playerColor) {
       setIndicators(null);
+      setBestFrom(null);
       return;
     }
     let cancelled = false;
