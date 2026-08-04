@@ -35,6 +35,7 @@ import { HumanVsBotMatch, type PlayerProfileLite } from "./HumanVsBotMatch";
 import { PerspectiveMode } from "./PerspectiveMode";
 import { SandboxBoard } from "./SandboxBoard";
 import { TitleBadge } from "./ChessApp";
+import { botDisplayIdentity, isImmersiveEnabled } from "@/lib/immersive";
 import { useAuth } from "@/lib/useAuth";
 import type { Color } from "chess.js";
 
@@ -44,14 +45,19 @@ type Participant =
   | { kind: "player"; id: string; profile: PlayerProfileLite };
 
 function pName(p: Participant): string {
-  return p.kind === "bot" ? p.bot.name : p.profile.name;
+  return p.kind === "bot"
+    ? botDisplayIdentity(p.bot, isImmersiveEnabled()).name
+    : p.profile.name;
 }
 function pElo(p: Participant): number {
   return p.kind === "bot" ? p.bot.elo : p.profile.elo;
 }
 function pTitle(p: Participant): { title?: string | null; color?: string | null } {
   return p.kind === "bot"
-    ? { title: p.bot.title, color: p.bot.titleColor }
+    ? {
+        title: botDisplayIdentity(p.bot, isImmersiveEnabled()).title,
+        color: botDisplayIdentity(p.bot, isImmersiveEnabled()).titleColor,
+      }
     : { title: p.profile.title, color: p.profile.titleColor };
 }
 function pAvatar(p: Participant): string | null {
@@ -1054,10 +1060,10 @@ function MultiBotPicker({
                           <BotAvatar bot={b} size={32} />
                           <div className="min-w-0 flex-1">
                             <div className="text-xs font-semibold truncate inline-flex items-center gap-1 max-w-full">
-                              {b.title && (
+                              {b.title && !isImmersiveEnabled() && (
                                 <TitleBadge title={b.title} color={b.titleColor} size="sm" />
                               )}
-                              <span className="truncate">{b.name}</span>
+                              <span className="truncate">{botDisplayIdentity(b, isImmersiveEnabled()).name}</span>
                             </div>
                             <div className="text-[10px] text-muted-foreground">ELO {b.elo}</div>
                           </div>
