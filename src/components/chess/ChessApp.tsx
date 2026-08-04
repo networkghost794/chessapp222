@@ -49,6 +49,7 @@ import { BathroomBreak } from "./BathroomBreak";
 import { ProfilePage } from "./ProfilePage";
 import { SettingsPage } from "./SettingsPage";
 import { FeedbackPage } from "./FeedbackPage";
+import { botDisplayIdentity, useImmersive } from "@/lib/immersive";
 import { BotChatBubble } from "./BotChatBubble";
 import { UpdatesPopup } from "./UpdatesPopup";
 import { getTitleColor, refreshTitleColors, subscribeTitleColors } from "@/lib/botStore";
@@ -155,6 +156,8 @@ export function ChessApp() {
   const [pending, setPending] = useState(false);
   const [promotion, setPromotion] = useState<{ from: Square; to: Square } | null>(null);
   const [activeBot, setActiveBotState] = useState<BotConfig | null>(null);
+  const [immersive] = useImmersive();
+  const activeBotName = activeBot ? botDisplayIdentity(activeBot, immersive).name : null;
 
   const [colorChoice, setColorChoice] = useState<ColorChoice>("white");
   const [playerColor, setPlayerColor] = useState<Color>("w");
@@ -362,17 +365,17 @@ export function ChessApp() {
     if (resignedFlag) {
       userField = "losses"; botField = "wins";
       title = "Defeat";
-      detail = `You resigned — ${activeBot?.name ?? "the bot"} wins.`;
+      detail = `You resigned — ${activeBotName ?? "the bot"} wins.`;
     } else if (game.isCheckmate()) {
       const loser = game.turn();
       if (loser === playerColor) {
         userField = "losses"; botField = "wins";
         title = "Defeat";
-        detail = `${activeBot?.name ?? "Bot"} delivered checkmate.`;
+        detail = `${activeBotName ?? "Bot"} delivered checkmate.`;
       } else {
         userField = "wins"; botField = "losses";
         title = "Victory";
-        detail = `You checkmated ${activeBot?.name ?? "the bot"}!`;
+        detail = `You checkmated ${activeBotName ?? "the bot"}!`;
       }
     } else if (game.isStalemate()) {
       detail = "Stalemate — no legal moves.";
@@ -575,11 +578,11 @@ export function ChessApp() {
               VS
             </div>
             <VsCard
-              name={activeBot.name}
+              name={activeBotName ?? activeBot.name}
               avatar={activeBot.avatar}
               elo={activeBot.elo}
-              title={activeBot.title}
-              titleColor={activeBot.titleColor}
+              title={botDisplayIdentity(activeBot, immersive).title}
+              titleColor={botDisplayIdentity(activeBot, immersive).titleColor}
               subtitle={activeBot.category}
               side="right"
             />
@@ -603,7 +606,7 @@ export function ChessApp() {
           </DialogHeader>
           {activeBot && (
             <div className="rounded-md bg-secondary/40 px-3 py-2 text-xs text-muted-foreground">
-              <div className="font-semibold text-foreground mb-1">{activeBot.name} — lifetime record</div>
+              <div className="font-semibold text-foreground mb-1">{activeBotName ?? activeBot.name} — lifetime record</div>
               <span className="text-success">W {botStats.wins}</span>
               {" · "}<span className="text-destructive">L {botStats.losses}</span>
               {" · "}<span>D {botStats.draws}</span>
