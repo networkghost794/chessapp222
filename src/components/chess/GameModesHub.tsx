@@ -16,6 +16,7 @@ import {
   Play,
   Sparkles,
   Eye,
+  Grid3x3,
   Swords,
   Trophy,
   User,
@@ -32,6 +33,7 @@ import {
 } from "./BotVsBotMode";
 import { HumanVsBotMatch, type PlayerProfileLite } from "./HumanVsBotMatch";
 import { PerspectiveMode } from "./PerspectiveMode";
+import { SandboxBoard } from "./SandboxBoard";
 import { TitleBadge } from "./ChessApp";
 import { useAuth } from "@/lib/useAuth";
 import type { Color } from "chess.js";
@@ -99,6 +101,13 @@ export function GameModesHub() {
           icon={<Eye className="w-6 h-6" />}
           available
           onOpen={() => setView("perspective")}
+        />
+        <ModeCard
+          title="Sandbox Board"
+          desc="A free board where you move both sides — optionally with Play Through Their Eyes indicators."
+          icon={<Grid3x3 className="w-6 h-6" />}
+          available
+          onOpen={() => setView("sandbox")}
         />
         <ModeCard
           title="More Game Modes"
