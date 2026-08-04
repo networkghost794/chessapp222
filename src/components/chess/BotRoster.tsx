@@ -159,7 +159,7 @@ export function BotRoster({ onSelect }: { onSelect?: (bot: BotConfig) => void })
                                   {b.title}
                                 </span>
                               )}
-                              <span className="truncate">{b.name}</span>
+                              <span className="truncate">{botDisplayIdentity(b, immersive).name}</span>
                             </div>
                             <div className="text-[10px] text-muted-foreground">ELO {b.elo}</div>
                           </div>
