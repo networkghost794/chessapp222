@@ -15,6 +15,7 @@ import { HumanVsBotMatch, type PlayerProfileLite } from "./HumanVsBotMatch";
 import type { MatchResult } from "./BotVsBotMode";
 import { TitleBadge } from "./ChessApp";
 import { useAuth } from "@/lib/useAuth";
+import { botDisplayIdentity, useImmersive } from "@/lib/immersive";
 import type { Color } from "chess.js";
 
 /**
@@ -204,6 +205,7 @@ function SingleBotPicker({
   selectedId: string | null;
   onPick: (id: string) => void;
 }) {
+  const [immersive] = useImmersive();
   return (
     <Card className="bg-card p-3">
       <Accordion type="multiple" className="w-full">
@@ -252,10 +254,10 @@ function SingleBotPicker({
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="text-xs font-semibold truncate inline-flex items-center gap-1 max-w-full">
-                              {b.title && (
+                              {b.title && !immersive && (
                                 <TitleBadge title={b.title} color={b.titleColor} size="sm" />
                               )}
-                              <span className="truncate">{b.name}</span>
+                              <span className="truncate">{botDisplayIdentity(b, immersive).name}</span>
                             </div>
                             <div className="text-[10px] text-muted-foreground">ELO {b.elo}</div>
                           </div>
