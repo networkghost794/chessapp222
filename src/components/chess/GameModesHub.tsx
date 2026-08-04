@@ -60,7 +60,7 @@ function pAvatar(p: Participant): string | null {
    Top-level Game Modes hub
    ============================================================ */
 
-type HubView = "home" | "bvb-entry" | "bvb-single" | "bvb-tournament" | "perspective";
+type HubView = "home" | "bvb-entry" | "bvb-single" | "bvb-tournament" | "perspective" | "sandbox";
 
 export function GameModesHub() {
   const [view, setView] = useState<HubView>("home");
@@ -68,8 +68,10 @@ export function GameModesHub() {
   if (view === "bvb-single") return <BotVsBotMode onBack={() => setView("bvb-entry")} />;
   if (view === "bvb-tournament") return <TournamentMode onBack={() => setView("bvb-entry")} />;
   if (view === "perspective") return <PerspectiveMode onBack={() => setView("home")} />;
+  if (view === "sandbox") return <SandboxBoard onBack={() => setView("home")} />;
   if (view === "bvb-entry")
     return <BotVsBotEntry onBack={() => setView("home")} onPick={setView} />;
+
 
   return (
     <div className="max-w-[1200px] mx-auto space-y-6">
