@@ -11,7 +11,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { Palette, Gamepad2, User, Volume2, Sparkles, MessageSquare, Monitor, Sun, Moon } from "lucide-react";
+import { Palette, Gamepad2, User, Volume2, Sparkles, MessageSquare, Monitor, Sun, Moon, Eye } from "lucide-react";
+import { useImmersive } from "@/lib/immersive";
 
 const EMOJIS = ["♞","♛","♚","♜","♝","♟","🔥","⚡","🧠","🦅","🐺","🦁","🐲","👑","🎯","🛡️","⚔️","🌟"];
 const STANDARD_TITLES = ["GM","IM","FM","CM","NM","WGM"];
@@ -43,6 +44,7 @@ export function SettingsPage() {
   const [soundEnabled, setSoundEnabled] = useLocalStorageToggle("botboard-sound", true);
   const [animEnabled, setAnimEnabled] = useLocalStorageToggle("botboard-anim", true);
   const [botSpeechEnabled, setBotSpeechEnabled] = useLocalStorageToggle("botboard-speech", true);
+  const [immersive, setImmersive] = useImmersive();
 
   const [savingIcon, setSavingIcon] = useState(false);
   const [titleClaimOpen, setTitleClaimOpen] = useState<string | null>(null);
@@ -173,6 +175,19 @@ export function SettingsPage() {
               </div>
             </div>
             <Switch checked={botSpeechEnabled} onCheckedChange={setBotSpeechEnabled} />
+          </div>
+          <Separator />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Eye className="w-4 h-4 text-muted-foreground" />
+              <div>
+                <div className="text-sm font-medium">Immersive Bot Names</div>
+                <div className="text-[11px] text-muted-foreground">
+                  Show bots as realistic online usernames and hide their titles. Strength and behaviour are unchanged.
+                </div>
+              </div>
+            </div>
+            <Switch checked={immersive} onCheckedChange={setImmersive} />
           </div>
         </CardContent>
       </Card>

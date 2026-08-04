@@ -49,6 +49,7 @@ import { BathroomBreak } from "./BathroomBreak";
 import { ProfilePage } from "./ProfilePage";
 import { SettingsPage } from "./SettingsPage";
 import { FeedbackPage } from "./FeedbackPage";
+import { botDisplayIdentity, isImmersiveEnabled, useImmersive } from "@/lib/immersive";
 import { BotChatBubble } from "./BotChatBubble";
 import { UpdatesPopup } from "./UpdatesPopup";
 import { getTitleColor, refreshTitleColors, subscribeTitleColors } from "@/lib/botStore";
@@ -62,6 +63,11 @@ type AppMode = "home" | "hub" | "match" | "profile" | "settings" | "modes";
 type SidebarKey = "home" | "play" | "modes" | "profile" | "updates" | "settings";
 
 const EMPTY_STATS: BotStats = { wins: 0, losses: 0, draws: 0 };
+
+/** Display identity helper honouring the Immersive Bot Names setting. */
+function botDisplay(bot: BotConfig) {
+  return botDisplayIdentity(bot, isImmersiveEnabled());
+}
 
 export function TitleBadge({
   title,
@@ -155,6 +161,8 @@ export function ChessApp() {
   const [pending, setPending] = useState(false);
   const [promotion, setPromotion] = useState<{ from: Square; to: Square } | null>(null);
   const [activeBot, setActiveBotState] = useState<BotConfig | null>(null);
+  const [immersive] = useImmersive();
+  const activeBotName = activeBot ? botDisplayIdentity(activeBot, immersive).name : null;
 
   const [colorChoice, setColorChoice] = useState<ColorChoice>("white");
   const [playerColor, setPlayerColor] = useState<Color>("w");
@@ -362,17 +370,17 @@ export function ChessApp() {
     if (resignedFlag) {
       userField = "losses"; botField = "wins";
       title = "Defeat";
-      detail = `You resigned — ${activeBot?.name ?? "the bot"} wins.`;
+      detail = `You resigned — ${activeBotName ?? "the bot"} wins.`;
     } else if (game.isCheckmate()) {
       const loser = game.turn();
       if (loser === playerColor) {
         userField = "losses"; botField = "wins";
         title = "Defeat";
-        detail = `${activeBot?.name ?? "Bot"} delivered checkmate.`;
+        detail = `${activeBotName ?? "Bot"} delivered checkmate.`;
       } else {
         userField = "wins"; botField = "losses";
         title = "Victory";
-        detail = `You checkmated ${activeBot?.name ?? "the bot"}!`;
+        detail = `You checkmated ${activeBotName ?? "the bot"}!`;
       }
     } else if (game.isStalemate()) {
       detail = "Stalemate — no legal moves.";
@@ -575,11 +583,11 @@ export function ChessApp() {
               VS
             </div>
             <VsCard
-              name={activeBot.name}
+              name={activeBotName ?? activeBot.name}
               avatar={activeBot.avatar}
               elo={activeBot.elo}
-              title={activeBot.title}
-              titleColor={activeBot.titleColor}
+              title={botDisplayIdentity(activeBot, immersive).title}
+              titleColor={botDisplayIdentity(activeBot, immersive).titleColor}
               subtitle={activeBot.category}
               side="right"
             />
@@ -603,7 +611,7 @@ export function ChessApp() {
           </DialogHeader>
           {activeBot && (
             <div className="rounded-md bg-secondary/40 px-3 py-2 text-xs text-muted-foreground">
-              <div className="font-semibold text-foreground mb-1">{activeBot.name} — lifetime record</div>
+              <div className="font-semibold text-foreground mb-1">{activeBotName ?? activeBot.name} — lifetime record</div>
               <span className="text-success">W {botStats.wins}</span>
               {" · "}<span className="text-destructive">L {botStats.losses}</span>
               {" · "}<span>D {botStats.draws}</span>
@@ -732,7 +740,7 @@ function HubView({
               onClick={onPlay}
               className="w-full bg-success text-primary-foreground hover:bg-success/90 font-bold h-11"
             >
-              <Play className="w-4 h-4 mr-2" /> Play {activeBot.name}
+              <Play className="w-4 h-4 mr-2" /> Play {botDisplay(activeBot).name}
             </Button>
           ) : (
             <div className="text-[11px] text-muted-foreground text-center py-2 border border-dashed border-border/60 rounded-md">
@@ -823,8 +831,8 @@ function MatchView({
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold truncate inline-flex items-center gap-2">
-                  <TitleBadge title={activeBot.title} color={activeBot.titleColor} size="sm" />
-                  <span className="truncate">{activeBot.name}</span>
+                  <TitleBadge title={botDisplay(activeBot).title} color={botDisplay(activeBot).titleColor} size="sm" />
+                  <span className="truncate">{botDisplay(activeBot).name}</span>
                   <span className="text-muted-foreground/70 font-normal">({activeBot.elo})</span>
                 </div>
                 <div className="text-[11px] text-muted-foreground truncate">{activeBot.category}</div>

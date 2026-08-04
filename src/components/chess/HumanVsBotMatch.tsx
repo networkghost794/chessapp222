@@ -17,6 +17,7 @@ import type { OpeningDef } from "@/lib/openingLibrary";
 import { playMoveResultSound } from "@/lib/sounds";
 import type { MatchResult } from "./BotVsBotMode";
 import { evaluatePerspective, type MoveVerdict } from "@/lib/perspectiveEval";
+import { botDisplayIdentity, useImmersive } from "@/lib/immersive";
 
 export type PlayerProfileLite = {
   name: string;
@@ -48,6 +49,9 @@ export function HumanVsBotMatch({
 }) {
   const gameRef = useRef(new Chess());
   const game = gameRef.current;
+
+  const [immersive] = useImmersive();
+  const botId = botDisplayIdentity(bot, immersive);
 
   const [flipped, setFlipped] = useState(playerColor === "b");
   const [history, setHistory] = useState<string[]>([]);
@@ -185,24 +189,24 @@ export function HumanVsBotMatch({
   }, [history]);
 
   const statusText = useMemo(() => {
-    if (game.isCheckmate()) return `Checkmate — ${game.turn() === "w" ? bot.name : "You"} loses`;
+    if (game.isCheckmate()) return `Checkmate — ${game.turn() === "w" ? botId.name : "You"} loses`;
     if (game.isDraw()) return "Draw";
     if (resigned) return "You resigned";
-    if (game.inCheck()) return `${game.turn() === playerColor ? "You are" : bot.name + " is"} in check`;
-    return `${game.turn() === playerColor ? "Your" : bot.name + "'s"} move`;
+    if (game.inCheck()) return `${game.turn() === playerColor ? "You are" : botId.name + " is"} in check`;
+    return `${game.turn() === playerColor ? "Your" : botId.name + "'s"} move`;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [history.length, game, bot.name, playerColor, resigned]);
+  }, [history.length, game, botId.name, playerColor, resigned]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-6">
       <section className="space-y-3 min-w-0">
         {headerExtra}
         <ParticipantHeader
-          name={bot.name}
+          name={botId.name}
           avatar={bot.avatar ?? null}
           elo={bot.elo}
-          title={bot.title}
-          titleColor={bot.titleColor}
+          title={botId.title}
+          titleColor={botId.titleColor}
           side={playerColor === "w" ? "Black" : "White"}
         />
 

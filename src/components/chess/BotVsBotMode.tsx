@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { Board } from "./Board";
 import { TitleBadge } from "./ChessApp";
+import { botDisplayIdentity, isImmersiveEnabled } from "@/lib/immersive";
 import { cn } from "@/lib/utils";
 import {
   BOT_CATEGORIES,
@@ -312,7 +313,9 @@ export function SidePicker({
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-sm font-semibold truncate inline-flex items-center gap-1.5">
-              <TitleBadge title={selected.title} color={selected.titleColor} size="sm" />
+              {!isImmersiveEnabled() && (
+                <TitleBadge title={selected.title} color={selected.titleColor} size="sm" />
+              )}
               <span className="truncate">{selected.name}</span>
             </div>
             <div className="text-[11px] text-muted-foreground">ELO {selected.elo} · {selected.category}</div>
@@ -367,8 +370,10 @@ export function SidePicker({
                           </div>
                           <div className="w-full min-w-0">
                             <div className="text-xs font-semibold truncate inline-flex items-center gap-1 max-w-full justify-center">
-                              {b.title && <TitleBadge title={b.title} color={b.titleColor} size="sm" />}
-                              <span className="truncate">{b.name}</span>
+                              {b.title && !isImmersiveEnabled() && (
+                                <TitleBadge title={b.title} color={b.titleColor} size="sm" />
+                              )}
+                              <span className="truncate">{botDisplayIdentity(b, isImmersiveEnabled()).name}</span>
                             </div>
                             <div className="text-[10px] text-muted-foreground">ELO {b.elo}</div>
                           </div>
@@ -397,8 +402,8 @@ export function VsBotCard({ bot, side }: { bot: BotConfig; side: "left" | "right
         )}
       </div>
       <div className="text-center flex flex-col items-center gap-1">
-        <TitleBadge title={bot.title} color={bot.titleColor} size="md" />
-        <div className="text-base md:text-xl font-bold">{bot.name}</div>
+        {!isImmersiveEnabled() && <TitleBadge title={bot.title} color={bot.titleColor} size="md" />}
+        <div className="text-base md:text-xl font-bold">{botDisplayIdentity(bot, isImmersiveEnabled()).name}</div>
         <div className="text-xs text-muted-foreground">({bot.elo})</div>
         <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">{bot.category}</div>
       </div>
@@ -744,8 +749,8 @@ export function BotHeaderCard({ bot, sideLabel }: { bot: BotConfig; sideLabel: s
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-sm font-semibold truncate inline-flex items-center gap-2">
-          <TitleBadge title={bot.title} color={bot.titleColor} size="sm" />
-          <span className="truncate">{bot.name}</span>
+          {!isImmersiveEnabled() && <TitleBadge title={bot.title} color={bot.titleColor} size="sm" />}
+          <span className="truncate">{botDisplayIdentity(bot, isImmersiveEnabled()).name}</span>
           <span className="text-muted-foreground/70 font-normal">({bot.elo})</span>
         </div>
         <div className="text-[11px] text-muted-foreground truncate">{bot.category}</div>
