@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import { useSettings } from "@/lib/settings";
 
 const DEFAULT_LINES = [
   "Interesting position…",
@@ -24,6 +25,7 @@ export function BotChatBubble({
   minIntervalMs = 10_000,
   maxIntervalMs = 25_000,
 }: Props) {
+  const [settings] = useSettings();
   const pool = (lines && lines.length > 0) ? lines : DEFAULT_LINES;
   const [text, setText] = useState<string | null>(null);
   const [visible, setVisible] = useState(false);
@@ -60,7 +62,8 @@ export function BotChatBubble({
     };
   }, [active, pool, minIntervalMs, maxIntervalMs]);
 
-  if (!text) return null;
+  // The dialogue scheduler above keeps running; we only hide the bubble.
+  if (!text || !settings.botSpeech) return null;
 
   return (
     <div

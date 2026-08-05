@@ -56,6 +56,7 @@ import { getTitleColor, refreshTitleColors, subscribeTitleColors } from "@/lib/b
 import { MessageCircle } from "lucide-react";
 import { playMoveResultSound } from "@/lib/sounds";
 import { GameModesHub } from "./GameModesHub";
+import { initSettingsEffects } from "@/lib/settings";
 
 type ColorChoice = "white" | "black" | "random";
 type BotStats = { wins: number; losses: number; draws: number };
