@@ -84,21 +84,17 @@ export function SettingsPage() {
                 { key: "auto", label: "Auto", icon: Monitor },
               ] as const).map((t) => {
                 const Icon = t.icon;
-                const active = t.key === "dark" ? themeDark : t.key === "light" ? !themeDark : false;
-                const isImplemented = t.key === "dark";
+                const active = settings.theme === (t.key as ThemeMode);
                 return (
                   <button
                     key={t.key}
-                    onClick={() => isImplemented && setThemeDark(t.key === "dark")}
+                    onClick={() => update("theme", t.key as ThemeMode)}
                     className={cn(
                       "flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors",
                       active
                         ? "bg-primary/15 border-primary/50 text-primary font-medium"
                         : "bg-secondary/40 border-border/60 text-muted-foreground hover:bg-secondary",
-                      !isImplemented && "opacity-60 cursor-not-allowed"
                     )}
-                    disabled={!isImplemented}
-                    title={!isImplemented ? "Coming soon" : undefined}
                   >
                     <Icon className="w-3.5 h-3.5" />
                     {t.label}
@@ -107,9 +103,39 @@ export function SettingsPage() {
               })}
             </div>
             <p className="text-[11px] text-muted-foreground mt-2">
-              Light and Auto themes are placeholders for future updates.
+              Auto follows your operating system theme and updates automatically.
             </p>
           </div>
+
+          <Separator />
+
+          <div>
+            <div className="flex items-center justify-between">
+              <Label className="text-xs text-muted-foreground">Board Size</Label>
+              <span className="text-xs font-mono text-foreground">{settings.boardSize}%</span>
+            </div>
+            <div className="mt-3 flex items-center gap-3">
+              <span className="text-[11px] text-muted-foreground shrink-0">Small</span>
+              <Slider
+                value={[settings.boardSize]}
+                min={60}
+                max={130}
+                step={5}
+                onValueChange={(v) => update("boardSize", v[0] ?? 100)}
+                className="flex-1"
+              />
+              <span className="text-[11px] text-muted-foreground shrink-0">Large</span>
+            </div>
+            <div className="mt-2 flex items-center justify-between">
+              <p className="text-[11px] text-muted-foreground">
+                Applies to every board: matches, Bot vs Bot, tournaments, sandbox and replays.
+              </p>
+              <Button variant="ghost" size="sm" onClick={() => update("boardSize", 100)}>
+                Reset
+              </Button>
+            </div>
+          </div>
+
         </CardContent>
       </Card>
 
