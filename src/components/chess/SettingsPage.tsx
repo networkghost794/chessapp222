@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAuth } from "@/lib/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -154,10 +154,10 @@ export function SettingsPage() {
               <Volume2 className="w-4 h-4 text-muted-foreground" />
               <div>
                 <div className="text-sm font-medium">Sound Effects</div>
-                <div className="text-[11px] text-muted-foreground">Enable move and capture sounds.</div>
+                <div className="text-[11px] text-muted-foreground">Move, capture and check sounds.</div>
               </div>
             </div>
-            <Switch checked={soundEnabled} onCheckedChange={setSoundEnabled} />
+            <Switch checked={settings.sound} onCheckedChange={(v) => update("sound", v)} />
           </div>
           <Separator />
           <div className="flex items-center justify-between">
@@ -168,7 +168,7 @@ export function SettingsPage() {
                 <div className="text-[11px] text-muted-foreground">Smooth piece movement and transitions.</div>
               </div>
             </div>
-            <Switch checked={animEnabled} onCheckedChange={setAnimEnabled} />
+            <Switch checked={settings.animations} onCheckedChange={(v) => update("animations", v)} />
           </div>
           <Separator />
           <div className="flex items-center justify-between">
@@ -179,7 +179,7 @@ export function SettingsPage() {
                 <div className="text-[11px] text-muted-foreground">Show bot chat bubbles during matches.</div>
               </div>
             </div>
-            <Switch checked={botSpeechEnabled} onCheckedChange={setBotSpeechEnabled} />
+            <Switch checked={settings.botSpeech} onCheckedChange={(v) => update("botSpeech", v)} />
           </div>
           <Separator />
           <div className="flex items-center justify-between">
@@ -192,7 +192,7 @@ export function SettingsPage() {
                 </div>
               </div>
             </div>
-            <Switch checked={immersive} onCheckedChange={setImmersive} />
+            <Switch checked={settings.immersive} onCheckedChange={(v) => update("immersive", v)} />
           </div>
         </CardContent>
       </Card>
