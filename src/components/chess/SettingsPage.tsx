@@ -12,39 +12,18 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { Palette, Gamepad2, User, Volume2, Sparkles, MessageSquare, Monitor, Sun, Moon, Eye } from "lucide-react";
-import { useImmersive } from "@/lib/immersive";
+import { Slider } from "@/components/ui/slider";
+import { useSettings, type ThemeMode } from "@/lib/settings";
 
 const EMOJIS = ["♞","♛","♚","♜","♝","♟","🔥","⚡","🧠","🦅","🐺","🦁","🐲","👑","🎯","🛡️","⚔️","🌟"];
 const STANDARD_TITLES = ["GM","IM","FM","CM","NM","WGM"];
 const CRTR = "👑 CRTR";
 const CREATOR_CODE = "ChessUP2";
 
-function useLocalStorageToggle(key: string, defaultValue = true) {
-  const [value, setValue] = useState(() => {
-    if (typeof window === "undefined") return defaultValue;
-    try {
-      const stored = localStorage.getItem(key);
-      return stored !== null ? stored === "true" : defaultValue;
-    } catch {
-      return defaultValue;
-    }
-  });
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem(key, String(value));
-    }
-  }, [key, value]);
-  return [value, setValue] as const;
-}
-
 export function SettingsPage() {
   const { profile, user, refreshProfile } = useAuth();
 
-  const [themeDark, setThemeDark] = useLocalStorageToggle("botboard-theme-dark", true);
-  const [soundEnabled, setSoundEnabled] = useLocalStorageToggle("botboard-sound", true);
-  const [animEnabled, setAnimEnabled] = useLocalStorageToggle("botboard-anim", true);
-  const [botSpeechEnabled, setBotSpeechEnabled] = useLocalStorageToggle("botboard-speech", true);
-  const [immersive, setImmersive] = useImmersive();
+  const [settings, update] = useSettings();
 
   const [savingIcon, setSavingIcon] = useState(false);
   const [titleClaimOpen, setTitleClaimOpen] = useState<string | null>(null);
