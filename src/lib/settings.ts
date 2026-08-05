@@ -75,6 +75,7 @@ export function setSetting<K extends keyof Settings>(key: K, value: Settings[K])
   }
   if (key === "theme") applyTheme(value as ThemeMode);
   if (key === "animations") applyAnimations(value as boolean);
+  if (key === "boardSize") applyBoardSize(value as number);
   if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(EVENT));
 }
 
@@ -103,11 +104,18 @@ export function applyAnimations(enabled: boolean) {
   document.documentElement.classList.toggle("no-anim", !enabled);
 }
 
+export function applyBoardSize(percent: number) {
+  if (typeof document === "undefined") return;
+  const clamped = Math.max(60, Math.min(130, percent || 100));
+  document.documentElement.style.setProperty("--board-scale", String(clamped / 100));
+}
+
 /** Mount once (root) — applies stored preferences and follows the OS theme. */
 export function initSettingsEffects(): () => void {
   const s = getSettings();
   applyTheme(s.theme);
   applyAnimations(s.animations);
+  applyBoardSize(s.boardSize);
 
   const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
   const onOsChange = () => {
