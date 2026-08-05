@@ -56,6 +56,7 @@ import { getTitleColor, refreshTitleColors, subscribeTitleColors } from "@/lib/b
 import { MessageCircle } from "lucide-react";
 import { playMoveResultSound } from "@/lib/sounds";
 import { GameModesHub } from "./GameModesHub";
+import { initSettingsEffects } from "@/lib/settings";
 
 type ColorChoice = "white" | "black" | "random";
 type BotStats = { wins: number; losses: number; draws: number };
@@ -153,6 +154,10 @@ export function ChessApp() {
   const [, setTick] = useState(0);
   const force = useCallback(() => setTick((t) => t + 1), []);
   const recordedRef = useRef(false);
+
+  // Apply persisted appearance/board preferences and follow OS theme changes.
+  useEffect(() => initSettingsEffects(), []);
+
 
   const [flipped, setFlipped] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
@@ -762,7 +767,7 @@ function HubView({
       {/* Center: idle board */}
       <Card className="p-5 md:p-6 bg-card min-w-0">
         <div className="text-sm text-muted-foreground mb-4">Idle board · select a bot to play</div>
-        <div className="mx-auto w-full max-w-[min(60vh,520px)]">
+        <div className="mx-auto w-full max-w-[calc(min(60vh,520px)*var(--board-scale,1))]">
           <Board
             game={idleGame}
             flipped={flipped}
@@ -855,7 +860,7 @@ function MatchView({
               </Button>
             </div>
           </div>
-          <div className="mx-auto w-full max-w-[min(65vh,560px)]">
+          <div className="mx-auto w-full max-w-[calc(min(65vh,560px)*var(--board-scale,1))]">
             <Board
               game={game}
               flipped={flipped}

@@ -23,6 +23,7 @@ export function setImmersiveEnabled(value: boolean) {
     /* ignore */
   }
   window.dispatchEvent(new CustomEvent(EVENT));
+  window.dispatchEvent(new CustomEvent("botboard-settings-change"));
 }
 
 /** Reactive access to the immersive toggle. */
@@ -32,9 +33,11 @@ export function useImmersive(): [boolean, (v: boolean) => void] {
     setEnabled(isImmersiveEnabled());
     const sync = () => setEnabled(isImmersiveEnabled());
     window.addEventListener(EVENT, sync);
+    window.addEventListener("botboard-settings-change", sync);
     window.addEventListener("storage", sync);
     return () => {
       window.removeEventListener(EVENT, sync);
+      window.removeEventListener("botboard-settings-change", sync);
       window.removeEventListener("storage", sync);
     };
   }, []);

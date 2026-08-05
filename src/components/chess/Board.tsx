@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Chess, type Square } from "chess.js";
 import { PieceImg } from "./pieces";
 import { cn } from "@/lib/utils";
+import { useSettings } from "@/lib/settings";
 
 const FILES = ["a", "b", "c", "d", "e", "f", "g", "h"] as const;
 const RANKS = [8, 7, 6, 5, 4, 3, 2, 1] as const;
@@ -36,6 +37,8 @@ type DragState = {
 };
 
 export function Board({ game, flipped, disabled, lastMove, onAttemptMove, indicators, bestFrom }: BoardProps) {
+  const [settings] = useSettings();
+  const animEnabled = settings.animations;
   const [selected, setSelected] = useState<Square | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [hoverSq, setHoverSq] = useState<Square | null>(null);
@@ -157,7 +160,10 @@ export function Board({ game, flipped, disabled, lastMove, onAttemptMove, indica
   };
 
   return (
-    <div className="aspect-square w-full max-w-[min(80vh,640px)] mx-auto select-none">
+    <div
+      className="aspect-square w-full mx-auto select-none"
+      style={{ maxWidth: "calc(min(80vh, 640px) * var(--board-scale, 1))" }}
+    >
       <div
         ref={boardRef}
         className="relative grid grid-cols-8 grid-rows-8 w-full h-full rounded-xl overflow-hidden shadow-2xl ring-1 ring-border touch-none"
@@ -180,7 +186,8 @@ export function Board({ game, flipped, disabled, lastMove, onAttemptMove, indica
                 key={sq}
                 onClick={() => handleSquareClick(sq)}
                 className={cn(
-                  "relative flex items-center justify-center transition-colors",
+                  "relative flex items-center justify-center",
+                  animEnabled && "transition-colors",
                   isDark ? "bg-board-dark" : "bg-board-light",
                 )}
               >
@@ -242,7 +249,7 @@ export function Board({ game, flipped, disabled, lastMove, onAttemptMove, indica
                       !disabled && piece.color === game.turn()
                         ? "cursor-grab active:cursor-grabbing"
                         : "cursor-default",
-                      "transition-transform duration-150 ease-out",
+                      animEnabled && "transition-transform duration-150 ease-out",
                     )}
                   />
                 )}
