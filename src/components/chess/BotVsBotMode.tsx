@@ -609,7 +609,7 @@ export function BotVsBotMatch({
               </Button>
             </div>
           </div>
-          <div className="mx-auto w-full max-w-[min(65vh,560px)] flex gap-3 items-stretch">
+          <div className="mx-auto w-full max-w-[calc(min(65vh,560px)*var(--board-scale,1))] flex gap-3 items-stretch">
             {showEval && (
               <div className="flex items-stretch">
                 <EvaluationBar evalData={evalData} loading={evalLoading} />

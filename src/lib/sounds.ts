@@ -24,7 +24,7 @@ function getCtx(): AudioContext | null {
 
 function soundEnabled(): boolean {
   try {
-    const v = localStorage.getItem("chess:sound");
+    const v = localStorage.getItem("botboard-sound");
     return v === null ? true : v === "on" || v === "true" || v === "1";
   } catch {
     return true;
@@ -109,9 +109,32 @@ export function playCaptureSound() {
 }
 
 /** Convenience: pick sound from a chess.js move result. */
-export function playMoveResultSound(move: { captured?: string; flags?: string } | null | undefined) {
+export function playMoveResultSound(
+  move: { captured?: string; flags?: string; san?: string } | null | undefined,
+) {
   if (!move) return;
   const isCapture = !!move.captured || (typeof move.flags === "string" && /[ce]/.test(move.flags));
   if (isCapture) playCaptureSound();
   else playMoveSound();
+  if (typeof move.san === "string" && /[+#]/.test(move.san)) playCheckSound();
+}
+
+/** Bright two-tone chime for check / checkmate. */
+export function playCheckSound() {
+  if (!soundEnabled()) return;
+  const ac = getCtx();
+  if (!ac) return;
+  const now = ac.currentTime;
+  [880, 1320].forEach((freq, i) => {
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(freq, now + i * 0.09);
+    gain.gain.setValueAtTime(0.0001, now + i * 0.09);
+    gain.gain.exponentialRampToValueAtTime(0.16, now + i * 0.09 + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.09 + 0.18);
+    osc.connect(gain).connect(ac.destination);
+    osc.start(now + i * 0.09);
+    osc.stop(now + i * 0.09 + 0.2);
+  });
 }

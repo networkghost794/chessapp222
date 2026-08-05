@@ -220,7 +220,7 @@ export function HumanVsBotMatch({
               </Button>
             </div>
           </div>
-          <div className="mx-auto w-full max-w-[min(65vh,560px)]">
+          <div className="mx-auto w-full max-w-[calc(min(65vh,560px)*var(--board-scale,1))]">
             <Board
               game={game}
               flipped={flipped}
