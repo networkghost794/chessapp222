@@ -155,6 +155,10 @@ export function ChessApp() {
   const force = useCallback(() => setTick((t) => t + 1), []);
   const recordedRef = useRef(false);
 
+  // Apply persisted appearance/board preferences and follow OS theme changes.
+  useEffect(() => initSettingsEffects(), []);
+
+
   const [flipped, setFlipped] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
   const [uciHistory, setUciHistory] = useState<string[]>([]);
