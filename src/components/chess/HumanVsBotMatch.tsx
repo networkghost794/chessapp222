@@ -158,6 +158,7 @@ export function HumanVsBotMatch({
     } else if (game.isStalemate()) reason = "Stalemate";
     else if (game.isThreefoldRepetition()) reason = "Threefold repetition";
     else if (game.isInsufficientMaterial()) reason = "Insufficient material";
+    else if (game.isDrawByFiftyMoves?.()) reason = "Fifty-move rule";
     else if (game.isDraw()) reason = "Draw";
     onFinished({ winner, reason, history: [...history] });
   }, [history.length, resigned, game, playerColor, onFinished, history]);
