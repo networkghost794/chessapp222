@@ -621,7 +621,7 @@ function TournamentRunning({
         next[currentIdx] = { ...p, result: outcome, reason: res.reason };
         return next;
       });
-      setCountdown(20);
+      setCountdown(null);
     },
     [currentIdx, setSchedule, setCountdown, type, byId],
   );
