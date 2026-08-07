@@ -762,23 +762,6 @@ function TournamentRunning({
                 <Play className="w-4 h-4 mr-1.5" /> Resume Tournament
               </Button>
             </Card>
-          ) : countdown != null && current && current.result != null ? (
-            <Card className="bg-card p-8 text-center space-y-3">
-              <div className="text-xs uppercase tracking-wider text-muted-foreground">
-                Next match in
-              </div>
-              <div className="text-6xl font-black text-primary">{countdown}</div>
-              <div className="text-xs text-muted-foreground">Get ready…</div>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  setCountdown(0);
-                }}
-              >
-                Skip
-              </Button>
-            </Card>
           ) : current ? (
             (() => {
               const whiteP = byId.get(current.whiteId);
@@ -793,6 +776,44 @@ function TournamentRunning({
                   <span className="text-muted-foreground">Speed: {speed}</span>
                 </Card>
               );
+
+              const finished = current.result != null;
+              const hasNext = currentIdx + 1 < schedule.length;
+              const winnerP =
+                current.result === "white"
+                  ? whiteP
+                  : current.result === "black"
+                    ? blackP
+                    : undefined;
+              const score =
+                current.result === "white" ? "1–0" : current.result === "black" ? "0–1" : "½–½";
+
+              const banner = finished ? (
+                <Card className="bg-card p-4 flex flex-wrap items-center justify-between gap-3 border-primary/40">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-md bg-primary/15 grid place-items-center ring-1 ring-primary/30 shrink-0">
+                      <Crown className="w-4 h-4 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-bold truncate">
+                        {winnerP ? `${pName(winnerP)} wins` : "Draw"}{" "}
+                        <span className="font-mono text-muted-foreground">{score}</span>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground truncate">
+                        {current.reason ?? "Game over"} · Review the final position and standings.
+                      </div>
+                    </div>
+                  </div>
+                  {hasNext ? (
+                    <Button onClick={() => setCurrentIdx((i) => i + 1)}>
+                      <Play className="w-4 h-4 mr-1.5" /> Next Match
+                    </Button>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Final game complete</span>
+                  )}
+                </Card>
+              ) : null;
+
               // Player is involved → Human vs Bot match.
               if (whiteP.kind === "player" || blackP.kind === "player") {
                 const playerIsWhite = whiteP.kind === "player";
@@ -806,27 +827,33 @@ function TournamentRunning({
                 >;
                 const playerColor: Color = playerIsWhite ? "w" : "b";
                 return (
-                  <HumanVsBotMatch
-                    key={currentIdx}
-                    bot={botP.bot}
-                    player={player.profile}
-                    playerColor={playerColor}
-                    onFinished={onMatchFinished}
-                    headerExtra={header}
-                  />
+                  <div className="space-y-3">
+                    {banner}
+                    <HumanVsBotMatch
+                      key={currentIdx}
+                      bot={botP.bot}
+                      player={player.profile}
+                      playerColor={playerColor}
+                      onFinished={onMatchFinished}
+                      headerExtra={header}
+                    />
+                  </div>
                 );
               }
               // Bot vs Bot.
               return (
-                <BotVsBotMatch
-                  key={currentIdx}
-                  white={(whiteP as Extract<Participant, { kind: "bot" }>).bot}
-                  black={(blackP as Extract<Participant, { kind: "bot" }>).bot}
-                  speed={speed}
-                  hideExit
-                  onFinished={onMatchFinished}
-                  headerExtra={header}
-                />
+                <div className="space-y-3">
+                  {banner}
+                  <BotVsBotMatch
+                    key={currentIdx}
+                    white={(whiteP as Extract<Participant, { kind: "bot" }>).bot}
+                    black={(blackP as Extract<Participant, { kind: "bot" }>).bot}
+                    speed={speed}
+                    hideExit
+                    onFinished={onMatchFinished}
+                    headerExtra={header}
+                  />
+                </div>
               );
             })()
           ) : null}
