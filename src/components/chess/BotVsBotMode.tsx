@@ -540,8 +540,9 @@ export function BotVsBotMatch({
       winner = g.turn() === "w" ? "black" : "white";
       reason = "Checkmate";
     } else if (g.isStalemate()) { reason = "Stalemate"; }
-    else if (g.isThreefoldRepetition()) { reason = "Threefold repetition"; }
     else if (g.isInsufficientMaterial()) { reason = "Insufficient material"; }
+    else if (g.isThreefoldRepetition()) { reason = "Threefold repetition"; }
+    else if (g.isDrawByFiftyMoves?.()) { reason = "Fifty-move rule"; }
     else if (g.isDraw()) { reason = "Draw"; }
     onFinished?.({ winner, reason, history: [...history] });
   }, [gameOver, history, onFinished]);
