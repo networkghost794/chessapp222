@@ -175,6 +175,15 @@ async function computePerspective(fen: string, rating: number): Promise<Perspect
     byMove[key] = verdict;
   }
 
+  // Engine and elite perspectives must crown the true engine-best move.
+  if ((isEngine || rating >= 2700) && raw.has(engineBestKey)) {
+    for (const key of Object.keys(byMove)) {
+      if (byMove[key] === "purple" && key !== engineBestKey) byMove[key] = "green";
+    }
+    byMove[engineBestKey] = "purple";
+  }
+
+
   const rank: Record<MoveVerdict, number> = { purple: 4, green: 3, yellow: 2, red: 1 };
   const bySquare: Record<string, MoveVerdict> = {};
   for (const [key, verdict] of Object.entries(byMove)) {
