@@ -17,14 +17,14 @@ export type PerspectiveResult = {
 };
 
 export const PERSPECTIVE_RATINGS = [
-  200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500, 2700, 2880, 3000,
+  200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500, 2700, 2880, 3500,
 ] as const;
 
-/** 3000 is the explicit "engine best play" perspective. */
-export const STOCKFISH_RATING = 3000;
+/** 3500 is the explicit "engine best play" perspective. */
+export const STOCKFISH_RATING = 3500;
 
 export function labelForRating(rating: number): string {
-  return rating === STOCKFISH_RATING ? "3000 Stockfish" : String(rating);
+  return rating === STOCKFISH_RATING ? "3500 Stockfish" : String(rating);
 }
 
 export function titleForRating(rating: number): string | null {
@@ -37,20 +37,24 @@ export function titleForRating(rating: number): string | null {
 }
 
 function depthForRating(rating: number): number {
-  if (rating <= 600) return 5;
-  if (rating <= 1200) return 6;
-  if (rating <= 1800) return 7;
-  if (rating < 2500) return 8;
-  if (rating < STOCKFISH_RATING) return 9;
-  return 10;
+  if (rating <= 600) return 6;
+  if (rating <= 1200) return 8;
+  if (rating <= 1800) return 10;
+  if (rating <= 2200) return 12;
+  if (rating <= 2500) return 14;
+  if (rating <= 2700) return 16;
+  if (rating < STOCKFISH_RATING) return 18;
+  return 20;
 }
 
 /** Wall-clock budget per perspective search — keeps the mode interactive. */
 function movetimeForRating(rating: number): number {
-  if (rating < 2500) return 700;
-  if (rating < STOCKFISH_RATING) return 1100;
-  return 1400;
+  if (rating <= 1200) return 500;
+  if (rating <= 2200) return 900;
+  if (rating <= 2700) return 1500;
+  return 1900;
 }
+
 
 /** Deterministic 32-bit string hash — same position+rating ⇒ same perception. */
 function hash32(str: string): number {
