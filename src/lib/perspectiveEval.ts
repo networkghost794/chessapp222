@@ -17,10 +17,18 @@ export type PerspectiveResult = {
 };
 
 export const PERSPECTIVE_RATINGS = [
-  200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500,
+  200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500, 2700, 2880, 3000,
 ] as const;
 
+/** 3000 is the explicit "engine best play" perspective. */
+export const STOCKFISH_RATING = 3000;
+
+export function labelForRating(rating: number): string {
+  return rating === STOCKFISH_RATING ? "3000 Stockfish" : String(rating);
+}
+
 export function titleForRating(rating: number): string | null {
+  if (rating >= STOCKFISH_RATING) return "SF";
   if (rating >= 2500) return "GM";
   if (rating >= 2400) return "IM";
   if (rating >= 2300) return "FM";
@@ -29,19 +37,42 @@ export function titleForRating(rating: number): string | null {
 }
 
 function depthForRating(rating: number): number {
-  if (rating <= 600) return 6;
-  if (rating <= 1200) return 8;
-  if (rating <= 1800) return 9;
-  return 11;
+  if (rating <= 600) return 5;
+  if (rating <= 1200) return 6;
+  if (rating <= 1800) return 7;
+  if (rating < 2500) return 8;
+  if (rating < STOCKFISH_RATING) return 9;
+  return 10;
 }
 
-/** Deterministic-ish pseudo noise so the same position stays stable per call. */
-function gauss(sd: number): number {
-  if (sd <= 0) return 0;
-  const u = Math.max(1e-9, Math.random());
-  const v = Math.random();
-  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v) * sd;
+/** Wall-clock budget per perspective search — keeps the mode interactive. */
+function movetimeForRating(rating: number): number {
+  if (rating < 2500) return 700;
+  if (rating < STOCKFISH_RATING) return 1100;
+  return 1400;
 }
+
+/** Deterministic 32-bit string hash — same position+rating ⇒ same perception. */
+function hash32(str: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+/** Deterministic gaussian noise seeded by a string key. */
+function gauss(sd: number, seed: string): number {
+  if (sd <= 0) return 0;
+  const a = (hash32(seed + "|a") + 1) / 4294967297;
+  const b = hash32(seed + "|b") / 4294967296;
+  return Math.sqrt(-2 * Math.log(a)) * Math.cos(2 * Math.PI * b) * sd;
+}
+
+/** Cache of completed/in-flight evaluations, keyed by `fen|rating`. */
+const cache = new Map<string, Promise<PerspectiveResult>>();
+const CACHE_LIMIT = 400;
 
 function scoreOf(cp: number | null, mate: number | null): number {
   if (mate != null) return mate > 0 ? 100000 - mate * 100 : -100000 - mate * 100;
@@ -51,7 +82,20 @@ function scoreOf(cp: number | null, mate: number | null): number {
 /**
  * Evaluate every legal move from the given FEN through the lens of `rating`.
  */
-export async function evaluatePerspective(fen: string, rating: number): Promise<PerspectiveResult> {
+export function evaluatePerspective(fen: string, rating: number): Promise<PerspectiveResult> {
+  const key = `${fen}|${rating}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const p = computePerspective(fen, rating).catch((e) => {
+    cache.delete(key);
+    throw e;
+  });
+  if (cache.size >= CACHE_LIMIT) cache.delete(cache.keys().next().value as string);
+  cache.set(key, p);
+  return p;
+}
+
+async function computePerspective(fen: string, rating: number): Promise<PerspectiveResult> {
   const chess = new Chess(fen);
   const legal = chess.moves({ verbose: true }) as Array<{
     from: string;
@@ -62,8 +106,10 @@ export async function evaluatePerspective(fen: string, rating: number): Promise<
   if (legal.length === 0) return empty;
 
   const lines = await analyseTopMoves(fen, {
-    multipv: Math.min(legal.length, 40),
+    // Only the legal moves that actually exist in this position.
+    multipv: Math.min(legal.length, 24),
     depth: depthForRating(rating),
+    movetime: movetimeForRating(rating),
   });
   if (!lines.length) return empty;
 
@@ -78,13 +124,15 @@ export async function evaluatePerspective(fen: string, rating: number): Promise<
   if (raw.size === 0) return empty;
 
   // Human perception noise: weaker perspectives misjudge more.
-  const noiseSd = Math.max(0, (2500 - rating) / 11);
+  // 3000 = Stockfish mode: no human noise at all, pure engine judgement.
+  const isEngine = rating >= STOCKFISH_RATING;
+  const noiseSd = isEngine ? 0 : Math.max(0, (2900 - rating) / 12);
   const perceived = new Map<string, number>();
   const worst = Math.min(...raw.values());
   for (const mv of legal) {
     const key = `${mv.from}${mv.to}`;
     const base = raw.has(key) ? (raw.get(key) as number) : worst - 120;
-    perceived.set(key, base + gauss(noiseSd));
+    perceived.set(key, base + gauss(noiseSd, `${fen}|${rating}|${key}`));
   }
 
   const sorted = [...perceived.entries()].sort((a, b) => b[1] - a[1]);
@@ -92,10 +140,10 @@ export async function evaluatePerspective(fen: string, rating: number): Promise<
 
   // Tolerance widens with strength — a master recognises many playable ideas,
   // a beginner only spots one or two.
-  const bestTol = 8; // ties with the top move stay purple
-  const greenTol = 15 + rating * 0.05;
-  const yellowTol = 60 + rating * 0.14;
-  const maxGreens = Math.max(1, Math.min(8, Math.round(1 + rating / 400)));
+  const bestTol = isEngine ? 4 : 8; // ties with the top move stay purple
+  const greenTol = isEngine ? 20 : 15 + rating * 0.05;
+  const yellowTol = isEngine ? 70 : 60 + rating * 0.14;
+  const maxGreens = isEngine ? 3 : Math.max(1, Math.min(8, Math.round(1 + rating / 400)));
 
   const byMove: Record<string, MoveVerdict> = {};
   let greens = 0;
