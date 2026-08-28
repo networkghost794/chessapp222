@@ -17,14 +17,14 @@ export type PerspectiveResult = {
 };
 
 export const PERSPECTIVE_RATINGS = [
-  200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500, 2700, 2880, 3000,
+  200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500, 2700, 2880, 3500,
 ] as const;
 
-/** 3000 is the explicit "engine best play" perspective. */
-export const STOCKFISH_RATING = 3000;
+/** 3500 is the explicit "engine best play" perspective. */
+export const STOCKFISH_RATING = 3500;
 
 export function labelForRating(rating: number): string {
-  return rating === STOCKFISH_RATING ? "3000 Stockfish" : String(rating);
+  return rating === STOCKFISH_RATING ? "3500 Stockfish" : String(rating);
 }
 
 export function titleForRating(rating: number): string | null {
@@ -37,20 +37,24 @@ export function titleForRating(rating: number): string | null {
 }
 
 function depthForRating(rating: number): number {
-  if (rating <= 600) return 5;
-  if (rating <= 1200) return 6;
-  if (rating <= 1800) return 7;
-  if (rating < 2500) return 8;
-  if (rating < STOCKFISH_RATING) return 9;
-  return 10;
+  if (rating <= 600) return 6;
+  if (rating <= 1200) return 8;
+  if (rating <= 1800) return 10;
+  if (rating <= 2200) return 12;
+  if (rating <= 2500) return 14;
+  if (rating <= 2700) return 16;
+  if (rating < STOCKFISH_RATING) return 18;
+  return 20;
 }
 
 /** Wall-clock budget per perspective search — keeps the mode interactive. */
 function movetimeForRating(rating: number): number {
-  if (rating < 2500) return 700;
-  if (rating < STOCKFISH_RATING) return 1100;
-  return 1400;
+  if (rating <= 1200) return 500;
+  if (rating <= 2200) return 900;
+  if (rating <= 2700) return 1500;
+  return 1900;
 }
+
 
 /** Deterministic 32-bit string hash — same position+rating ⇒ same perception. */
 function hash32(str: string): number {
@@ -105,9 +109,10 @@ async function computePerspective(fen: string, rating: number): Promise<Perspect
   const empty: PerspectiveResult = { byMove: {}, bySquare: {} };
   if (legal.length === 0) return empty;
 
+  const strong = rating >= 2500;
   const lines = await analyseTopMoves(fen, {
-    // Only the legal moves that actually exist in this position.
-    multipv: Math.min(legal.length, 24),
+    // Strong perspectives see the whole position; weak ones only need a pool.
+    multipv: Math.min(legal.length, strong ? 40 : 24),
     depth: depthForRating(rating),
     movetime: movetimeForRating(rating),
   });
@@ -123,10 +128,15 @@ async function computePerspective(fen: string, rating: number): Promise<Perspect
   }
   if (raw.size === 0) return empty;
 
-  // Human perception noise: weaker perspectives misjudge more.
-  // 3000 = Stockfish mode: no human noise at all, pure engine judgement.
+  const engineBestKey = [...raw.entries()].sort((a, b) => b[1] - a[1])[0][0];
+
+  // Human perception noise: weaker perspectives misjudge far more, elite
+  // perspectives are nearly engine-accurate. Quadratic falloff so 2700/2880
+  // behave like genuine super-GM play instead of ~2000.
+  // 3500 = Stockfish mode: no human noise at all, pure engine judgement.
   const isEngine = rating >= STOCKFISH_RATING;
-  const noiseSd = isEngine ? 0 : Math.max(0, (2900 - rating) / 12);
+  const t = Math.max(0, Math.min(1, (2950 - rating) / 2750));
+  const noiseSd = isEngine ? 0 : 240 * t * t;
   const perceived = new Map<string, number>();
   const worst = Math.min(...raw.values());
   for (const mv of legal) {
@@ -138,12 +148,14 @@ async function computePerspective(fen: string, rating: number): Promise<Perspect
   const sorted = [...perceived.entries()].sort((a, b) => b[1] - a[1]);
   const best = sorted[0][1];
 
-  // Tolerance widens with strength — a master recognises many playable ideas,
-  // a beginner only spots one or two.
-  const bestTol = isEngine ? 4 : 8; // ties with the top move stay purple
-  const greenTol = isEngine ? 20 : 15 + rating * 0.05;
-  const yellowTol = isEngine ? 70 : 60 + rating * 0.14;
-  const maxGreens = isEngine ? 3 : Math.max(1, Math.min(8, Math.round(1 + rating / 400)));
+  // Stronger perspectives are stricter: they only bless moves that really are
+  // close to best. Beginners hand out approval far more loosely.
+  const s = 1 - t; // 0 = weakest, 1 = strongest human perspective
+  const bestTol = isEngine ? 2 : 30 - 25 * s;
+  const greenTol = isEngine ? 15 : 90 - 72 * s;
+  const yellowTol = isEngine ? 60 : 320 - 240 * s;
+  const maxGreens = isEngine ? 3 : Math.max(2, Math.round(8 - 5 * s));
+
 
   const byMove: Record<string, MoveVerdict> = {};
   let greens = 0;
@@ -162,6 +174,15 @@ async function computePerspective(fen: string, rating: number): Promise<Perspect
     }
     byMove[key] = verdict;
   }
+
+  // Engine and elite perspectives must crown the true engine-best move.
+  if ((isEngine || rating >= 2700) && raw.has(engineBestKey)) {
+    for (const key of Object.keys(byMove)) {
+      if (byMove[key] === "purple" && key !== engineBestKey) byMove[key] = "green";
+    }
+    byMove[engineBestKey] = "purple";
+  }
+
 
   const rank: Record<MoveVerdict, number> = { purple: 4, green: 3, yellow: 2, red: 1 };
   const bySquare: Record<string, MoveVerdict> = {};
