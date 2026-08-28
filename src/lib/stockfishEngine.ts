@@ -40,11 +40,27 @@ export type TopMove = { uci: string; cp: number | null; mate: number | null };
  */
 export function analyseTopMoves(
   fen: string,
-  opts: { multipv: number; depth: number; elo?: number },
+  opts: { multipv: number; depth: number; elo?: number; movetime?: number },
 ): Promise<TopMove[]> {
   ensureWorker();
   return new Promise((resolve) => {
     const collected = new Map<number, TopMove>();
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      off();
+      clearTimeout(guard);
+      const arr = Array.from(collected.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([, v]) => v);
+      resolve(arr);
+    };
+    // Hard safety net: never let a search hang the UI.
+    const guard = setTimeout(() => {
+      send("stop");
+      setTimeout(finish, 120);
+    }, (opts.movetime ?? 4000) + 1500);
     const off = onLine((line) => {
       if (line.startsWith("info") && line.includes(" multipv ")) {
         const mpv = Number(/ multipv (\d+)/.exec(line)?.[1] ?? 0);
@@ -61,11 +77,7 @@ export function analyseTopMoves(
         }
       }
       if (line.startsWith("bestmove")) {
-        off();
-        const arr = Array.from(collected.entries())
-          .sort((a, b) => a[0] - b[0])
-          .map(([, v]) => v);
-        resolve(arr);
+        finish();
       }
     });
 
@@ -79,7 +91,8 @@ export function analyseTopMoves(
     }
     send(`setoption name MultiPV value ${Math.max(1, opts.multipv)}`);
     send(`position fen ${fen}`);
-    send(`go depth ${Math.max(1, Math.min(20, opts.depth))}`);
+    const goDepth = `go depth ${Math.max(1, Math.min(20, opts.depth))}`;
+    send(opts.movetime ? `${goDepth} movetime ${Math.max(50, opts.movetime)}` : goDepth);
   });
 }
 
