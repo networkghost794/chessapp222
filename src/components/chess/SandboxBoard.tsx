@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { ArrowLeft, FlipHorizontal2, Grid3x3, RotateCcw, Undo2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { playMoveResultSound } from "@/lib/sounds";
-import { evaluatePerspective, PERSPECTIVE_RATINGS, type MoveVerdict } from "@/lib/perspectiveEval";
+import { evaluatePerspective, labelForRating, PERSPECTIVE_RATINGS, type MoveVerdict } from "@/lib/perspectiveEval";
 
 /**
  * Sandbox Board — a free-play board where the user moves both sides.
@@ -166,7 +166,7 @@ export function SandboxBoard({ onBack }: { onBack: () => void }) {
 
           {perspectiveOn && (
             <Card className="bg-card p-3 flex flex-wrap items-center gap-4 text-[11px] text-muted-foreground">
-              <span className="font-semibold text-foreground">Through the eyes of {rating}</span>
+              <span className="font-semibold text-foreground">Through the eyes of {labelForRating(rating)}</span>
               <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-violet-500" /> Best move</span>
               <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400" /> Strong</span>
               <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400" /> Playable</span>
@@ -199,7 +199,7 @@ export function SandboxBoard({ onBack }: { onBack: () => void }) {
                         : "bg-secondary/30 border-transparent hover:bg-secondary/60 text-muted-foreground",
                     )}
                   >
-                    {r}
+                    {labelForRating(r)}
                   </button>
                 ))}
               </div>

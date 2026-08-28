@@ -10,7 +10,7 @@ import {
 import { ArrowLeft, Check, Eye, Play, RotateCcw, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BOT_CATEGORIES, loadBots, subscribeBots, type BotConfig } from "@/lib/botStore";
-import { PERSPECTIVE_RATINGS, titleForRating } from "@/lib/perspectiveEval";
+import { PERSPECTIVE_RATINGS, labelForRating, titleForRating } from "@/lib/perspectiveEval";
 import { HumanVsBotMatch, type PlayerProfileLite } from "./HumanVsBotMatch";
 import type { MatchResult } from "./BotVsBotMode";
 import { TitleBadge } from "./ChessApp";
@@ -138,7 +138,7 @@ export function PerspectiveMode({ onBack }: { onBack: () => void }) {
                   : "bg-secondary/30 border-transparent hover:bg-secondary/60 text-muted-foreground",
               )}
             >
-              {r}
+              {labelForRating(r)}
             </button>
           ))}
         </div>
