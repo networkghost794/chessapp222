@@ -109,9 +109,10 @@ async function computePerspective(fen: string, rating: number): Promise<Perspect
   const empty: PerspectiveResult = { byMove: {}, bySquare: {} };
   if (legal.length === 0) return empty;
 
+  const strong = rating >= 2500;
   const lines = await analyseTopMoves(fen, {
-    // Only the legal moves that actually exist in this position.
-    multipv: Math.min(legal.length, 24),
+    // Strong perspectives see the whole position; weak ones only need a pool.
+    multipv: Math.min(legal.length, strong ? 40 : 24),
     depth: depthForRating(rating),
     movetime: movetimeForRating(rating),
   });
@@ -127,10 +128,15 @@ async function computePerspective(fen: string, rating: number): Promise<Perspect
   }
   if (raw.size === 0) return empty;
 
-  // Human perception noise: weaker perspectives misjudge more.
-  // 3000 = Stockfish mode: no human noise at all, pure engine judgement.
+  const engineBestKey = [...raw.entries()].sort((a, b) => b[1] - a[1])[0][0];
+
+  // Human perception noise: weaker perspectives misjudge far more, elite
+  // perspectives are nearly engine-accurate. Quadratic falloff so 2700/2880
+  // behave like genuine super-GM play instead of ~2000.
+  // 3500 = Stockfish mode: no human noise at all, pure engine judgement.
   const isEngine = rating >= STOCKFISH_RATING;
-  const noiseSd = isEngine ? 0 : Math.max(0, (2900 - rating) / 12);
+  const t = Math.max(0, Math.min(1, (2950 - rating) / 2750));
+  const noiseSd = isEngine ? 0 : 240 * t * t;
   const perceived = new Map<string, number>();
   const worst = Math.min(...raw.values());
   for (const mv of legal) {
@@ -142,12 +148,14 @@ async function computePerspective(fen: string, rating: number): Promise<Perspect
   const sorted = [...perceived.entries()].sort((a, b) => b[1] - a[1]);
   const best = sorted[0][1];
 
-  // Tolerance widens with strength — a master recognises many playable ideas,
-  // a beginner only spots one or two.
-  const bestTol = isEngine ? 4 : 8; // ties with the top move stay purple
-  const greenTol = isEngine ? 20 : 15 + rating * 0.05;
-  const yellowTol = isEngine ? 70 : 60 + rating * 0.14;
-  const maxGreens = isEngine ? 3 : Math.max(1, Math.min(8, Math.round(1 + rating / 400)));
+  // Stronger perspectives are stricter: they only bless moves that really are
+  // close to best. Beginners hand out approval far more loosely.
+  const s = 1 - t; // 0 = weakest, 1 = strongest human perspective
+  const bestTol = isEngine ? 2 : 30 - 25 * s;
+  const greenTol = isEngine ? 15 : 90 - 72 * s;
+  const yellowTol = isEngine ? 60 : 320 - 240 * s;
+  const maxGreens = isEngine ? 3 : Math.max(2, Math.round(8 - 5 * s));
+
 
   const byMove: Record<string, MoveVerdict> = {};
   let greens = 0;
