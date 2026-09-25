@@ -869,6 +869,14 @@ export async function chooseBotMove(
 
 
 
+/** Compute a per-move thinking delay in ms for this bot (min..max, uniform). */
+export function pickThinkingDelayMs(bot: BotConfig | null): number {
+  const t = bot?.thinking ?? defaultThinkingTime();
+  const lo = Math.max(0, Math.min(t.minMs, t.maxMs));
+  const hi = Math.max(t.minMs, t.maxMs);
+  return Math.round(lo + Math.random() * (hi - lo));
+}
+
 // =================================================================
 //  Title color store (owner-managed globally)
 // =================================================================

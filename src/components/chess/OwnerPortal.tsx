@@ -196,7 +196,7 @@ export function OwnerPortal() {
   const [botTitle, setBotTitle] = useState<string>("");
   const [botTitleColor, setBotTitleColor] = useState<string>("");
 
-  // Per-bot thinking delay (ms) and opening repertoire.
+  // Per-bot thinking delay (ms).
   const [thinking, setThinking] = useState<ThinkingTime>(defaultThinkingTime());
 
   // ---- Edit mode ----
