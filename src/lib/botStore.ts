@@ -1,7 +1,7 @@
 import type { Chess } from "chess.js";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  base64ToBytes, lookupPolyglot, pickWeighted, polyglotHash, polyglotMoveToUci,
+  base64ToBytes, lookupPolyglot, polyglotHash, polyglotMoveToUci,
 } from "./polyglot";
 import { analyseTopMoves, type TopMove } from "./stockfishEngine";
 
