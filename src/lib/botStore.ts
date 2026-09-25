@@ -4,7 +4,6 @@ import {
   base64ToBytes, lookupPolyglot, pickWeighted, polyglotHash, polyglotMoveToUci,
 } from "./polyglot";
 import { analyseTopMoves, type TopMove } from "./stockfishEngine";
-import { OPENINGS_BY_ID, nextBookMove, type OpeningDef } from "./openingLibrary";
 
 // ---------- Lucas Chess–style personality types ----------
 
@@ -117,14 +116,35 @@ export type OpeningConfig = {
   enabled: boolean;
   bookBin?: string;        // base64
   bookName?: string;
-  mode: "best" | "proportional" | "uniform" | "player";
-  influence: number;        // 0–100 — % chance to actually use a book move when found
+  /** Selection mode — proportional random by Polyglot weights. */
+  mode: "proportional";
+  /** 0–100 — how strongly book moves are preferred INSIDE the existing
+   *  strength/personality pipeline. Never forces a move. */
+  influence: number;
+  /** Stop consulting the book after this many plies. */
+  maxBookDepth: number;
 };
 export const defaultOpening = (): OpeningConfig => ({
   enabled: false,
   mode: "proportional",
-  influence: 100,
+  influence: 70,
+  maxBookDepth: 22,
 });
+
+// Decoded book cache — keyed by bot id + book name + size, so the base64
+// payload is decoded exactly once per session instead of every move.
+const bookCache = new Map<string, Uint8Array>();
+function getBookBytes(bot: BotConfig): Uint8Array | null {
+  const b64 = bot.opening.bookBin;
+  if (!b64) return null;
+  const key = `${bot.id}|${bot.opening.bookName ?? ""}|${b64.length}`;
+  let bytes = bookCache.get(key);
+  if (!bytes) {
+    bytes = base64ToBytes(b64);
+    bookCache.set(key, bytes);
+  }
+  return bytes;
+}
 
 /** Endgame transition threshold — max non-king/non-pawn material count. */
 export type EndgameTrigger = { maxMajorMinor: number };
@@ -198,9 +218,6 @@ export type BotConfig = {
   titleColor?: string | null;
   /** Per-bot thinking delay range (ms). */
   thinking: ThinkingTime;
-  /** Opening repertoire — arrays of opening IDs from openingLibrary. */
-  whiteRepertoire: string[];
-  blackRepertoire: string[];
 };
 
 export const defaultPhase = (): PhaseConfig => ({
@@ -253,8 +270,6 @@ function rowToBot(r: Record<string, unknown>): BotConfig {
     endgameTrigger?: Partial<EndgameTrigger>;
     bucketMap?: Partial<BucketMap>;
     thinking?: Partial<ThinkingTime>;
-    whiteRepertoire?: string[];
-    blackRepertoire?: string[];
   };
   const rawTier = String(r.tier ?? "Intermediate") as BotCategory;
   const category: BotCategory = VALID_CATEGORIES.has(rawTier) ? rawTier : "Intermediate";
@@ -274,8 +289,9 @@ function rowToBot(r: Record<string, unknown>): BotConfig {
       enabled: !!op.enabled,
       bookBin: op.bookBin ? String(op.bookBin) : undefined,
       bookName: op.bookName ? String(op.bookName) : undefined,
-      mode: (op.mode as OpeningConfig["mode"]) ?? "proportional",
-      influence: typeof op.influence === "number" ? op.influence : 100,
+      mode: "proportional",
+      influence: typeof op.influence === "number" ? op.influence : 70,
+      maxBookDepth: typeof op.maxBookDepth === "number" ? op.maxBookDepth : 22,
     },
     errorRules: { ...defaultErrorRules(), ...(op.errorRules ?? {}) },
     endgameTrigger: { ...defaultEndgameTrigger(), ...(op.endgameTrigger ?? {}) },
@@ -289,8 +305,6 @@ function rowToBot(r: Record<string, unknown>): BotConfig {
     title: (r.title as string | null) ?? null,
     titleColor: (r.title_color as string | null) ?? null,
     thinking: { ...defaultThinkingTime(), ...(op.thinking ?? {}) },
-    whiteRepertoire: Array.isArray(op.whiteRepertoire) ? op.whiteRepertoire.filter((x) => typeof x === "string") : [],
-    blackRepertoire: Array.isArray(op.blackRepertoire) ? op.blackRepertoire.filter((x) => typeof x === "string") : [],
   };
 }
 
@@ -356,8 +370,6 @@ export type BotPublishInput = {
   title?: string | null;
   titleColor?: string | null;
   thinking?: ThinkingTime;
-  whiteRepertoire?: string[];
-  blackRepertoire?: string[];
 };
 
 async function resolveAvatarUrl(uid: string, input: BotPublishInput): Promise<string | null | undefined> {
@@ -388,8 +400,6 @@ export async function publishBot(input: BotPublishInput): Promise<BotConfig | nu
     bucketMap: input.bucketMap,
     humanMistake: input.humanMistake,
     thinking: input.thinking ?? defaultThinkingTime(),
-    whiteRepertoire: input.whiteRepertoire ?? [],
-    blackRepertoire: input.blackRepertoire ?? [],
   };
 
   const insertPayload = {
@@ -429,8 +439,6 @@ export async function updateBot(id: string, input: BotPublishInput): Promise<Bot
     bucketMap: input.bucketMap,
     humanMistake: input.humanMistake,
     thinking: input.thinking ?? defaultThinkingTime(),
-    whiteRepertoire: input.whiteRepertoire ?? [],
-    blackRepertoire: input.blackRepertoire ?? [],
   };
 
   const updatePayload: Record<string, unknown> = {
@@ -597,7 +605,7 @@ function topToCp(tm: TopMove): { cp: number; mate: number | null } {
 
 /**
  * Pipeline:
- *   1) Polyglot opening book (with influence %).
+ *   1) Polyglot book → soft candidate preference (never forced).
  *   2) Stockfish MultiPV for ALL legal moves.
  *   3) Style-weight candidate pool.
  *   4) Strength bucket filter (cp loss vs best).
@@ -607,48 +615,49 @@ function topToCp(tm: TopMove): { cp: number; mate: number | null } {
 export async function chooseBotMove(
   game: Chess,
   bot: BotConfig | null,
-  opts?: { openingLine?: string[] | null },
+  _opts?: { openingLine?: string[] | null },
 ): Promise<{ move: EngineMove; source: "book" | "engine" | "fallback" } | null> {
   const legal = game.moves({ verbose: true }) as VerboseMove[];
   if (legal.length === 0) return null;
 
-  // ---------- 0) Repertoire opening bias ----------
-  // If the bot has a chosen opening for this game AND the game history is
-  // still a prefix of that opening's main line AND the phase is early game,
-  // capture the expected SAN to bias candidate selection later.
-  let repertoireSan: string | null = null;
-  const sanHistory = game.history();
-  if (opts?.openingLine && sanHistory.length < opts.openingLine.length) {
-    const prefixOk = sanHistory.every((san, i) => san === opts.openingLine![i]);
-    if (prefixOk) repertoireSan = opts.openingLine[sanHistory.length];
-  }
-
-  // ---------- 1) Polyglot opening book ----------
-  if (bot?.opening.enabled && bot.opening.bookBin) {
+  // ---------- 1) Polyglot opening book (candidate source only) ----------
+  // Book moves are NEVER played directly. They only become a soft
+  // preference inside the existing strength → personality → mistake
+  // pipeline below. Map: uci → normalised weight share (0..1).
+  let bookShares: Map<string, number> | null = null;
+  if (bot?.opening.enabled && bot.opening.bookBin && game.history().length < (bot.opening.maxBookDepth ?? 22)) {
     try {
-      const book = base64ToBytes(bot.opening.bookBin);
-      const key = polyglotHash(game);
-      const entries = lookupPolyglot(book, key);
-      if (entries.length > 0 && Math.random() * 100 < (bot.opening.influence ?? 100)) {
-        let chosen = entries[0];
-        if (bot.opening.mode === "best") {
-          chosen = entries.reduce((a, b) => (b.weight > a.weight ? b : a), entries[0]);
-        } else if (bot.opening.mode === "uniform") {
-          chosen = entries[Math.floor(Math.random() * entries.length)];
-        } else if (bot.opening.mode === "proportional") {
-          chosen = pickWeighted(entries) ?? entries[0];
-        } else {
-          // "player" → highest-weight fallback
-          chosen = entries.reduce((a, b) => (b.weight > a.weight ? b : a), entries[0]);
+      const book = getBookBytes(bot);
+      if (book) {
+        const entries = lookupPolyglot(book, polyglotHash(game));
+        const legalEntries: { uci: string; w: number }[] = [];
+        for (const e of entries) {
+          const uci = polyglotMoveToUci(game, e.move);
+          if (findLegalMove(game, uci)) legalEntries.push({ uci, w: Math.max(1, e.weight) });
         }
-        const uci = polyglotMoveToUci(game, chosen.move);
-        const found = findLegalMove(game, uci);
-        if (found) return { move: found, source: "book" };
+        if (legalEntries.length > 0) {
+          const total = legalEntries.reduce((x, y) => x + y.w, 0);
+          bookShares = new Map(legalEntries.map((x) => [x.uci, x.w / total]));
+        }
       }
     } catch (e) {
       console.warn("[botStore] polyglot lookup failed:", e);
+      bookShares = null;
     }
   }
+  const uciOf = (m: VerboseMove) => m.from + m.to + (m.promotion ?? "");
+  // Strength-aware book preference: stronger bots sharpen toward
+  // high-weight book lines; weaker bots spread over a broader range.
+  const bookFactor = (m: VerboseMove): number => {
+    if (!bookShares || !bot) return 1;
+    const share = bookShares.get(uciOf(m));
+    if (share === undefined) return 1;
+    const elo = Math.max(100, Math.min(3200, bot.elo ?? 1500));
+    const sharp = elo < 1000 ? 0.3 : elo < 1600 ? 0.6 : elo < 2200 ? 1 : 1.4;
+    const infl = Math.max(0, Math.min(100, bot.opening.influence ?? 70)) / 100;
+    // Up to ~13x boost at 100% influence for a dominant line.
+    return 1 + infl * 12 * Math.pow(share, sharp);
+  };
 
   // ---------- 2) Stockfish evaluation of all legal moves ----------
   if (bot) {
@@ -802,7 +811,17 @@ export async function chooseBotMove(
 
       // ---------- 3 + 6) Style-weighted pick over the survivors ----------
       if (pool.length === 1) return { move: pool[0].vm, source: "engine" };
-      if (bucket === "best") return { move: pool[0].vm, source: "engine" };
+      if (bucket === "best") {
+        // Near-equal (≤5cp) moves: let the book add variety among them.
+        const inBook = bookShares ? pool.filter((s) => bookShares!.has(uciOf(s.vm))) : [];
+        if (inBook.length > 1) {
+          const ws = inBook.map((s) => bookFactor(s.vm));
+          let r = Math.random() * ws.reduce((x, y) => x + y, 0);
+          for (let i = 0; i < inBook.length; i++) { r -= ws[i]; if (r <= 0) return { move: inBook[i].vm, source: "book" }; }
+        }
+        if (inBook.length === 1) return { move: inBook[0].vm, source: "book" };
+        return { move: pool[0].vm, source: "engine" };
+      }
 
       const weighted = pool.map((s) => {
         const cls = classifyMove(game, s.vm);
@@ -827,15 +846,8 @@ export async function chooseBotMove(
           }
           if (myBishops >= 2) bias *= Math.max(0.2, 1 - exp.keepBishopPair / 150);
         }
-        // Opening repertoire bias — heavily favour the book move for the
-        // chosen opening while it is still available in the ELO/personality
-        // pool. Beyond ply 8 the bias tapers so bots gradually leave theory
-        // even in main lines.
-        if (repertoireSan && s.vm.san === repertoireSan) {
-          const ply = sanHistory.length;
-          const taper = ply < 6 ? 40 : ply < 10 ? 20 : 8;
-          bias *= taper;
-        }
+        // Polyglot book preference (soft, within the filtered pool only).
+        bias *= bookFactor(s.vm);
         return { vm: s.vm, w: sty * closeness * bias };
       });
       const total = weighted.reduce((a, b) => a + b.w, 0);
@@ -855,26 +867,7 @@ export async function chooseBotMove(
   return pick ? { move: pick, source: "fallback" } : null;
 }
 
-/** Pick a random opening from the bot's repertoire for the given side, or null. */
-export function pickOpeningForBot(bot: BotConfig | null, side: "w" | "b"): OpeningDef | null {
-  if (!bot) return null;
-  const ids = side === "w" ? bot.whiteRepertoire : bot.blackRepertoire;
-  if (!ids || ids.length === 0) return null;
-  const valid = ids.map((id) => OPENINGS_BY_ID[id]).filter(Boolean);
-  if (valid.length === 0) return null;
-  return valid[Math.floor(Math.random() * valid.length)];
-}
 
-/** Compute a per-move thinking delay in ms for this bot (min..max, uniform). */
-export function pickThinkingDelayMs(bot: BotConfig | null): number {
-  const t = bot?.thinking ?? defaultThinkingTime();
-  const lo = Math.max(0, Math.min(t.minMs, t.maxMs));
-  const hi = Math.max(t.minMs, t.maxMs);
-  return Math.round(lo + Math.random() * (hi - lo));
-}
-
-// Keep util imports referenced (helper only used indirectly by callers).
-void nextBookMove;
 
 // =================================================================
 //  Title color store (owner-managed globally)
