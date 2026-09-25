@@ -58,7 +58,6 @@ import {
   type HumanMistake,
   type ThinkingTime,
 } from "@/lib/botStore";
-import { OPENING_LIBRARY, type OpeningDef } from "@/lib/openingLibrary";
 import { bytesToBase64 } from "@/lib/polyglot";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/useAuth";
@@ -197,10 +196,8 @@ export function OwnerPortal() {
   const [botTitle, setBotTitle] = useState<string>("");
   const [botTitleColor, setBotTitleColor] = useState<string>("");
 
-  // Per-bot thinking delay (ms) and opening repertoire.
+  // Per-bot thinking delay (ms).
   const [thinking, setThinking] = useState<ThinkingTime>(defaultThinkingTime());
-  const [whiteRepertoire, setWhiteRepertoire] = useState<string[]>([]);
-  const [blackRepertoire, setBlackRepertoire] = useState<string[]>([]);
 
   // ---- Edit mode ----
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -220,7 +217,6 @@ export function OwnerPortal() {
     setHumanMistake(defaultHumanMistake());
     setBotTitle(""); setBotTitleColor("");
     setThinking(defaultThinkingTime());
-    setWhiteRepertoire([]); setBlackRepertoire([]);
     setEditingId(null);
   };
 
@@ -245,8 +241,6 @@ export function OwnerPortal() {
     setBotTitle(b.title ?? "");
     setBotTitleColor(b.titleColor ?? "");
     setThinking(b.thinking ?? defaultThinkingTime());
-    setWhiteRepertoire(b.whiteRepertoire ?? []);
-    setBlackRepertoire(b.blackRepertoire ?? []);
   };
 
   useEffect(() => {
@@ -312,8 +306,6 @@ export function OwnerPortal() {
         title: botTitle.trim() || null,
         titleColor: botTitleColor.trim() || null,
         thinking,
-        whiteRepertoire,
-        blackRepertoire,
       };
       if (editingId) await updateBot(editingId, payload);
       else await publishBot(payload);
@@ -568,9 +560,12 @@ export function OwnerPortal() {
                   </TabsContent>
 
                   <TabsContent value="opening" className="space-y-3 pt-3">
+                    <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-[11px] text-muted-foreground leading-relaxed">
+                      The Polyglot book only <b>suggests</b> opening moves. The bot's strength, style and human-mistake settings still decide the final move — even at 100% influence nothing is forced.
+                    </div>
                     <div className="flex items-center gap-2">
                       <Checkbox id="actBook" checked={opening.enabled} onCheckedChange={(v) => setOpening({ ...opening, enabled: !!v })} />
-                      <Label htmlFor="actBook" className="text-sm cursor-pointer">Activate Book</Label>
+                      <Label htmlFor="actBook" className="text-sm cursor-pointer">Activate Polyglot Book</Label>
                     </div>
                     <div>
                       <Label className="text-xs">Polyglot Book (.bin)</Label>
@@ -581,21 +576,13 @@ export function OwnerPortal() {
                           <Upload className="w-3.5 h-3.5 mr-1" /> Upload .bin
                         </Button>
                         <span className="text-xs text-muted-foreground truncate">
-                          {opening.bookName ? `${opening.bookName} · ${(bookSize / 1024).toFixed(1)} KB` : "no file"}
+                          {opening.bookName ? `${opening.bookName}${bookSize ? ` · ${(bookSize / 1024).toFixed(1)} KB` : ""}` : "no file"}
                         </span>
                       </div>
                     </div>
                     <div>
                       <Label className="text-xs">Selection mode</Label>
-                      <Select value={opening.mode} onValueChange={(v) => setOpening({ ...opening, mode: v as OpeningConfig["mode"] })}>
-                        <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="best">Always highest percentage</SelectItem>
-                          <SelectItem value="proportional">Proportional random</SelectItem>
-                          <SelectItem value="uniform">Uniform random</SelectItem>
-                          <SelectItem value="player">Player selected</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div className="mt-1 text-xs rounded-md border border-border/60 px-3 py-2 bg-secondary/30">Proportional random (by book weights)</div>
                     </div>
                     <div>
                       <div className="flex items-center justify-between mb-1">
@@ -604,18 +591,16 @@ export function OwnerPortal() {
                       </div>
                       <Slider min={0} max={100} step={1} value={[opening.influence]}
                         onValueChange={([v]) => setOpening({ ...opening, influence: v })} />
+                      <p className="text-[10px] text-muted-foreground mt-1">How strongly book moves are preferred among the moves the bot would already consider. Not "force the book move".</p>
                     </div>
-
-                    <RepertoirePicker
-                      side="white"
-                      value={whiteRepertoire}
-                      onChange={setWhiteRepertoire}
-                    />
-                    <RepertoirePicker
-                      side="black"
-                      value={blackRepertoire}
-                      onChange={setBlackRepertoire}
-                    />
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label className="text-xs text-muted-foreground">Maximum book depth (plies)</Label>
+                        <span className="text-xs font-mono">{opening.maxBookDepth}</span>
+                      </div>
+                      <Slider min={2} max={40} step={1} value={[opening.maxBookDepth]}
+                        onValueChange={([v]) => setOpening({ ...opening, maxBookDepth: v })} />
+                    </div>
                   </TabsContent>
 
                   <TabsContent value="buckets" className="pt-3 space-y-3">
@@ -756,75 +741,4 @@ function TitleColorsManager() {
 // keep imports referenced
 void getTitleColor;
 
-function RepertoirePicker({
-  side,
-  value,
-  onChange,
-}: {
-  side: "white" | "black";
-  value: string[];
-  onChange: (v: string[]) => void;
-}) {
-  // Show openings intended for this side plus any "any"-color entries.
-  const available: OpeningDef[] = OPENING_LIBRARY.filter(
-    (o) => o.color === side || o.color === "any",
-  );
-  const grouped = new Map<string, OpeningDef[]>();
-  for (const o of available) {
-    if (!grouped.has(o.category)) grouped.set(o.category, []);
-    grouped.get(o.category)!.push(o);
-  }
-  const toggle = (id: string) => {
-    if (value.includes(id)) onChange(value.filter((x) => x !== id));
-    else {
-      if (value.length >= 6) return;
-      onChange([...value, id]);
-    }
-  };
-  return (
-    <div className="rounded-md border border-border/60 bg-background/30 p-3 space-y-2">
-      <div className="flex items-center justify-between">
-        <div className="text-xs font-semibold capitalize">{side} Repertoire</div>
-        <div className="text-[10px] text-muted-foreground">
-          {value.length}/6 selected · pick 2–6
-        </div>
-      </div>
-      <p className="text-[10px] text-muted-foreground">
-        At the start of every game the bot randomly picks one opening from this list.
-        The chosen opening biases early moves (~first 10 plies) without overriding the
-        strength or mistake systems.
-      </p>
-      <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-        {Array.from(grouped.entries()).map(([cat, list]) => (
-          <div key={cat}>
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">{cat}</div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
-              {list.map((o) => {
-                const active = value.includes(o.id);
-                const disabled = !active && value.length >= 6;
-                return (
-                  <button
-                    type="button"
-                    key={o.id}
-                    onClick={() => toggle(o.id)}
-                    disabled={disabled}
-                    className={cn(
-                      "text-left text-xs rounded-md px-2 py-1.5 border transition-colors",
-                      active
-                        ? "bg-primary/20 border-primary text-foreground"
-                        : "bg-secondary/30 border-border/60 hover:bg-secondary/60",
-                      disabled && "opacity-40 cursor-not-allowed",
-                    )}
-                  >
-                    {o.name}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
