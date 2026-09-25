@@ -32,12 +32,10 @@ import {
   BOT_CATEGORIES,
   chooseBotMove,
   loadBots,
-  pickOpeningForBot,
   pickThinkingDelayMs,
   subscribeBots,
   type BotConfig,
 } from "@/lib/botStore";
-import type { OpeningDef } from "@/lib/openingLibrary";
 import { playMoveResultSound } from "@/lib/sounds";
 import { EvaluationBar } from "./EvaluationBar";
 import { evaluatePosition, type PositionEval } from "@/lib/stockfishEval";
@@ -453,9 +451,6 @@ export function BotVsBotMatch({
   const [replayIndex, setReplayIndex] = useState<number | null>(null);
   const finishedRef = useRef(false);
 
-  // Custom starting positions skip the opening repertoire.
-  const whiteOpeningRef = useRef<OpeningDef | null>(startFen ? null : pickOpeningForBot(white, "w"));
-  const blackOpeningRef = useRef<OpeningDef | null>(startFen ? null : pickOpeningForBot(black, "b"));
 
   const cancelledRef = useRef(false);
   const busyRef = useRef(false);
@@ -493,14 +488,13 @@ export function BotVsBotMatch({
 
     const side = game.turn();
     const bot = side === "w" ? white : black;
-    const opening = side === "w" ? whiteOpeningRef.current : blackOpeningRef.current;
 
     busyRef.current = true;
     setThinking(true);
     const startedAt = Date.now();
     (async () => {
       try {
-        const result = await chooseBotMove(game, bot, { openingLine: opening?.line ?? null });
+        const result = await chooseBotMove(game, bot);
         if (cancelledRef.current) return;
         if (!result) { setGameOver(true); return; }
         const targetMs = resolveDelayMs(bot, speed);

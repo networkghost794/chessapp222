@@ -38,11 +38,9 @@ import {
   loadBots,
   refreshFromCloud,
   subscribeBots,
-  pickOpeningForBot,
   pickThinkingDelayMs,
   type BotConfig,
 } from "@/lib/botStore";
-import type { OpeningDef } from "@/lib/openingLibrary";
 import { useAuth } from "@/lib/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { BathroomBreak } from "./BathroomBreak";
@@ -213,8 +211,6 @@ export function ChessApp() {
 
   useEffect(() => { loadBotStats(activeBot); }, [activeBot, loadBotStats]);
 
-  // Opening chosen for the current match (from bot's repertoire).
-  const currentOpeningRef = useRef<OpeningDef | null>(null);
 
   const requestBotMoveRef = useRef<() => void>(() => {});
 
@@ -224,7 +220,6 @@ export function ChessApp() {
       const startedAt = Date.now();
       try {
         const result = await chooseBotMove(game, activeBot, {
-          openingLine: currentOpeningRef.current?.line ?? null,
         });
         if (!result) { setPending(false); return; }
         const { move: pick } = result;
@@ -269,9 +264,6 @@ export function ChessApp() {
     else color = Math.random() < 0.5 ? "w" : "b";
     setPlayerColor(color);
     setFlipped(color === "b");
-    // Pick this game's opening from the bot's repertoire for its color.
-    const botColor: "w" | "b" = color === "w" ? "b" : "w";
-    currentOpeningRef.current = pickOpeningForBot(activeBot, botColor);
     setMatchActive(true);
     setMode("match");
     force();

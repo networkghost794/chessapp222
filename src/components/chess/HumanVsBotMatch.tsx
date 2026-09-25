@@ -9,11 +9,9 @@ import { TitleBadge } from "./ChessApp";
 import { cn } from "@/lib/utils";
 import {
   chooseBotMove,
-  pickOpeningForBot,
   pickThinkingDelayMs,
   type BotConfig,
 } from "@/lib/botStore";
-import type { OpeningDef } from "@/lib/openingLibrary";
 import { playMoveResultSound } from "@/lib/sounds";
 import type { MatchResult } from "./BotVsBotMode";
 import { evaluatePerspective, type MoveVerdict } from "@/lib/perspectiveEval";
@@ -65,16 +63,12 @@ export function HumanVsBotMatch({
   const force = useCallback(() => setTick((t) => t + 1), []);
   const finishedRef = useRef(false);
 
-  // Opening from bot's repertoire for its color.
-  const openingRef = useRef<OpeningDef | null>(
-    pickOpeningForBot(bot, playerColor === "w" ? "b" : "w"),
-  );
 
   const requestBotMove = useCallback(async () => {
     if (game.isGameOver()) { setPending(false); return; }
     const startedAt = Date.now();
     try {
-      const result = await chooseBotMove(game, bot, { openingLine: openingRef.current?.line ?? null });
+      const result = await chooseBotMove(game, bot);
       if (!result) { setPending(false); return; }
       const targetMs = pickThinkingDelayMs(bot);
       const elapsed = Date.now() - startedAt;
