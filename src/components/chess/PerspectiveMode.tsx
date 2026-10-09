@@ -7,7 +7,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { ArrowLeft, Check, Eye, Play, RotateCcw, User } from "lucide-react";
+import { ArrowLeft, Check, Gauge, Play, RotateCcw, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BOT_CATEGORIES, loadBots, subscribeBots, type BotConfig } from "@/lib/botStore";
 import { PERSPECTIVE_RATINGS, labelForRating, titleForRating } from "@/lib/perspectiveEval";
@@ -19,7 +19,7 @@ import { botDisplayIdentity, useImmersive } from "@/lib/immersive";
 import type { Color } from "chess.js";
 
 /**
- * "Play Through Their Eyes" — a standalone game mode.
+ * Strength Simulator — a standalone game mode.
  * The player controls every move; a chosen rating perspective annotates
  * every legal destination square with a colored indicator.
  */
@@ -56,7 +56,7 @@ export function PerspectiveMode({ onBack }: { onBack: () => void }) {
       <div className="max-w-[1200px] mx-auto space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div className="text-sm font-semibold inline-flex items-center gap-2">
-            <Eye className="w-4 h-4 text-primary" /> Play Through Their Eyes
+            <Gauge className="w-4 h-4 text-primary" /> Strength Simulator
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -102,96 +102,123 @@ export function PerspectiveMode({ onBack }: { onBack: () => void }) {
     );
   }
 
+  const TIERS: { name: string; ratings: number[] }[] = [
+    { name: "Club", ratings: [200, 400, 600, 800, 1000] },
+    { name: "Intermediate", ratings: [1200, 1400, 1600] },
+    { name: "Expert & Master", ratings: [1800, 2000, 2200] },
+    { name: "Grandmaster", ratings: [2500, 2700, 2880] },
+    { name: "Engine", ratings: [3500] },
+  ];
+  const known = new Set(TIERS.flatMap((t) => t.ratings));
+  const extra = PERSPECTIVE_RATINGS.filter((r) => !known.has(r));
+  if (extra.length) TIERS[1].ratings.push(...extra);
+  const tierOf = TIERS.find((t) => t.ratings.includes(rating))?.name ?? "";
+
+  const Section = ({ n, title, children }: { n: number; title: string; children: React.ReactNode }) => (
+    <section className="rounded-xl border border-border/60 bg-card p-5 space-y-4">
+      <div className="flex items-baseline gap-3">
+        <span className="text-[10px] font-semibold tabular-nums text-muted-foreground">0{n}</span>
+        <h2 className="text-sm font-semibold tracking-tight">{title}</h2>
+      </div>
+      {children}
+    </section>
+  );
+
   return (
-    <div className="max-w-[1100px] mx-auto space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <header className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-md bg-primary/15 grid place-items-center ring-1 ring-primary/30">
-            <Eye className="w-5 h-5 text-primary" />
+    <div className="max-w-[1100px] mx-auto space-y-5">
+      <div className="flex items-start justify-between gap-3">
+        <header className="space-y-1">
+          <div className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">
+            <Gauge className="w-3.5 h-3.5" /> Game Mode
           </div>
-          <div>
-            <div className="text-xl font-bold leading-tight">Play Through Their Eyes</div>
-            <div className="text-xs text-muted-foreground">
-              Experience chess from the perspective of different playing strengths — you still make
-              every move.
-            </div>
-          </div>
+          <h1 className="text-2xl font-bold tracking-tight">Strength Simulator</h1>
+          <p className="text-sm text-muted-foreground max-w-xl">
+            You make every move. The board quietly marks how a player of the chosen rating would judge each option.
+          </p>
         </header>
         <Button variant="ghost" size="sm" onClick={onBack}>
           <ArrowLeft className="w-4 h-4 mr-1.5" /> Back
         </Button>
       </div>
 
-      <Card className="bg-card p-4 space-y-3">
-        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Step 1 — Perspective rating
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {PERSPECTIVE_RATINGS.map((r) => (
-            <button
-              key={r}
-              onClick={() => setRating(r)}
-              className={cn(
-                "px-3 py-1.5 rounded-md text-sm font-semibold border transition-colors",
-                rating === r
-                  ? "bg-primary/15 border-primary/40 text-foreground"
-                  : "bg-secondary/30 border-transparent hover:bg-secondary/60 text-muted-foreground",
-              )}
-            >
-              {labelForRating(r)}
-            </button>
+      <Section n={1} title="Simulated rating">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {TIERS.map((t) => (
+            <div key={t.name} className="space-y-2">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t.name}</div>
+              <div className="flex flex-wrap gap-1.5">
+                {t.ratings.map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => setRating(r)}
+                    className={cn(
+                      "min-w-[3.5rem] px-2.5 py-1.5 rounded-md text-xs font-semibold tabular-nums border transition-colors",
+                      rating === r
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-secondary/40 border-border/50 text-muted-foreground hover:text-foreground hover:bg-secondary",
+                    )}
+                  >
+                    {labelForRating(r)}
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
-        <div className="text-[11px] text-muted-foreground">
-          Your identity this match:{" "}
-          <span className="inline-flex items-center gap-1.5 align-middle">
-            <TitleBadge title={titleForRating(rating)} color={null} size="sm" />
-            <span className="font-semibold text-foreground">{player.name}</span>
-            <span>({rating})</span>
-          </span>
-        </div>
-      </Card>
+      </Section>
 
-      <Card className="bg-card p-4 space-y-3">
-        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Step 2 — Your side
-        </div>
-        <div className="flex gap-2">
+      <Section n={2} title="Your side">
+        <div className="grid grid-cols-2 gap-2 max-w-sm">
           {(["w", "b"] as Color[]).map((c) => (
             <button
               key={c}
               onClick={() => setColor(c)}
               className={cn(
-                "px-4 py-1.5 rounded-md text-sm font-semibold border transition-colors",
+                "flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-sm font-semibold border transition-colors",
                 color === c
-                  ? "bg-primary/15 border-primary/40"
-                  : "bg-secondary/30 border-transparent hover:bg-secondary/60 text-muted-foreground",
+                  ? "border-primary bg-primary/10"
+                  : "border-border/50 bg-secondary/30 text-muted-foreground hover:bg-secondary/60",
               )}
             >
+              <span className={cn("w-3.5 h-3.5 rounded-full ring-1 ring-border", c === "w" ? "bg-board-light" : "bg-board-dark")} />
               {c === "w" ? "White" : "Black"}
             </button>
           ))}
         </div>
-      </Card>
+      </Section>
 
-      <div className="space-y-2">
-        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">
-          Step 3 — Choose your opponent
-        </div>
+      <Section n={3} title="Opponent">
         <SingleBotPicker bots={bots} selectedId={botId} onPick={setBotId} />
-      </div>
+      </Section>
 
-      <Button
-        className="w-full font-bold"
-        disabled={!bot}
-        onClick={() => {
-          setResult(null);
-          setMatchKey((k) => k + 1);
-          setStage("match");
-        }}
-      >
-        <Play className="w-4 h-4 mr-1.5" /> Start Game
-      </Button>
+      <div className="sticky bottom-3 flex flex-wrap items-center gap-4 rounded-xl border border-border/60 bg-card/95 backdrop-blur px-5 py-3">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs">
+          <span><span className="text-muted-foreground">Rating </span><span className="font-semibold tabular-nums">{labelForRating(rating)}</span> <span className="text-muted-foreground">· {tierOf}</span></span>
+          <span><span className="text-muted-foreground">Side </span><span className="font-semibold">{color === "w" ? "White" : "Black"}</span></span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="text-muted-foreground">Opponent </span>
+            {bot ? (
+              <>
+                                <span className="font-semibold">{bot.name}</span>
+                <span className="text-muted-foreground tabular-nums">({bot.elo})</span>
+              </>
+            ) : (
+              <span className="text-muted-foreground italic">none selected</span>
+            )}
+          </span>
+        </div>
+        <Button
+          className="ml-auto font-semibold"
+          disabled={!bot}
+          onClick={() => {
+            setResult(null);
+            setMatchKey((k) => k + 1);
+            setStage("match");
+          }}
+        >
+          <Play className="w-4 h-4 mr-1.5" /> Start Game
+        </Button>
+      </div>
     </div>
   );
 }
@@ -207,8 +234,8 @@ function SingleBotPicker({
 }) {
   const [immersive] = useImmersive();
   return (
-    <Card className="bg-card p-3">
-      <Accordion type="multiple" className="w-full">
+    <div>
+      <Accordion type="multiple" defaultValue={BOT_CATEGORIES.map((c) => c.value)} className="w-full">
         {BOT_CATEGORIES.map((section) => {
           const list = bots
             .filter((b) => b.category === section.value)
@@ -272,6 +299,6 @@ function SingleBotPicker({
           );
         })}
       </Accordion>
-    </Card>
+    </div>
   );
 }
