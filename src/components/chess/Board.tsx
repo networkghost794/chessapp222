@@ -197,7 +197,7 @@ export function Board({ game, flipped, disabled, lastMove, onAttemptMove, indica
                 {isSelected && <div className="absolute inset-0 bg-board-highlight" />}
                 {isCheck && <div className="absolute inset-0 bg-board-check" />}
                 {bestFrom === sq && (
-                  <div className="absolute inset-0 pointer-events-none bg-violet-500/20 ring-2 ring-inset ring-violet-400/70 shadow-[inset_0_0_12px_rgba(139,92,246,0.45)]" />
+                  <div className="absolute inset-0 pointer-events-none bg-sim-best/10 ring-1 ring-inset ring-sim-best/50" />
                 )}
                 {isDragOver && <div className="absolute inset-0 ring-4 ring-primary/70 ring-inset" />}
 
@@ -222,11 +222,11 @@ export function Board({ game, flipped, disabled, lastMove, onAttemptMove, indica
                 {indicators?.[sq] && (
                   <span
                     className={cn(
-                      "absolute top-1 right-1 w-2 h-2 rounded-full pointer-events-none ring-1 ring-black/30",
-                      indicators[sq] === "purple" && "bg-violet-500",
-                      indicators[sq] === "green" && "bg-emerald-400",
-                      indicators[sq] === "yellow" && "bg-amber-400",
-                      indicators[sq] === "red" && "bg-rose-500",
+                      "absolute top-[6%] right-[6%] w-[11%] h-[11%] min-w-[5px] min-h-[5px] rounded-full pointer-events-none z-10 ring-1 ring-background/60",
+                      indicators[sq] === "purple" && "bg-sim-best shadow-[0_0_6px_var(--sim-best)]",
+                      indicators[sq] === "green" && "bg-sim-good",
+                      indicators[sq] === "yellow" && "bg-sim-ok",
+                      indicators[sq] === "red" && "bg-sim-bad",
                     )}
                   />
                 )}

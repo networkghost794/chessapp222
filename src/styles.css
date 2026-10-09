@@ -32,6 +32,10 @@
   --color-board-dark: var(--board-dark);
   --color-board-highlight: var(--board-highlight);
   --color-board-move: var(--board-move);
+  --color-sim-best: var(--sim-best);
+  --color-sim-good: var(--sim-good);
+  --color-sim-ok: var(--sim-ok);
+  --color-sim-bad: var(--sim-bad);
   --color-board-check: var(--board-check);
   --color-success: var(--success);
   --color-warning: var(--warning);
@@ -63,6 +67,10 @@
   --board-dark: oklch(0.55 0.09 60);
   --board-highlight: oklch(0.72 0.17 135 / 0.55);
   --board-move: oklch(0.72 0.17 135 / 0.35);
+  --sim-best: oklch(0.68 0.14 295);
+  --sim-good: oklch(0.72 0.11 160);
+  --sim-ok: oklch(0.8 0.11 80);
+  --sim-bad: oklch(0.66 0.14 25);
   --board-check: oklch(0.62 0.22 25 / 0.6);
   --success: oklch(0.72 0.17 135);
   --warning: oklch(0.78 0.16 75);
