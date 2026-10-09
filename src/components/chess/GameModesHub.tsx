@@ -16,6 +16,7 @@ import {
   Play,
   Sparkles,
   Eye,
+  Gauge,
   Grid3x3,
   Swords,
   Trophy,
@@ -102,15 +103,15 @@ export function GameModesHub() {
           onOpen={() => setView("bvb-entry")}
         />
         <ModeCard
-          title="Play Through Their Eyes"
-          desc="Experience chess from the perspective of different playing strengths while making every move yourself."
-          icon={<Eye className="w-6 h-6" />}
+          title="Strength Simulator"
+          desc="Play any opponent while the board shows how a player of your chosen rating would judge each move."
+          icon={<Gauge className="w-6 h-6" />}
           available
           onOpen={() => setView("perspective")}
         />
         <ModeCard
           title="Sandbox Board"
-          desc="A free board where you move both sides — optionally with Play Through Their Eyes indicators."
+          desc="A free board where you move both sides — optionally with Strength Simulator indicators."
           icon={<Grid3x3 className="w-6 h-6" />}
           available
           onOpen={() => setView("sandbox")}

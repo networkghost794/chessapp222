@@ -14,6 +14,7 @@ import {
 } from "@/lib/botStore";
 import { playMoveResultSound } from "@/lib/sounds";
 import type { MatchResult } from "./BotVsBotMode";
+import { SimulatorLegend } from "./SimulatorLegend";
 import { evaluatePerspective, type MoveVerdict } from "@/lib/perspectiveEval";
 import { botDisplayIdentity, useImmersive } from "@/lib/immersive";
 
@@ -228,14 +229,7 @@ export function HumanVsBotMatch({
           </div>
         </Card>
 
-        {perspectiveRating != null && (
-          <Card className="bg-card p-3 flex flex-wrap items-center gap-4 text-[11px] text-muted-foreground">
-            <span className="font-semibold text-foreground">Through the eyes of {perspectiveRating}</span>
-            <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400" /> Likely choice</span>
-            <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400" /> Playable</span>
-            <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-rose-500" /> Would avoid</span>
-          </Card>
-        )}
+        {perspectiveRating != null && <SimulatorLegend label={`${perspectiveRating} Elo`} />}
 
         <ParticipantHeader
           name={player.name}

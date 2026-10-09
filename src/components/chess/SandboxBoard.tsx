@@ -8,12 +8,13 @@ import { Switch } from "@/components/ui/switch";
 import { ArrowLeft, FlipHorizontal2, Grid3x3, RotateCcw, Undo2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { playMoveResultSound } from "@/lib/sounds";
+import { SimulatorLegend } from "./SimulatorLegend";
 import { evaluatePerspective, labelForRating, PERSPECTIVE_RATINGS, type MoveVerdict } from "@/lib/perspectiveEval";
 
 /**
  * Sandbox Board — a free-play board where the user moves both sides.
  * No bot, no engine analysis. Optionally overlays the existing
- * "Play Through Their Eyes" perspective indicators.
+ * "Strength Simulator" perspective indicators.
  */
 export function SandboxBoard({ onBack }: { onBack: () => void }) {
   const gameRef = useRef(new Chess());
@@ -164,22 +165,14 @@ export function SandboxBoard({ onBack }: { onBack: () => void }) {
             </div>
           </Card>
 
-          {perspectiveOn && (
-            <Card className="bg-card p-3 flex flex-wrap items-center gap-4 text-[11px] text-muted-foreground">
-              <span className="font-semibold text-foreground">Through the eyes of {labelForRating(rating)}</span>
-              <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-violet-500" /> Best move</span>
-              <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400" /> Strong</span>
-              <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400" /> Playable</span>
-              <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-rose-500" /> Weak</span>
-            </Card>
-          )}
+          {perspectiveOn && <SimulatorLegend label={`${labelForRating(rating)} Elo`} showBest />}
         </section>
 
         <aside className="flex flex-col gap-3">
           <Card className="bg-card p-3 space-y-3">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-sm font-semibold">Play Through Their Eyes</div>
+                <div className="text-sm font-semibold">Strength Simulator</div>
                 <div className="text-[11px] text-muted-foreground">
                   Show how a given strength would view the position.
                 </div>
