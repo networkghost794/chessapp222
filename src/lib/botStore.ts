@@ -1,3 +1,4 @@
+import { repertoireMove } from "./repertoire";
 import type { Chess } from "chess.js";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -645,6 +646,15 @@ export async function chooseBotMove(
       bookShares = null;
     }
   }
+  // Built-in repertoire fallback when no Polyglot book has a move here.
+  let builtIn = false;
+  if (bot && !bookShares) {
+    try {
+      const san = repertoireMove(game, bot.id, bot.elo ?? 1500);
+      const vm = san ? legal.find((m) => m.san === san) : undefined;
+      if (vm) { bookShares = new Map([[vm.from + vm.to + (vm.promotion ?? ""), 1]]); builtIn = true; }
+    } catch (e) { console.warn("[botStore] repertoire failed:", e); }
+  }
   const uciOf = (m: VerboseMove) => m.from + m.to + (m.promotion ?? "");
   // Strength-aware book preference: stronger bots sharpen toward
   // high-weight book lines; weaker bots spread over a broader range.
@@ -654,7 +664,7 @@ export async function chooseBotMove(
     if (share === undefined) return 1;
     const elo = Math.max(100, Math.min(3200, bot.elo ?? 1500));
     const sharp = elo < 1000 ? 0.3 : elo < 1600 ? 0.6 : elo < 2200 ? 1 : 1.4;
-    const infl = Math.max(0, Math.min(100, bot.opening.influence ?? 70)) / 100;
+    const infl = builtIn ? 0.8 : Math.max(0, Math.min(100, bot.opening.influence ?? 70)) / 100;
     // Up to ~13x boost at 100% influence for a dominant line.
     return 1 + infl * 12 * Math.pow(share, sharp);
   };
