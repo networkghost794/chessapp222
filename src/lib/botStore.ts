@@ -1,3 +1,4 @@
+import { repertoireMove } from "./repertoire";
 import type { Chess } from "chess.js";
 import { supabase } from "@/integrations/supabase/client";
 import {
