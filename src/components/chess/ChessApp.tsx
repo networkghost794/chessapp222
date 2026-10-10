@@ -45,6 +45,7 @@ import { useAuth } from "@/lib/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { BathroomBreak } from "./BathroomBreak";
 import { ProfilePage } from "./ProfilePage";
+import { HomeDashboard } from "./HomeDashboard";
 import { SettingsPage } from "./SettingsPage";
 import { FeedbackPage } from "./FeedbackPage";
 import { botDisplayIdentity, isImmersiveEnabled, useImmersive } from "@/lib/immersive";
@@ -68,6 +69,13 @@ function botDisplay(bot: BotConfig) {
   return botDisplayIdentity(bot, isImmersiveEnabled());
 }
 
+const TITLE_NAMES: Record<string, string> = {
+  GM: "Grandmaster", IM: "International Master", FM: "FIDE Master", CM: "Candidate Master",
+  NM: "National Master", WGM: "Woman Grandmaster", WIM: "Woman International Master",
+  WFM: "Woman FIDE Master", WCM: "Woman Candidate Master", CRTR: "Creator & Founder", SF: "Stockfish Engine",
+};
+
+/** Chess.com-style title chip (cc-user-title-component). */
 export function TitleBadge({
   title,
   color,
@@ -78,17 +86,21 @@ export function TitleBadge({
   size?: "sm" | "md" | "lg";
 }) {
   if (!title) return null;
-  const resolved = getTitleColor(title, color) ?? "#dc2626";
-  const px = size === "lg" ? "px-2 py-0.5 text-xs" : size === "sm" ? "px-1.5 py-[1px] text-[10px]" : "px-1.5 py-0.5 text-[11px]";
+  const clean = title.replace(/[^\p{L}\p{N}]/gu, "").toUpperCase() || title;
+  const isCreator = clean === "CRTR";
+  const custom = getTitleColor(clean, color) ?? getTitleColor(title, color);
+  const px = size === "lg" ? "px-[0.4em] text-[15px]" : size === "sm" ? "px-[0.35em] text-[11px]" : "px-[0.35em] text-[13px]";
   return (
     <span
+      title={TITLE_NAMES[clean] ?? clean}
       className={cn(
-        "inline-flex items-center justify-center rounded-[3px] font-black uppercase tracking-wide text-white leading-none shrink-0",
+        "inline-flex items-center justify-center rounded-[3px] font-extrabold leading-[1.45] tracking-[0.01em] shrink-0 select-none text-white cursor-default",
         px,
+        !custom && (isCreator ? "bg-[image:var(--title-creator)] shadow-[0_0_8px_-2px_var(--title-creator-glow)]" : "bg-[color:var(--title-red)]"),
       )}
-      style={{ backgroundColor: resolved }}
+      style={custom ? { backgroundColor: custom } : undefined}
     >
-      {title}
+      {clean}
     </span>
   );
 }
@@ -504,9 +516,10 @@ export function ChessApp() {
       <div className="flex-1 min-w-0 flex flex-col">
         <main className="flex-1 px-4 md:px-8 py-6">
           {mode === "home" && profile && (
-            <HomeView
+            <HomeDashboard
               profile={profile}
               onPlay={() => { setSidebar("play"); setMode("hub"); }}
+              onEditProfile={() => { setSidebar("settings"); setMode("settings"); }}
             />
           )}
 

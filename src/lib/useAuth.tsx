@@ -13,6 +13,10 @@ export type Profile = {
   placement_done: boolean;
   profile_icon?: string | null;
   title_badge?: string | null;
+  status_text?: string | null;
+  country?: string | null;
+  verified_federation?: string | null;
+  created_at?: string;
 };
 
 type Ctx = {

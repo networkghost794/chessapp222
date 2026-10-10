@@ -13,6 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Palette, Gamepad2, User, Volume2, Sparkles, MessageSquare, Monitor, Sun, Moon, Eye } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
+import { VerificationCard } from "./VerificationRequest";
 import { useSettings, type ThemeMode } from "@/lib/settings";
 
 const EMOJIS = ["♞","♛","♚","♜","♝","♟","🔥","⚡","🧠","🦅","🐺","🦁","🐲","👑","🎯","🛡️","⚔️","🌟"];
@@ -264,6 +265,9 @@ export function SettingsPage() {
               </p>
             )}
           </div>
+
+          <Separator />
+          <VerificationCard />
         </CardContent>
       </Card>
 

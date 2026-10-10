@@ -68,6 +68,9 @@
   --board-highlight: oklch(0.72 0.17 135 / 0.55);
   --board-move: oklch(0.72 0.17 135 / 0.35);
   --sim-best: oklch(0.68 0.14 295);
+  --title-red: #a7322f;
+  --title-creator: linear-gradient(135deg, #b8860b 0%, #e0a82e 45%, #9a1f1f 100%);
+  --title-creator-glow: rgba(224, 168, 46, 0.7);
   --sim-good: oklch(0.72 0.11 160);
   --sim-ok: oklch(0.8 0.11 80);
   --sim-bad: oklch(0.66 0.14 25);
