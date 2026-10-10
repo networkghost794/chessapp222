@@ -45,6 +45,7 @@ import { useAuth } from "@/lib/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { BathroomBreak } from "./BathroomBreak";
 import { ProfilePage } from "./ProfilePage";
+import { HomeDashboard } from "./HomeDashboard";
 import { SettingsPage } from "./SettingsPage";
 import { FeedbackPage } from "./FeedbackPage";
 import { botDisplayIdentity, isImmersiveEnabled, useImmersive } from "@/lib/immersive";
@@ -515,9 +516,10 @@ export function ChessApp() {
       <div className="flex-1 min-w-0 flex flex-col">
         <main className="flex-1 px-4 md:px-8 py-6">
           {mode === "home" && profile && (
-            <HomeView
+            <HomeDashboard
               profile={profile}
               onPlay={() => { setSidebar("play"); setMode("hub"); }}
+              onEditProfile={() => { setSidebar("settings"); setMode("settings"); }}
             />
           )}
 
