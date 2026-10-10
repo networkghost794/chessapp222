@@ -176,6 +176,7 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          country: string | null
           created_at: string
           draws: number
           elo_rating: number
@@ -183,13 +184,16 @@ export type Database = {
           losses: number
           placement_done: boolean
           profile_icon: string | null
+          status_text: string | null
           title_badge: string | null
           updated_at: string
           username: string
+          verified_federation: string | null
           wins: number
         }
         Insert: {
           avatar_url?: string | null
+          country?: string | null
           created_at?: string
           draws?: number
           elo_rating?: number
@@ -197,13 +201,16 @@ export type Database = {
           losses?: number
           placement_done?: boolean
           profile_icon?: string | null
+          status_text?: string | null
           title_badge?: string | null
           updated_at?: string
           username: string
+          verified_federation?: string | null
           wins?: number
         }
         Update: {
           avatar_url?: string | null
+          country?: string | null
           created_at?: string
           draws?: number
           elo_rating?: number
@@ -211,9 +218,11 @@ export type Database = {
           losses?: number
           placement_done?: boolean
           profile_icon?: string | null
+          status_text?: string | null
           title_badge?: string | null
           updated_at?: string
           username?: string
+          verified_federation?: string | null
           wins?: number
         }
         Relationships: []
@@ -236,6 +245,51 @@ export type Database = {
           title?: string
           updated_at?: string
           updated_by?: string | null
+        }
+        Relationships: []
+      }
+      title_verifications: {
+        Row: {
+          claimed_title: string | null
+          created_at: string
+          federation: string
+          federation_id: string
+          id: string
+          notes: string | null
+          official_rating: number
+          proof_url: string
+          reviewed_at: string | null
+          status: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          claimed_title?: string | null
+          created_at?: string
+          federation: string
+          federation_id: string
+          id?: string
+          notes?: string | null
+          official_rating: number
+          proof_url: string
+          reviewed_at?: string | null
+          status?: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          claimed_title?: string | null
+          created_at?: string
+          federation?: string
+          federation_id?: string
+          id?: string
+          notes?: string | null
+          official_rating?: number
+          proof_url?: string
+          reviewed_at?: string | null
+          status?: string
+          user_id?: string
+          username?: string
         }
         Relationships: []
       }
@@ -291,6 +345,10 @@ export type Database = {
       increment_bot_lifetime: {
         Args: { _bot_id: string; _losses: number; _wins: number }
         Returns: undefined
+      }
+      review_title_verification: {
+        Args: { _approve: boolean; _id: string }
+        Returns: boolean
       }
     }
     Enums: {
