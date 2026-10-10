@@ -62,6 +62,7 @@ import { bytesToBase64 } from "@/lib/polyglot";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/useAuth";
 import { UpdateLogManager } from "./UpdateLogManager";
+import { VerificationReviewPanel } from "./VerificationRequest";
 import { Trash2 } from "lucide-react";
 
 
@@ -360,7 +361,7 @@ export function OwnerPortal() {
                   </div>
                 </div>
                 <Tabs defaultValue="general">
-                  <TabsList className="grid grid-cols-9 w-full">
+                  <TabsList className="grid grid-cols-10 w-full">
                     <TabsTrigger value="general">General</TabsTrigger>
                     <TabsTrigger value="middlegame">Middlegame</TabsTrigger>
                     <TabsTrigger value="endgame">Endgame</TabsTrigger>
@@ -370,6 +371,7 @@ export function OwnerPortal() {
                     <TabsTrigger value="buckets">Buckets</TabsTrigger>
                     <TabsTrigger value="titles">Titles</TabsTrigger>
                     <TabsTrigger value="updates">Updates</TabsTrigger>
+                    <TabsTrigger value="verify">Verify</TabsTrigger>
                   </TabsList>
 
 
@@ -632,6 +634,9 @@ export function OwnerPortal() {
 
                   <TabsContent value="updates" className="pt-3">
                     <UpdateLogManager />
+                  </TabsContent>
+                  <TabsContent value="verify" className="pt-3">
+                    <VerificationReviewPanel />
                   </TabsContent>
                 </Tabs>
 
