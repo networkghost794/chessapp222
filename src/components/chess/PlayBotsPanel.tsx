@@ -56,10 +56,10 @@ export function PlayBotsPanel({
       <div className="px-5 pt-4 pb-3">
         {active ? (
           <>
-            <div className="h-28 w-28">
+            <div className="h-[168px] max-w-[220px] flex items-end">
               {active.avatar
-                ? <img src={active.avatar} alt={active.name} className="h-full w-full object-contain drop-shadow-[0_6px_10px_rgba(0,0,0,0.35)]" />
-                : <User className="h-full w-full text-muted-foreground/60" />}
+                ? <img src={active.avatar} alt={active.name} className="h-full w-auto max-w-full object-contain object-bottom drop-shadow-[0_8px_14px_rgba(0,0,0,0.4)]" />
+                : <User className="h-full w-auto text-muted-foreground/60" />}
             </div>
             <div className="mt-2 flex items-center gap-2 flex-wrap">
               <span className="font-bold text-lg">{ident?.name}</span>
