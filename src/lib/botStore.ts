@@ -217,6 +217,8 @@ export type BotConfig = {
   title?: string | null;
   /** Optional per-bot color override for the title (CSS color). */
   titleColor?: string | null;
+  /** Optional flag emoji shown next to the bot's name. Cosmetic only. */
+  country?: string | null;
   /** Per-bot thinking delay range (ms). */
   thinking: ThinkingTime;
 };
@@ -305,6 +307,7 @@ function rowToBot(r: Record<string, unknown>): BotConfig {
     lifetimeLosses: Number(r.lifetime_losses ?? 0),
     title: (r.title as string | null) ?? null,
     titleColor: (r.title_color as string | null) ?? null,
+    country: ((op as { country?: string | null }).country as string | null) ?? null,
     thinking: { ...defaultThinkingTime(), ...(op.thinking ?? {}) },
   };
 }
@@ -370,6 +373,7 @@ export type BotPublishInput = {
   humanMistake: HumanMistake;
   title?: string | null;
   titleColor?: string | null;
+  country?: string | null;
   thinking?: ThinkingTime;
 };
 
@@ -401,6 +405,7 @@ export async function publishBot(input: BotPublishInput): Promise<BotConfig | nu
     bucketMap: input.bucketMap,
     humanMistake: input.humanMistake,
     thinking: input.thinking ?? defaultThinkingTime(),
+    country: input.country ?? null,
   };
 
   const insertPayload = {
@@ -440,6 +445,7 @@ export async function updateBot(id: string, input: BotPublishInput): Promise<Bot
     bucketMap: input.bucketMap,
     humanMistake: input.humanMistake,
     thinking: input.thinking ?? defaultThinkingTime(),
+    country: input.country ?? null,
   };
 
   const updatePayload: Record<string, unknown> = {

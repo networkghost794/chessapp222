@@ -196,6 +196,7 @@ export function OwnerPortal() {
   // Title for this bot (string + optional per-bot color override)
   const [botTitle, setBotTitle] = useState<string>("");
   const [botTitleColor, setBotTitleColor] = useState<string>("");
+  const [botCountry, setBotCountry] = useState<string>("");
 
   // Per-bot thinking delay (ms).
   const [thinking, setThinking] = useState<ThinkingTime>(defaultThinkingTime());
@@ -216,7 +217,7 @@ export function OwnerPortal() {
     setEndgameTrigger(defaultEndgameTrigger());
     setBucketMap({ ...DEFAULT_BUCKET_MAP });
     setHumanMistake(defaultHumanMistake());
-    setBotTitle(""); setBotTitleColor("");
+    setBotTitle(""); setBotTitleColor(""); setBotCountry("");
     setThinking(defaultThinkingTime());
     setEditingId(null);
   };
@@ -241,6 +242,7 @@ export function OwnerPortal() {
     setHumanMistake(b.humanMistake ?? defaultHumanMistake());
     setBotTitle(b.title ?? "");
     setBotTitleColor(b.titleColor ?? "");
+    setBotCountry(b.country ?? "");
     setThinking(b.thinking ?? defaultThinkingTime());
   };
 
@@ -306,6 +308,7 @@ export function OwnerPortal() {
         humanMistake,
         title: botTitle.trim() || null,
         titleColor: botTitleColor.trim() || null,
+        country: botCountry.trim() || null,
         thinking,
       };
       if (editingId) await updateBot(editingId, payload);
@@ -417,6 +420,16 @@ export function OwnerPortal() {
                           maxLength={16}
                         />
                         <p className="text-[10px] text-muted-foreground mt-1">Shown before the bot name everywhere.</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Country Flag (optional)</Label>
+                        <Input
+                          value={botCountry}
+                          onChange={(e) => setBotCountry(e.target.value)}
+                          placeholder="Paste a flag emoji, e.g. 🇨🇦"
+                          maxLength={8}
+                        />
+                        <p className="text-[10px] text-muted-foreground mt-1">Shown next to the bot's name and rating.</p>
                       </div>
                       <div>
                         <Label className="text-xs">Title Color Override (optional)</Label>

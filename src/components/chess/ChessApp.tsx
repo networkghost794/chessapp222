@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Chess, type Square, type PieceSymbol, type Color } from "chess.js";
 import { Board } from "./Board";
 import { PromotionDialog } from "./PromotionDialog";
-import { BotRoster } from "./BotRoster";
+import { PlayBotsPanel } from "./PlayBotsPanel";
 import { OwnerPortal } from "./OwnerPortal";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -439,7 +439,6 @@ export function ChessApp() {
     { key: "home", label: "Home", icon: Home, onClick: () => { setSidebar("home"); setMode("home"); } },
     { key: "play", label: "Play Bots", icon: Swords, onClick: () => { setSidebar("play"); if (mode !== "match") setMode("hub"); } },
     { key: "modes", label: "Game Modes", icon: Bot, onClick: () => { setSidebar("modes"); setMode("modes"); } },
-    { key: "profile", label: "Profile", icon: User, onClick: () => { setSidebar("profile"); setMode("profile"); } },
     { key: "updates", label: "Updates", icon: Bell },
     { key: "settings", label: "Settings", icon: Settings, onClick: () => { setSidebar("settings"); setMode("settings"); } },
   ];
@@ -716,76 +715,43 @@ function HubView({
   flipped: boolean;
 }) {
   const idleGame = useMemo(() => new Chess(), []);
+  const [immersive] = useImmersive();
+  const ident = activeBot ? botDisplayIdentity(activeBot, immersive) : null;
   return (
-    <div className="max-w-[1500px] mx-auto grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)_380px] gap-6 lg:gap-8">
-      {/* Left: compact player */}
-      <div className="space-y-4 min-w-0">
-        {profile && <MiniProfileCard profile={profile} />}
-        <Card className="bg-card p-4 space-y-3">
-          <Label className="text-xs text-muted-foreground px-1">Play as</Label>
-          <div className="grid grid-cols-3 gap-1.5">
-            {([
-              { v: "white" as const, label: "⚪" },
-              { v: "black" as const, label: "⚫" },
-              { v: "random" as const, label: "🔀" },
-            ]).map((o) => (
-              <button
-                key={o.v}
-                type="button"
-                onClick={() => setColorChoice(o.v)}
-                className={cn(
-                  "text-sm py-2 rounded-md border transition-colors",
-                  colorChoice === o.v
-                    ? "bg-primary/15 border-primary/50 text-primary"
-                    : "bg-secondary/40 border-border/60 text-muted-foreground hover:bg-secondary",
-                )}
-                title={o.v}
-              >
-                {o.label}
-              </button>
-            ))}
+    <div className="max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px] gap-6">
+      {/* Left: board preview */}
+      <div className="min-w-0 mx-auto w-full max-w-[calc(min(78vh,760px)*var(--board-scale,1))]">
+        <div className="flex items-center gap-2 mb-2 h-10">
+          <div className="w-9 h-9 rounded-sm bg-secondary overflow-hidden grid place-items-center">
+            {activeBot?.avatar ? <img src={activeBot.avatar} alt="" className="w-full h-full object-cover" /> : <Bot className="w-4 h-4 text-muted-foreground" />}
           </div>
-          {activeBot ? (
-            <Button
-              onClick={onPlay}
-              className="w-full bg-success text-primary-foreground hover:bg-success/90 font-bold h-11"
-            >
-              <Play className="w-4 h-4 mr-2" /> Play {botDisplay(activeBot).name}
-            </Button>
-          ) : (
-            <div className="text-[11px] text-muted-foreground text-center py-2 border border-dashed border-border/60 rounded-md">
-              Select a bot from the library →
-            </div>
-          )}
-        </Card>
-        <a
-          href="https://sites.google.com/view/chess-bot-library"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center justify-center gap-2 rounded-lg border border-border/60 bg-card px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-secondary/60 hover:text-primary"
-        >
-          <span>Bot Library / Info Page</span>
-          <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
-        </a>
+          <span className="text-sm font-bold inline-flex items-center gap-1.5">
+            {ident?.title && <TitleBadge title={ident.title} color={ident.titleColor} size="sm" />}
+            {ident?.name ?? "Opponent"}
+            {activeBot && <span className="font-normal text-muted-foreground">({activeBot.elo})</span>}
+            {activeBot?.country && !immersive && <span>{activeBot.country}</span>}
+          </span>
+        </div>
+        <Board game={idleGame} flipped={flipped} disabled lastMove={null} onAttemptMove={() => false} />
+        <div className="flex items-center gap-2 mt-2 h-10">
+          <div className="w-9 h-9 rounded-sm bg-secondary overflow-hidden grid place-items-center">
+            {profile?.avatar_url ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" /> : <User className="w-4 h-4 text-muted-foreground" />}
+          </div>
+          <span className="text-sm font-bold inline-flex items-center gap-1.5">
+            {profile?.title_badge && <TitleBadge title={profile.title_badge} size="sm" />}
+            {profile?.username ?? "You"}
+            {profile && <span className="font-normal text-muted-foreground">({profile.elo_rating})</span>}
+          </span>
+          <a href="https://sites.google.com/view/chess-bot-library" target="_blank" rel="noopener noreferrer"
+            className="ml-auto text-xs text-muted-foreground hover:text-primary inline-flex items-center gap-1">
+            Bot Library <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
       </div>
 
-      {/* Center: idle board */}
-      <Card className="p-5 md:p-6 bg-card min-w-0">
-        <div className="text-sm text-muted-foreground mb-4">Idle board · select a bot to play</div>
-        <div className="mx-auto w-full max-w-[calc(min(60vh,520px)*var(--board-scale,1))]">
-          <Board
-            game={idleGame}
-            flipped={flipped}
-            disabled
-            lastMove={null}
-            onAttemptMove={() => false}
-          />
-        </div>
-      </Card>
-
-      {/* Right: bot library */}
+      {/* Right: Play Bots panel */}
       <div className="min-w-0">
-        <BotRoster />
+        <PlayBotsPanel colorChoice={colorChoice} setColorChoice={setColorChoice} onPlay={onPlay} />
       </div>
     </div>
   );
