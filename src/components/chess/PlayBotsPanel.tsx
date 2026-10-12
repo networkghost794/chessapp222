@@ -6,8 +6,9 @@ import { cn } from "@/lib/utils";
 import { botDisplayIdentity, useImmersive } from "@/lib/immersive";
 import {
   loadBots, subscribeBots, getActiveBotId, setActiveBotId, deleteBot,
-  BOT_CATEGORIES, type BotConfig, type BotCategory,
+  type BotConfig, type BotCategory,
 } from "@/lib/botStore";
+import { useUiSettings, visibleTiers, label } from "@/lib/appSettings";
 
 export type SideChoice = "white" | "black" | "random";
 
@@ -20,6 +21,8 @@ export function PlayBotsPanel({
   const [bots, setBots] = useState<BotConfig[]>([]);
   const [activeId, setActive] = useState<string | null>(null);
   const [open, setOpen] = useState<BotCategory | null>(null);
+  const ui = useUiSettings();
+  const tiers = visibleTiers(ui);
   const [beaten, setBeaten] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -49,7 +52,7 @@ export function PlayBotsPanel({
     <div className="flex flex-col rounded-lg bg-card border border-border/60 overflow-hidden h-full max-h-[calc(100vh-3rem)]">
       <div className="flex items-center justify-center gap-2 py-3 border-b border-border/60 bg-secondary/30">
         <BotIcon className="w-5 h-5 text-primary" />
-        <span className="font-extrabold">Play Bots</span>
+        <span className="font-extrabold">{label(ui, "playBots.title")}</span>
       </div>
 
       {/* Showcase — no box, character floats on the panel */}
@@ -70,13 +73,13 @@ export function PlayBotsPanel({
             {active.quote && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">“{active.quote}”</p>}
           </>
         ) : (
-          <div className="text-sm text-muted-foreground py-8 text-center">Pick a bot below to challenge.</div>
+          <div className="text-sm text-muted-foreground py-8 text-center">{label(ui, "playBots.empty")}</div>
         )}
       </div>
 
       {/* Tiers */}
       <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-2">
-        {BOT_CATEGORIES.map((section) => {
+        {tiers.map((section) => {
           const list = bots.filter((b) => b.category === section.value).sort((a, b) => a.orderIndex - b.orderIndex);
           const isOpen = open === section.value;
           const cover = list[0]?.avatar;
@@ -96,8 +99,8 @@ export function PlayBotsPanel({
                 <span className="text-xs text-muted-foreground">{list.length} bots</span>
               </button>
               {isOpen && (
-                <div className="grid grid-cols-5 gap-2 px-3 pb-3">
-                  {list.length === 0 && <div className="col-span-5 text-xs text-muted-foreground py-2">No bots yet.</div>}
+                <div className="grid gap-2 px-3 pb-3" style={{ gridTemplateColumns: `repeat(${ui.gridColumns}, minmax(0, 1fr))` }}>
+                  {list.length === 0 && <div className="col-span-full text-xs text-muted-foreground py-2">No bots yet.</div>}
                   {list.map((b) => {
                     const sel = b.id === activeId;
                     return (
@@ -164,7 +167,7 @@ export function PlayBotsPanel({
           onClick={onPlay}
           className="w-full h-14 rounded-lg bg-success text-primary-foreground text-xl font-extrabold shadow-[0_4px_0_0_color-mix(in_oklab,var(--color-success)_60%,black)] hover:brightness-110 active:translate-y-0.5 disabled:opacity-50 flex items-center justify-center gap-2"
         >
-          <Play className="w-5 h-5 fill-current" /> Play
+          <Play className="w-5 h-5 fill-current" /> {label(ui, "playBots.play")}
         </button>
       </div>
     </div>
