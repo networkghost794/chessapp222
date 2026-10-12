@@ -46,6 +46,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { BathroomBreak } from "./BathroomBreak";
 import { ProfilePage } from "./ProfilePage";
 import { HomeDashboard } from "./HomeDashboard";
+import { useUiSettings, label } from "@/lib/appSettings";
 import { SettingsPage } from "./SettingsPage";
 import { FeedbackPage } from "./FeedbackPage";
 import { botDisplayIdentity, isImmersiveEnabled, useImmersive } from "@/lib/immersive";
@@ -435,12 +436,13 @@ export function ChessApp() {
     return rows;
   }, [history]);
 
+  const ui = useUiSettings();
   const navItems: Array<{ key: SidebarKey; label: string; icon: typeof Home; onClick?: () => void }> = [
-    { key: "home", label: "Home", icon: Home, onClick: () => { setSidebar("home"); setMode("home"); } },
-    { key: "play", label: "Play Bots", icon: Swords, onClick: () => { setSidebar("play"); if (mode !== "match") setMode("hub"); } },
-    { key: "modes", label: "Game Modes", icon: Bot, onClick: () => { setSidebar("modes"); setMode("modes"); } },
-    { key: "updates", label: "Updates", icon: Bell },
-    { key: "settings", label: "Settings", icon: Settings, onClick: () => { setSidebar("settings"); setMode("settings"); } },
+    { key: "home", label: label(ui, "nav.home"), icon: Home, onClick: () => { setSidebar("home"); setMode("home"); } },
+    { key: "play", label: label(ui, "nav.playBots"), icon: Swords, onClick: () => { setSidebar("play"); if (mode !== "match") setMode("hub"); } },
+    { key: "modes", label: label(ui, "nav.gameModes"), icon: Bot, onClick: () => { setSidebar("modes"); setMode("modes"); } },
+    { key: "updates", label: label(ui, "nav.updates"), icon: Bell },
+    { key: "settings", label: label(ui, "nav.settings"), icon: Settings, onClick: () => { setSidebar("settings"); setMode("settings"); } },
   ];
 
   return (
@@ -479,7 +481,7 @@ export function ChessApp() {
                 <span className="hidden md:inline">{item.label}</span>
               </button>
             );
-            if (item.label === "Updates") {
+            if (item.key === "updates") {
               return (
                 <div key={idx} className="px-0">
                   <div className="md:hidden grid place-items-center py-1"><UpdateLogButton /></div>

@@ -63,6 +63,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/useAuth";
 import { UpdateLogManager } from "./UpdateLogManager";
 import { VerificationReviewPanel } from "./VerificationRequest";
+import { Customizer } from "./Customizer";
 import { Trash2 } from "lucide-react";
 
 
@@ -364,7 +365,7 @@ export function OwnerPortal() {
                   </div>
                 </div>
                 <Tabs defaultValue="general">
-                  <TabsList className="grid grid-cols-10 w-full">
+                  <TabsList className="grid grid-cols-11 w-full">
                     <TabsTrigger value="general">General</TabsTrigger>
                     <TabsTrigger value="middlegame">Middlegame</TabsTrigger>
                     <TabsTrigger value="endgame">Endgame</TabsTrigger>
@@ -375,8 +376,11 @@ export function OwnerPortal() {
                     <TabsTrigger value="titles">Titles</TabsTrigger>
                     <TabsTrigger value="updates">Updates</TabsTrigger>
                     <TabsTrigger value="verify">Verify</TabsTrigger>
+                    <TabsTrigger value="customize">Customize</TabsTrigger>
                   </TabsList>
 
+
+                  <TabsContent value="customize" className="pt-3"><Customizer /></TabsContent>
 
                   <TabsContent value="general" className="space-y-3 pt-3">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
