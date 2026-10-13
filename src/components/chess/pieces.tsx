@@ -1,15 +1,11 @@
-// Neo-style piece set
+// Piece renderer — set chosen in Settings (default Neo)
 import type React from "react";
 import type { Color, PieceSymbol } from "chess.js";
+import { useSettings, getSettings } from "@/lib/settings";
+import { pieceUrl } from "@/lib/boardThemes";
 
-const NEO = "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/";
-const pieceMap: Record<string, string> = Object.fromEntries(
-  ["w", "b"].flatMap((c) => ["k", "q", "r", "b", "n", "p"].map((t) => [c + t.toUpperCase(), `${NEO}${c}${t}.png`])),
-);
-
-export function pieceImage(color: Color, type: PieceSymbol) {
-  const key = (color === "w" ? "w" : "b") + type.toUpperCase();
-  return pieceMap[key];
+export function pieceImage(color: Color, type: PieceSymbol, set?: string) {
+  return pieceUrl(set ?? getSettings().pieceSet, (color === "w" ? "w" : "b") + type);
 }
 
 export function PieceImg({
@@ -19,6 +15,7 @@ export function PieceImg({
   draggable = true,
   onDragStart,
   onPointerDown,
+  set,
 }: {
   color: Color;
   type: PieceSymbol;
@@ -26,10 +23,12 @@ export function PieceImg({
   draggable?: boolean;
   onDragStart?: (e: React.DragEvent) => void;
   onPointerDown?: (e: React.PointerEvent) => void;
+  set?: string;
 }) {
+  const [s] = useSettings();
   return (
     <img
-      src={pieceImage(color, type)}
+      src={pieceUrl(set ?? s.pieceSet, (color === "w" ? "w" : "b") + type)}
       alt={`${color}${type}`}
       draggable={draggable}
       onDragStart={onDragStart}
