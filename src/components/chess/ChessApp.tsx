@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Chess, type Square, type PieceSymbol, type Color } from "chess.js";
 import { Board } from "./Board";
 import { PromotionDialog } from "./PromotionDialog";
+import { GameOverModal } from "./GameOverModal";
 import { PlayBotsPanel } from "./PlayBotsPanel";
 import { OwnerPortal } from "./OwnerPortal";
 import { Button } from "@/components/ui/button";
@@ -183,8 +184,8 @@ export function ChessApp() {
   const [colorChoice, setColorChoice] = useState<ColorChoice>("white");
   const [playerColor, setPlayerColor] = useState<Color>("w");
   const [botStats, setBotStats] = useState<BotStats>(EMPTY_STATS);
-  const [resultModal, setResultModal] = useState<{ open: boolean; title: string; detail: string }>({
-    open: false, title: "", detail: "",
+  const [resultModal, setResultModal] = useState<{ open: boolean; title: string; detail: string; reason: string }>({
+    open: false, title: "", detail: "", reason: "",
   });
 
   const game = gameRef.current;
@@ -376,6 +377,13 @@ export function ChessApp() {
     let botField: "wins" | "losses" | "draws" = "draws";
     let title = "Draw";
     let detail = "The game ended in a draw.";
+    let reason = "Agreement";
+    if (game.isStalemate()) reason = "Stalemate";
+    else if (game.isThreefoldRepetition()) reason = "Repetition";
+    else if (game.isInsufficientMaterial()) reason = "Insufficient Material";
+    else if (game.isDraw()) reason = "50-Move Rule";
+    if (resignedFlag) reason = "Resignation";
+    else if (game.isCheckmate()) reason = "Checkmate";
 
     if (resignedFlag) {
       userField = "losses"; botField = "wins";
@@ -424,7 +432,7 @@ export function ChessApp() {
       else if (botField === "losses") incrementBotLifetime(activeBot.id, 0, 1);
     }
 
-    setResultModal({ open: true, title, detail });
+    setResultModal({ open: true, title, detail, reason });
     setMatchActive(false);
   }, [history.length, game, user, profile, refreshProfile, activeBot, playerColor, botStats, resignedFlag]);
 
@@ -607,43 +615,17 @@ export function ChessApp() {
         </div>
       )}
 
-      <Dialog open={resultModal.open} onOpenChange={(v) => setResultModal((r) => ({ ...r, open: v }))}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-xl">
-              <Trophy className={cn("w-5 h-5",
-                resultModal.title === "Victory" && "text-success",
-                resultModal.title === "Defeat" && "text-destructive",
-                resultModal.title === "Draw" && "text-primary",
-              )} />
-              {resultModal.title}
-            </DialogTitle>
-            <DialogDescription>{resultModal.detail}</DialogDescription>
-          </DialogHeader>
-          {activeBot && (
-            <div className="rounded-md bg-secondary/40 px-3 py-2 text-xs text-muted-foreground">
-              <div className="font-semibold text-foreground mb-1">{activeBotName ?? activeBot.name} — lifetime record</div>
-              <span className="text-success">W {botStats.wins}</span>
-              {" · "}<span className="text-destructive">L {botStats.losses}</span>
-              {" · "}<span>D {botStats.draws}</span>
-            </div>
-          )}
-          <DialogFooter>
-            <Button
-              variant="secondary"
-              onClick={() => { setResultModal((r) => ({ ...r, open: false })); setMode("hub"); }}
-            >
-              Back to Hub
-            </Button>
-            <Button
-              onClick={() => { setResultModal((r) => ({ ...r, open: false })); triggerPlay(); }}
-              className="bg-success text-primary-foreground hover:bg-success/90"
-            >
-              <Play className="w-4 h-4 mr-1" /> Play again
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <GameOverModal
+        open={resultModal.open}
+        outcome={resultModal.title === "Victory" ? "win" : resultModal.title === "Defeat" ? "loss" : "draw"}
+        opponentName={activeBotName ?? activeBot?.name ?? "Opponent"}
+        opponentAvatar={activeBot?.avatar ?? null}
+        reason={resultModal.reason || "Game Over"}
+        lines={undefined}
+        onClose={() => setResultModal((r) => ({ ...r, open: false }))}
+        onRematch={() => { setResultModal((r) => ({ ...r, open: false })); triggerPlay(); }}
+        onNewGame={() => { setResultModal((r) => ({ ...r, open: false })); setMode("hub"); }}
+      />
 
       <BathroomBreak open={bathroomOpen} onClose={() => setBathroomOpen(false)} />
       

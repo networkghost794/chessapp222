@@ -63,10 +63,10 @@
   --border: oklch(0.32 0.006 60);
   --input: oklch(0.3 0.006 60);
   --ring: oklch(0.72 0.17 135);
-  --board-light: oklch(0.86 0.04 85);
-  --board-dark: oklch(0.55 0.09 60);
+  --board-light: #ebecd0;
+  --board-dark: #739552;
   --board-highlight: oklch(0.72 0.17 135 / 0.55);
-  --board-move: oklch(0.72 0.17 135 / 0.35);
+  --board-move: rgba(245, 246, 130, 0.5);
   --sim-best: oklch(0.68 0.14 295);
   --title-red: #a7322f;
   --title-creator: linear-gradient(135deg, #b8860b 0%, #e0a82e 45%, #9a1f1f 100%);
@@ -101,10 +101,10 @@ html.light {
   --border: oklch(0.88 0.008 90);
   --input: oklch(0.9 0.008 90);
   --ring: oklch(0.58 0.15 140);
-  --board-light: oklch(0.93 0.03 90);
-  --board-dark: oklch(0.63 0.08 120);
+  --board-light: #ebecd0;
+  --board-dark: #739552;
   --board-highlight: oklch(0.58 0.15 140 / 0.45);
-  --board-move: oklch(0.58 0.15 140 / 0.3);
+  --board-move: rgba(245, 246, 130, 0.5);
   --board-check: oklch(0.58 0.2 25 / 0.5);
   --success: oklch(0.58 0.15 140);
   --warning: oklch(0.72 0.15 75);
@@ -133,3 +133,14 @@ html.light {
   .scroll-thin::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 4px; }
 }
 
+
+@keyframes king-fall { 0%{transform:rotate(0)} 40%{transform:rotate(-14deg)} 70%{transform:rotate(-8deg)} 100%{transform:rotate(-10deg)} }
+@keyframes badge-pop { 0%{transform:scale(0);opacity:0} 70%{transform:scale(1.25);opacity:1} 100%{transform:scale(1)} }
+@keyframes king-win { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6%)} }
+@keyframes confetti-fall { 0%{transform:translateY(-10vh) rotate(0);opacity:1} 100%{transform:translateY(110vh) rotate(720deg);opacity:0.8} }
+@keyframes modal-in { 0%{transform:scale(0.85) translateY(12px);opacity:0} 100%{transform:scale(1) translateY(0);opacity:1} }
+.anim-king-fall{animation:king-fall .9s ease-out forwards}
+.anim-king-win{animation:king-win 1.2s ease-in-out 2}
+.anim-badge-pop{animation:badge-pop .45s cubic-bezier(.3,1.6,.5,1) .25s both}
+.anim-modal-in{animation:modal-in .35s cubic-bezier(.3,1.4,.5,1) both}
+.anim-confetti{animation:confetti-fall linear forwards}
