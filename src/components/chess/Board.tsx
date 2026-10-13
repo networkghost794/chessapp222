@@ -211,12 +211,12 @@ export function Board({ game, flipped, disabled, lastMove, onAttemptMove, indica
                   <div className="absolute inset-0 pointer-events-none bg-sim-best/10 ring-1 ring-inset ring-sim-best/50" />
                 )}
                 {mate?.lose === sq && (
-                  <span className="absolute -top-[8%] -right-[8%] w-[34%] h-[34%] rounded-full bg-destructive grid place-items-center z-20 shadow-md ring-2 ring-background/70 anim-badge-pop pointer-events-none">
+                  <span className="absolute top-[3%] right-[3%] w-[30%] h-[30%] rounded-full bg-destructive grid place-items-center z-20 shadow-md ring-2 ring-background/70 anim-badge-pop pointer-events-none">
                     <svg viewBox="0 0 24 24" className="w-[70%] h-[70%]" fill="var(--destructive-foreground)"><path d="M11 2h2v2h2v2h-2v2.2a4 4 0 0 1 3 3.8l-1 7H9l-1-7a4 4 0 0 1 3-3.8V6H9V4h2z" transform="rotate(90 12 12)"/></svg>
                   </span>
                 )}
                 {mate?.win === sq && (
-                  <span className="absolute -top-[8%] -right-[8%] w-[34%] h-[34%] rounded-full bg-success grid place-items-center z-20 shadow-md ring-2 ring-background/70 anim-badge-pop pointer-events-none">
+                  <span className="absolute top-[3%] right-[3%] w-[30%] h-[30%] rounded-full bg-success grid place-items-center z-20 shadow-md ring-2 ring-background/70 anim-badge-pop pointer-events-none">
                     <svg viewBox="0 0 24 24" className="w-[68%] h-[68%]" fill="var(--primary-foreground)"><path d="M3 7l4.5 4L12 4l4.5 7L21 7l-2 11H5z"/></svg>
                   </span>
                 )}
