@@ -14,6 +14,8 @@ export type Settings = {
   immersive: boolean;
   /** Board scale in percent (60–130). */
   boardSize: number;
+  pieceSet: string;
+  boardTheme: string;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -23,6 +25,8 @@ export const DEFAULT_SETTINGS: Settings = {
   botSpeech: true,
   immersive: false,
   boardSize: 100,
+  pieceSet: "neo",
+  boardTheme: "green",
 };
 
 const KEYS: Record<keyof Settings, string> = {
@@ -32,6 +36,8 @@ const KEYS: Record<keyof Settings, string> = {
   botSpeech: "botboard-speech",
   immersive: "botboard-immersive",
   boardSize: "botboard-board-size",
+  pieceSet: "botboard-piece-set",
+  boardTheme: "botboard-board-theme",
 };
 
 const EVENT = "botboard-settings-change";
@@ -64,6 +70,8 @@ export function getSettings(): Settings {
     botSpeech: readBool(KEYS.botSpeech, DEFAULT_SETTINGS.botSpeech),
     immersive: readBool(KEYS.immersive, DEFAULT_SETTINGS.immersive),
     boardSize,
+    pieceSet: (() => { try { return localStorage.getItem(KEYS.pieceSet) || "neo"; } catch { return "neo"; } })(),
+    boardTheme: (() => { try { return localStorage.getItem(KEYS.boardTheme) || "green"; } catch { return "green"; } })(),
   };
 }
 
