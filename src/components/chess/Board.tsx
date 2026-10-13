@@ -67,6 +67,17 @@ export function Board({ game, flipped, disabled, lastMove, onAttemptMove, indica
     return null;
   }, [game]);
 
+  const mate = useMemo(() => {
+    if (!game.isCheckmate()) return null;
+    const loser = game.turn();
+    let lose: Square | null = null, win: Square | null = null;
+    for (const rank of RANKS) for (const file of FILES) {
+      const sq = (file + rank) as Square; const p = game.get(sq);
+      if (p?.type === "k") { if (p.color === loser) lose = sq; else win = sq; }
+    }
+    return { lose, win };
+  }, [game, game.fen()]);
+
   // Convert client coords -> square using current file/rank order
   const squareAt = (clientX: number, clientY: number): Square | null => {
     const board = boardRef.current;
@@ -199,6 +210,16 @@ export function Board({ game, flipped, disabled, lastMove, onAttemptMove, indica
                 {bestFrom === sq && (
                   <div className="absolute inset-0 pointer-events-none bg-sim-best/10 ring-1 ring-inset ring-sim-best/50" />
                 )}
+                {mate?.lose === sq && (
+                  <span className="absolute -top-[8%] -right-[8%] w-[34%] h-[34%] rounded-full bg-destructive grid place-items-center z-20 shadow-md ring-2 ring-background/70 anim-badge-pop pointer-events-none">
+                    <svg viewBox="0 0 24 24" className="w-[70%] h-[70%]" fill="var(--destructive-foreground)"><path d="M11 2h2v2h2v2h-2v2.2a4 4 0 0 1 3 3.8l-1 7H9l-1-7a4 4 0 0 1 3-3.8V6H9V4h2z" transform="rotate(90 12 12)"/></svg>
+                  </span>
+                )}
+                {mate?.win === sq && (
+                  <span className="absolute -top-[8%] -right-[8%] w-[34%] h-[34%] rounded-full bg-success grid place-items-center z-20 shadow-md ring-2 ring-background/70 anim-badge-pop pointer-events-none">
+                    <svg viewBox="0 0 24 24" className="w-[68%] h-[68%]" fill="var(--primary-foreground)"><path d="M3 7l4.5 4L12 4l4.5 7L21 7l-2 11H5z"/></svg>
+                  </span>
+                )}
                 {isDragOver && <div className="absolute inset-0 ring-4 ring-primary/70 ring-inset" />}
 
                 {/* coord labels */}
@@ -245,11 +266,13 @@ export function Board({ game, flipped, disabled, lastMove, onAttemptMove, indica
                     draggable={false}
                     onPointerDown={(e) => beginDrag(sq, e)}
                     className={cn(
-                      "relative w-[88%] h-[88%] drop-shadow-md",
+                      "relative w-[92%] h-[92%]",
                       !disabled && piece.color === game.turn()
                         ? "cursor-grab active:cursor-grabbing"
                         : "cursor-default",
                       animEnabled && "transition-transform duration-150 ease-out",
+                      animEnabled && mate?.lose === sq && "anim-king-fall",
+                      animEnabled && mate?.win === sq && "anim-king-win",
                     )}
                   />
                 )}
