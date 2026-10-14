@@ -15,6 +15,7 @@ import { Palette, Gamepad2, User, Volume2, Sparkles, MessageSquare, Monitor, Sun
 import { Slider } from "@/components/ui/slider";
 import { VerificationCard } from "./VerificationRequest";
 import { useSettings, type ThemeMode } from "@/lib/settings";
+import { BOARD_THEMES, PIECE_SETS, findBoardTheme, pieceUrl } from "@/lib/boardThemes";
 
 const EMOJIS = ["♞","♛","♚","♜","♝","♟","🔥","⚡","🧠","🦅","🐺","🦁","🐲","👑","🎯","🛡️","⚔️","🌟"];
 const STANDARD_TITLES = ["GM","IM","FM","CM","NM","WGM"];
@@ -25,6 +26,7 @@ export function SettingsPage() {
   const { profile, user, refreshProfile } = useAuth();
 
   const [settings, update] = useSettings();
+  const [tab, setTab] = useState<"board" | "gameplay" | "account">("board");
 
   const [savingIcon, setSavingIcon] = useState(false);
   const [titleClaimOpen, setTitleClaimOpen] = useState<string | null>(null);
@@ -209,8 +211,9 @@ export function SettingsPage() {
 
         </CardContent>
       </Card>
+      </>)}
 
-      {/* Gameplay */}
+      {tab === "gameplay" && (
       <Card className="bg-card">
         <CardHeader className="pb-4">
           <div className="flex items-center gap-2">
@@ -267,8 +270,9 @@ export function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+      )}
 
-      {/* Account */}
+      {tab === "account" && (
       <Card className="bg-card">
         <CardHeader className="pb-4">
           <div className="flex items-center gap-2">
@@ -340,6 +344,7 @@ export function SettingsPage() {
           <VerificationCard />
         </CardContent>
       </Card>
+      )}
 
       {/* Title claim dialog */}
       <Dialog open={!!titleClaimOpen} onOpenChange={(v) => !v && setTitleClaimOpen(null)}>
@@ -375,6 +380,7 @@ export function SettingsPage() {
           <Button onClick={tryCreatorUnlock} className="w-full">Unlock</Button>
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   );
 }
