@@ -64,9 +64,79 @@ export function SettingsPage() {
     await refreshProfile();
   };
 
+  const TABS = [
+    { key: "board", label: "Board & Pieces", icon: Palette },
+    { key: "gameplay", label: "Gameplay & Audio", icon: Gamepad2 },
+    { key: "account", label: "Profile & Title", icon: User },
+  ] as const;
+  const theme = findBoardTheme(settings.boardTheme);
+  const preview = ["br","bn","bb","bq","bk","bb","bn","br"];
+
   return (
-    <div className="max-w-xl mx-auto pt-10 md:pt-16 pb-12 space-y-6">
-      {/* Appearance */}
+    <div className="max-w-4xl mx-auto pt-10 md:pt-16 pb-12 flex flex-col md:flex-row gap-6">
+      <nav className="md:w-52 shrink-0 flex md:flex-col gap-1">
+        {TABS.map((t) => {
+          const Icon = t.icon;
+          return (
+            <button key={t.key} onClick={() => setTab(t.key)}
+              className={cn("flex items-center gap-2 rounded-md px-3 py-2 text-sm text-left transition-colors",
+                tab === t.key ? "bg-primary/15 text-primary font-medium" : "text-muted-foreground hover:bg-secondary")}>
+              <Icon className="w-4 h-4" />{t.label}
+            </button>
+          );
+        })}
+      </nav>
+      <div className="flex-1 min-w-0 space-y-6">
+      {tab === "board" && (<>
+      <Card className="bg-card">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-base">Board & Pieces</CardTitle>
+          <CardDescription>Changes apply instantly to every board.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="mx-auto w-full max-w-[280px] grid grid-cols-8 rounded overflow-hidden shadow">
+            {Array.from({ length: 32 }).map((_, i) => {
+              const r = Math.floor(i / 8), c = i % 8;
+              const dark = (r + c) % 2 === 1;
+              const code = r === 0 ? preview[c] : r === 1 ? "bp" : r === 2 ? null : "wp";
+              return (
+                <div key={i} className="aspect-square" style={{ background: dark ? theme.dark : theme.light }}>
+                  {code && <img src={pieceUrl(settings.pieceSet, code)} alt="" className="w-full h-full" />}
+                </div>
+              );
+            })}
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Board</Label>
+            <div className="mt-2 grid grid-cols-5 gap-2">
+              {BOARD_THEMES.map((b) => (
+                <button key={b.id} onClick={() => update("boardTheme", b.id)} title={b.name}
+                  className={cn("rounded-md border p-1 transition-colors",
+                    settings.boardTheme === b.id ? "border-primary ring-2 ring-primary/50" : "border-border/60 hover:bg-secondary")}>
+                  <div className="grid grid-cols-2 aspect-square rounded-sm overflow-hidden">
+                    <span style={{ background: b.light }} /><span style={{ background: b.dark }} />
+                    <span style={{ background: b.dark }} /><span style={{ background: b.light }} />
+                  </div>
+                  <div className="text-[10px] mt-1 truncate text-muted-foreground">{b.name}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Pieces</Label>
+            <div className="mt-2 grid grid-cols-6 gap-2">
+              {PIECE_SETS.map((p) => (
+                <button key={p.id} onClick={() => update("pieceSet", p.id)} title={p.name}
+                  className={cn("rounded-md border p-1 transition-colors",
+                    settings.pieceSet === p.id ? "border-primary ring-2 ring-primary/50" : "border-border/60 bg-secondary/40 hover:bg-secondary")}>
+                  <img src={pieceUrl(p.id, "wn")} alt={p.name} className="w-full aspect-square" loading="lazy" />
+                  <div className="text-[10px] truncate text-muted-foreground">{p.name}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
       <Card className="bg-card">
         <CardHeader className="pb-4">
           <div className="flex items-center gap-2">
