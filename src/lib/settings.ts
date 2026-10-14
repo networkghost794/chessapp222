@@ -3,6 +3,7 @@
 // reacts immediately.
 
 import { useCallback, useEffect, useState } from "react";
+import { findBoardTheme } from "./boardThemes";
 
 export type ThemeMode = "dark" | "light" | "auto";
 
@@ -84,6 +85,7 @@ export function setSetting<K extends keyof Settings>(key: K, value: Settings[K])
   if (key === "theme") applyTheme(value as ThemeMode);
   if (key === "animations") applyAnimations(value as boolean);
   if (key === "boardSize") applyBoardSize(value as number);
+  if (key === "boardTheme") applyBoardTheme(value as string);
   if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(EVENT));
 }
 
@@ -118,12 +120,20 @@ export function applyBoardSize(percent: number) {
   document.documentElement.style.setProperty("--board-scale", String(clamped / 100));
 }
 
+export function applyBoardTheme(id: string) {
+  if (typeof document === "undefined") return;
+  const t = findBoardTheme(id);
+  document.documentElement.style.setProperty("--board-light", t.light);
+  document.documentElement.style.setProperty("--board-dark", t.dark);
+}
+
 /** Mount once (root) — applies stored preferences and follows the OS theme. */
 export function initSettingsEffects(): () => void {
   const s = getSettings();
   applyTheme(s.theme);
   applyAnimations(s.animations);
   applyBoardSize(s.boardSize);
+  applyBoardTheme(s.boardTheme);
 
   const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
   const onOsChange = () => {
