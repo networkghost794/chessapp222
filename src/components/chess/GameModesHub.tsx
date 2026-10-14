@@ -33,7 +33,6 @@ import {
   type SpeedSetting,
 } from "./BotVsBotMode";
 import { HumanVsBotMatch, type PlayerProfileLite } from "./HumanVsBotMatch";
-import { PerspectiveMode } from "./PerspectiveMode";
 import { SandboxBoard } from "./SandboxBoard";
 import { TitleBadge } from "./ChessApp";
 import { botDisplayIdentity, isImmersiveEnabled } from "@/lib/immersive";
@@ -76,7 +75,6 @@ export function GameModesHub() {
 
   if (view === "bvb-single") return <BotVsBotMode onBack={() => setView("bvb-entry")} />;
   if (view === "bvb-tournament") return <TournamentMode onBack={() => setView("bvb-entry")} />;
-  if (view === "perspective") return <PerspectiveMode onBack={() => setView("home")} />;
   if (view === "sandbox") return <SandboxBoard onBack={() => setView("home")} />;
   if (view === "bvb-entry")
     return <BotVsBotEntry onBack={() => setView("home")} onPick={setView} />;
@@ -103,15 +101,8 @@ export function GameModesHub() {
           onOpen={() => setView("bvb-entry")}
         />
         <ModeCard
-          title="Strength Simulator"
-          desc="Play any opponent while the board shows how a player of your chosen rating would judge each move."
-          icon={<Gauge className="w-6 h-6" />}
-          available
-          onOpen={() => setView("perspective")}
-        />
-        <ModeCard
           title="Sandbox Board"
-          desc="A free board where you move both sides — optionally with Strength Simulator indicators."
+          desc="A free board where you move both sides and explore ideas."
           icon={<Grid3x3 className="w-6 h-6" />}
           available
           onOpen={() => setView("sandbox")}

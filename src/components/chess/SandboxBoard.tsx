@@ -1,20 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Chess, type PieceSymbol, type Square } from "chess.js";
 import { Board } from "./Board";
 import { PromotionDialog } from "./PromotionDialog";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { ArrowLeft, FlipHorizontal2, Grid3x3, RotateCcw, Undo2 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { playMoveResultSound } from "@/lib/sounds";
-import { SimulatorLegend } from "./SimulatorLegend";
-import { evaluatePerspective, labelForRating, PERSPECTIVE_RATINGS, type MoveVerdict } from "@/lib/perspectiveEval";
 
 /**
  * Sandbox Board — a free-play board where the user moves both sides.
- * No bot, no engine analysis. Optionally overlays the existing
- * "Strength Simulator" perspective indicators.
  */
 export function SandboxBoard({ onBack }: { onBack: () => void }) {
   const gameRef = useRef(new Chess());
@@ -28,11 +22,6 @@ export function SandboxBoard({ onBack }: { onBack: () => void }) {
   const [lastMove, setLastMove] = useState<{ from: Square; to: Square } | null>(null);
   const [promotion, setPromotion] = useState<{ from: Square; to: Square } | null>(null);
 
-  const [perspectiveOn, setPerspectiveOn] = useState(false);
-  const [rating, setRating] = useState<number>(1200);
-  const [indicators, setIndicators] = useState<Record<string, MoveVerdict> | null>(null);
-  const [bestFrom, setBestFrom] = useState<string | null>(null);
-
   const finishMove = useCallback(
     (from: Square, to: Square, promo?: PieceSymbol) => {
       const m = game.move({ from, to, promotion: promo as "q" | "r" | "b" | "n" | undefined });
@@ -40,8 +29,6 @@ export function SandboxBoard({ onBack }: { onBack: () => void }) {
       playMoveResultSound(m);
       setHistory((h) => [...h, m.san]);
       setLastMove({ from, to });
-      setIndicators(null);
-      setBestFrom(null);
       force();
       return true;
     },
@@ -68,8 +55,6 @@ export function SandboxBoard({ onBack }: { onBack: () => void }) {
     game.reset();
     setHistory([]);
     setLastMove(null);
-    setIndicators(null);
-    setBestFrom(null);
     force();
   };
 
@@ -78,29 +63,8 @@ export function SandboxBoard({ onBack }: { onBack: () => void }) {
     if (!m) return;
     setHistory((h) => h.slice(0, -1));
     setLastMove(null);
-    setIndicators(null);
-    setBestFrom(null);
     force();
   };
-
-  // Perspective indicators — recomputed on every position change while enabled.
-  useEffect(() => {
-    if (!perspectiveOn || game.isGameOver()) {
-      setIndicators(null);
-      setBestFrom(null);
-      return;
-    }
-    let cancelled = false;
-    const fen = game.fen();
-    void evaluatePerspective(fen, rating).then((res) => {
-      if (cancelled) return;
-      setIndicators(res.bySquare as Record<string, MoveVerdict>);
-      const bestKey = Object.entries(res.byMove).find(([, v]) => v === "purple")?.[0] ?? null;
-      setBestFrom(bestKey ? bestKey.slice(0, 2) : null);
-    });
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [perspectiveOn, rating, history.length, game]);
 
   const moveRows = useMemo(() => {
     const rows: Array<{ n: number; w: string; b?: string }> = [];
@@ -159,45 +123,13 @@ export function SandboxBoard({ onBack }: { onBack: () => void }) {
                 disabled={game.isGameOver()}
                 lastMove={lastMove}
                 onAttemptMove={handleAttemptMove}
-                indicators={perspectiveOn ? indicators : null}
-                bestFrom={perspectiveOn ? bestFrom : null}
               />
             </div>
           </Card>
-
-          {perspectiveOn && <SimulatorLegend label={`${labelForRating(rating)} Elo`} showBest />}
         </section>
 
         <aside className="flex flex-col gap-3">
-          <Card className="bg-card p-3 space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold">Strength Simulator</div>
-                <div className="text-[11px] text-muted-foreground">
-                  Show how a given strength would view the position.
-                </div>
-              </div>
-              <Switch checked={perspectiveOn} onCheckedChange={setPerspectiveOn} />
-            </div>
-            {perspectiveOn && (
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {PERSPECTIVE_RATINGS.map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => setRating(r)}
-                    className={cn(
-                      "px-2.5 py-1 rounded-md text-xs font-semibold border transition-colors",
-                      rating === r
-                        ? "bg-primary/15 border-primary/40 text-foreground"
-                        : "bg-secondary/30 border-transparent hover:bg-secondary/60 text-muted-foreground",
-                    )}
-                  >
-                    {labelForRating(r)}
-                  </button>
-                ))}
-              </div>
-            )}
-          </Card>
+
 
           <Card className="bg-card p-3 flex-1 min-h-[220px]">
             <div className="text-sm font-semibold mb-2 px-1">Moves</div>
