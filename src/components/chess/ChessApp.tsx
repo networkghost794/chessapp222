@@ -4,7 +4,7 @@ import { Board } from "./Board";
 import { PromotionDialog } from "./PromotionDialog";
 import { GameOverModal } from "./GameOverModal";
 import { PlayBotsPanel } from "./PlayBotsPanel";
-import { OwnerPortal } from "./OwnerPortal";
+import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
@@ -161,7 +161,7 @@ function MiniProfileCard({ profile }: { profile: { username: string; avatar_url:
 }
 
 export function ChessApp() {
-  const { profile, refreshProfile, signOut, user } = useAuth();
+  const { profile, refreshProfile, signOut, user, isOwner } = useAuth();
   const gameRef = useRef(new Chess());
   const [, setTick] = useState(0);
   const force = useCallback(() => setTick((t) => t + 1), []);
@@ -501,6 +501,14 @@ export function ChessApp() {
           })}
         </nav>
         <div className="p-2 border-t border-border space-y-1">
+          {isOwner && (
+            <Link
+              to="/studio"
+              className="w-full flex items-center gap-2 px-2 md:px-3 py-2 rounded-md text-xs font-semibold text-warning bg-warning/10 ring-1 ring-warning/30 hover:bg-warning/20"
+            >
+              ⚡ <span className="hidden md:inline">Studio Mode</span>
+            </Link>
+          )}
           <Button
             variant="ghost"
             size="sm"
@@ -567,10 +575,6 @@ export function ChessApp() {
           {mode === "modes" && <GameModesHub />}
         </main>
 
-        {/* Owner Portal — always at the bottom */}
-        <div className="border-t border-border">
-          <OwnerPortal />
-        </div>
       </div>
 
       <PromotionDialog
