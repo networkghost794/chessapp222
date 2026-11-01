@@ -164,10 +164,10 @@ function PhaseEditor({ value, onChange }: { value: PhaseConfig; onChange: (v: Ph
   );
 }
 
-export function OwnerPortal() {
+export function OwnerPortal({ editRequest, defaultOpen = false }: { editRequest?: { id: string; n: number } | null; defaultOpen?: boolean } = {}) {
   const { isOwner, refreshOwner } = useAuth();
   const unlocked = isOwner;
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [pinOpen, setPinOpen] = useState(false);
   const [pin, setPin] = useState("");
   const [pinError, setPinError] = useState("");
@@ -206,6 +206,12 @@ export function OwnerPortal() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [allBots, setAllBots] = useState<BotConfig[]>(loadBots());
   useEffect(() => subscribeBots(() => setAllBots(loadBots())), []);
+  useEffect(() => {
+    if (!editRequest) return;
+    setOpen(true);
+    loadBotIntoForm(editRequest.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editRequest?.n]);
 
   const resetForm = () => {
     setName(""); setQuote(""); setAvatar(undefined); setAvatarFile(null);
