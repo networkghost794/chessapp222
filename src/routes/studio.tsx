@@ -37,11 +37,11 @@ function NotFound() {
 
 function StudioGate() {
   const { user, isOwner, loading } = useAuth();
+  const [tab, setTab] = useState<"workshop" | "editor">("workshop");
+  const [editRequest, setEditRequest] = useState<{ id: string; n: number } | null>(null);
   if (loading) {
     return <div className="min-h-screen grid place-items-center text-sm text-muted-foreground">Loading…</div>;
   }
-  const [tab, setTab] = useState<"workshop" | "editor">("workshop");
-  const [editRequest, setEditRequest] = useState<{ id: string; n: number } | null>(null);
   if (!user || !isOwner) return <NotFound />;
   return (
     <div className="min-h-screen w-full">
