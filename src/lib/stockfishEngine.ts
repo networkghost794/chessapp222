@@ -40,7 +40,7 @@ export type TopMove = { uci: string; cp: number | null; mate: number | null };
  */
 export function analyseTopMoves(
   fen: string,
-  opts: { multipv: number; depth: number; elo?: number; movetime?: number },
+  opts: { multipv: number; depth: number; elo?: number; movetime?: number; skill?: number },
 ): Promise<TopMove[]> {
   ensureWorker();
   return new Promise((resolve) => {
@@ -89,6 +89,7 @@ export function analyseTopMoves(
     } else {
       send("setoption name UCI_LimitStrength value false");
     }
+    send(`setoption name Skill Level value ${Math.max(0, Math.min(20, opts.skill ?? 20))}`);
     send(`setoption name MultiPV value ${Math.max(1, opts.multipv)}`);
     send(`position fen ${fen}`);
     const goDepth = `go depth ${Math.max(1, Math.min(20, opts.depth))}`;
@@ -102,4 +103,25 @@ export function quitEngine() {
     workerRef.terminate();
     workerRef = null;
   }
+}
+
+/** Plain Stockfish move at a given Skill Level (0–20). Used by Studio test bench anchors. */
+export function engineBestMove(fen: string, skill: number, depth: number): Promise<string | null> {
+  ensureWorker();
+  return new Promise((resolve) => {
+    let done = false;
+    const off = onLine((line) => {
+      if (line.startsWith("bestmove")) {
+        if (done) return; done = true; off(); clearTimeout(guard);
+        const m = line.split(/\s+/)[1];
+        resolve(m && m !== "(none)" ? m : null);
+      }
+    });
+    const guard = setTimeout(() => { send("stop"); setTimeout(() => { if (!done) { done = true; off(); resolve(null); } }, 200); }, 6000);
+    send("setoption name UCI_LimitStrength value false");
+    send(`setoption name Skill Level value ${Math.max(0, Math.min(20, skill))}`);
+    send("setoption name MultiPV value 1");
+    send(`position fen ${fen}`);
+    send(`go depth ${Math.max(1, Math.min(20, depth))}`);
+  });
 }
