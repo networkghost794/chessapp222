@@ -6,6 +6,7 @@ import { ArrowLeft, Crown } from "lucide-react";
 import { useState } from "react";
 import { BotWorkshop } from "@/components/chess/BotWorkshop";
 import { cn } from "@/lib/utils";
+import { TestBench } from "@/components/chess/TestBench";
 
 export const Route = createFileRoute("/studio")({
   ssr: false,
@@ -37,7 +38,7 @@ function NotFound() {
 
 function StudioGate() {
   const { user, isOwner, loading } = useAuth();
-  const [tab, setTab] = useState<"workshop" | "editor">("workshop");
+  const [tab, setTab] = useState<"workshop" | "bench" | "editor">("workshop");
   const [editRequest, setEditRequest] = useState<{ id: string; n: number } | null>(null);
   if (loading) {
     return <div className="min-h-screen grid place-items-center text-sm text-muted-foreground">Loading…</div>;
@@ -62,7 +63,7 @@ function StudioGate() {
         </div>
       </header>
       <div className="max-w-[1400px] mx-auto px-4 pt-4 flex gap-1">
-        {([["workshop", "Bot Workshop"], ["editor", "Bot Editor & Tools"]] as const).map(([id, l]) => (
+        {([["workshop", "Bot Workshop"], ["bench", "Test Bench"], ["editor", "Bot Editor & Tools"]] as const).map(([id, l]) => (
           <button key={id} onClick={() => setTab(id)}
             className={cn("h-8 px-3 rounded-md text-xs font-semibold",
               tab === id ? "bg-warning/15 text-warning ring-1 ring-warning/40" : "text-muted-foreground hover:text-foreground")}>
@@ -73,6 +74,9 @@ function StudioGate() {
       <main className="px-4 pb-10">
         <div className={cn("max-w-[1400px] mx-auto mt-4", tab !== "workshop" && "hidden")}>
           <BotWorkshop onEdit={(id) => { setEditRequest((r) => ({ id, n: (r?.n ?? 0) + 1 })); setTab("editor"); }} />
+        </div>
+        <div className={cn("max-w-[1400px] mx-auto mt-4", tab !== "bench" && "hidden")}>
+          <TestBench />
         </div>
         <div className={cn(tab !== "editor" && "hidden")}>
           <OwnerPortal editRequest={editRequest} defaultOpen />
