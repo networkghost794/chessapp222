@@ -275,7 +275,7 @@ function Inspector({ draft }: { draft: Draft }) {
     <section className="rounded-xl border border-border bg-card p-4 space-y-3 xl:sticky xl:top-20">
       <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5"><FlaskConical className="w-3.5 h-3.5 text-warning" />Live inspector</h3>
       <p className="text-[10px] text-muted-foreground">Tests your unsaved settings. Move pieces to set up a position.</p>
-      <div className="max-w-[360px] mx-auto"><Board game={game} flipped={false} lastMove={last} onAttemptMove={onMove} /></div>
+      <div className="max-w-[360px] mx-auto"><Board game={game} flipped={false} disabled={busy} lastMove={last} onAttemptMove={onMove} /></div>
       <div className="flex gap-2">
         <button onClick={botMove} disabled={busy} className="flex-1 h-8 rounded-md bg-warning/15 text-warning ring-1 ring-warning/40 text-xs font-semibold flex items-center justify-center gap-1 disabled:opacity-50"><Play className="w-3.5 h-3.5" />Bot plays</button>
         <button onClick={sample} disabled={busy} className="flex-1 h-8 rounded-md border border-border text-xs font-semibold disabled:opacity-50">{busy ? "Thinking…" : "Sample 10 picks"}</button>
