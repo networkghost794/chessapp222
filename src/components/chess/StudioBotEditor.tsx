@@ -123,7 +123,7 @@ export function StudioBotEditor({ editRequest }: { editRequest?: { id: string; n
       {/* Roster */}
       <aside className="rounded-xl border border-border bg-card p-3 space-y-2 h-fit xl:sticky xl:top-20">
         <div className="flex gap-1">
-          <button onClick={() => setDraft(blankDraft())} className="flex-1 h-8 rounded-md bg-warning text-warning-foreground text-xs font-bold flex items-center justify-center gap-1"><Plus className="w-3.5 h-3.5" />New</button>
+          <button onClick={() => setDraft(blankDraft())} className="flex-1 h-8 rounded-md bg-warning text-background text-xs font-bold flex items-center justify-center gap-1"><Plus className="w-3.5 h-3.5" />New</button>
           <button disabled={!draft.id} onClick={() => { setDraft((d) => ({ ...d, id: null, name: `${d.name} (copy)` })); toast("Cloned — save to publish the copy"); }} className="flex-1 h-8 rounded-md border border-border text-xs flex items-center justify-center gap-1 disabled:opacity-40"><Copy className="w-3.5 h-3.5" />Clone</button>
         </div>
         <div className="relative"><Search className="w-3.5 h-3.5 absolute left-2 top-2.5 text-muted-foreground" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search bots" className={cn(inputCls, "pl-7")} /></div>
@@ -230,7 +230,7 @@ export function StudioBotEditor({ editRequest }: { editRequest?: { id: string; n
           <p className="text-[10px] text-muted-foreground">{draft.opening.bookName ? `Book: ${draft.opening.bookName}` : "No book uploaded — built-in repertoire is used."}</p>
         </Card>}
         <div className="flex gap-2 sticky bottom-2">
-          <button onClick={save} disabled={saving} className="flex-1 h-10 rounded-lg bg-warning text-warning-foreground font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50"><Save className="w-4 h-4" />{saving ? "Saving…" : draft.id ? "Save & Publish" : "Create & Publish"}</button>
+          <button onClick={save} disabled={saving} className="flex-1 h-10 rounded-lg bg-warning text-background font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50"><Save className="w-4 h-4" />{saving ? "Saving…" : draft.id ? "Save & Publish" : "Create & Publish"}</button>
           {draft.id && <button onClick={remove} className="h-10 w-10 rounded-lg border border-destructive/40 text-destructive grid place-items-center"><Trash2 className="w-4 h-4" /></button>}
         </div>
       </div>
