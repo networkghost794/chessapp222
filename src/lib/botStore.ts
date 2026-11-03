@@ -169,6 +169,15 @@ export const defaultHumanMistake = (): HumanMistake => ({
 export type ThinkingTime = { minMs: number; maxMs: number };
 export const defaultThinkingTime = (): ThinkingTime => ({ minMs: 800, maxMs: 2000 });
 
+/** Engine brain overrides (Studio Expert). 0 / "auto" keeps the Elo-based defaults. */
+export type EngineConfig = {
+  depth: number;          // 0 = auto by Elo, else 1–22
+  multipv: number;        // 0 = auto (24), else 1–40
+  eloPool: boolean;       // apply Elo candidate-pool limit
+  eloBlunders: boolean;   // apply Elo-scaled blunder injection
+};
+export const defaultEngineConfig = (): EngineConfig => ({ depth: 0, multipv: 0, eloPool: true, eloBlunders: true });
+
 
 
 export type BotCategory =
@@ -221,6 +230,7 @@ export type BotConfig = {
   country?: string | null;
   /** Per-bot thinking delay range (ms). */
   thinking: ThinkingTime;
+  engine: EngineConfig;
 };
 
 export const defaultPhase = (): PhaseConfig => ({
@@ -309,6 +319,7 @@ function rowToBot(r: Record<string, unknown>): BotConfig {
     titleColor: (r.title_color as string | null) ?? null,
     country: ((op as { country?: string | null }).country as string | null) ?? null,
     thinking: { ...defaultThinkingTime(), ...(op.thinking ?? {}) },
+    engine: { ...defaultEngineConfig(), ...((op as { engine?: Partial<EngineConfig> }).engine ?? {}) },
   };
 }
 
@@ -375,6 +386,7 @@ export type BotPublishInput = {
   titleColor?: string | null;
   country?: string | null;
   thinking?: ThinkingTime;
+  engine?: EngineConfig;
 };
 
 async function resolveAvatarUrl(uid: string, input: BotPublishInput): Promise<string | null | undefined> {
@@ -406,6 +418,7 @@ export async function publishBot(input: BotPublishInput): Promise<BotConfig | nu
     humanMistake: input.humanMistake,
     thinking: input.thinking ?? defaultThinkingTime(),
     country: input.country ?? null,
+    engine: input.engine ?? defaultEngineConfig(),
   };
 
   const insertPayload = {
@@ -446,6 +459,7 @@ export async function updateBot(id: string, input: BotPublishInput): Promise<Bot
     humanMistake: input.humanMistake,
     thinking: input.thinking ?? defaultThinkingTime(),
     country: input.country ?? null,
+    engine: input.engine ?? defaultEngineConfig(),
   };
 
   const updatePayload: Record<string, unknown> = {
@@ -679,7 +693,8 @@ export async function chooseBotMove(
   if (bot) {
     try {
       const phase = isEndgame(game, bot.endgameTrigger) ? bot.endgame : bot.middlegame;
-      const multipv = Math.min(legal.length, 24);
+      const eng = bot.engine ?? defaultEngineConfig();
+      const multipv = Math.min(legal.length, eng.multipv > 0 ? eng.multipv : 24);
       // Depth cap by ELO — weaker bots search shallower.
       // NOTE: strength is controlled by the candidate-filter pipeline below,
       // NOT by search depth. We deliberately keep depth modest even for
@@ -689,7 +704,7 @@ export async function chooseBotMove(
       // bots take 15+ seconds per move while adding nothing to move quality
       // once the candidate filter runs.
       const elo = Math.max(100, Math.min(3200, bot.elo ?? 1500));
-      const depth =
+      const depth = eng.depth > 0 ? Math.min(22, eng.depth) :
         elo < 400 ? 4 :
         elo < 800 ? 6 :
         elo < 1400 ? 8 :
@@ -734,7 +749,7 @@ export async function chooseBotMove(
       //   Build a limited candidate move pool BEFORE personality runs.
       //   Personality can never select a move outside this pool.
       // ============================================================
-      const eloPoolSize =
+      const eloPoolSize = !eng.eloPool ? scored.length :
         elo < 200  ? Math.min(scored.length, 5) :
         elo < 600  ? Math.min(scored.length, 7) :
         elo < 1000 ? Math.min(scored.length, 9) :
@@ -744,7 +759,7 @@ export async function chooseBotMove(
       let eloPool: ScoredMove[] = scored.slice(0, eloPoolSize);
 
       // Blunder injection — probability inversely proportional to ELO.
-      const blunderProb =
+      const blunderProb = !eng.eloBlunders ? 0 :
         elo < 200  ? 0.35 :
         elo < 600  ? 0.22 :
         elo < 1000 ? 0.12 :
