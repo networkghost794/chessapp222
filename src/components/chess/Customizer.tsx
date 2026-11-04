@@ -9,7 +9,7 @@ import {
 import {
   BOT_CATEGORIES, loadBots, subscribeBots, reorderCategory, type BotConfig, type BotCategory,
 } from "@/lib/botStore";
-import { LABEL_DEFAULTS, saveUiSettings, useUiSettings, type UiSettings } from "@/lib/appSettings";
+import { EVENT_THEMES, LABEL_DEFAULTS, saveUiSettings, useUiSettings, type UiSettings } from "@/lib/appSettings";
 
 const defLabel = (c: BotCategory) => BOT_CATEGORIES.find((x) => x.value === c)!.label;
 
@@ -57,6 +57,19 @@ export function Customizer() {
 
   return (
     <div className="space-y-6">
+      <section className="space-y-2">
+        <h3 className="text-sm font-bold">Special event look</h3>
+        <p className="text-xs text-muted-foreground">Tints the whole app for everyone. Click Save below to publish.</p>
+        <div className="flex flex-wrap gap-2">
+          {EVENT_THEMES.map((t) => (
+            <button key={t.value} type="button" data-event-preview={t.value}
+              onClick={() => setDraft({ ...draft, eventTheme: t.value })}
+              className={"h-9 px-3 rounded-md text-xs font-semibold ring-1 " + (draft.eventTheme === t.value ? "ring-primary bg-primary/15 text-foreground" : "ring-border text-muted-foreground hover:text-foreground")}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </section>
       <section className="space-y-2">
         <h3 className="font-bold">Bot sections</h3>
         <p className="text-xs text-muted-foreground">Rename, reorder or hide sections in Play Bots.</p>

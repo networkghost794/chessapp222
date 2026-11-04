@@ -144,3 +144,10 @@ html.light {
 .anim-badge-pop{animation:badge-pop .45s cubic-bezier(.3,1.6,.5,1) .25s both}
 .anim-modal-in{animation:modal-in .35s cubic-bezier(.3,1.4,.5,1) both}
 .anim-confetti{animation:confetti-fall linear forwards}
+
+/* Owner-selected seasonal event themes */
+html[data-event="halloween"] { --primary: oklch(0.72 0.18 55); --accent: oklch(0.72 0.18 55); --ring: oklch(0.72 0.18 55); }
+html[data-event="christmas"] { --primary: oklch(0.6 0.2 25); --accent: oklch(0.62 0.15 150); --ring: oklch(0.6 0.2 25); }
+html[data-event="stpatricks"] { --primary: oklch(0.68 0.2 145); --accent: oklch(0.8 0.15 95); --ring: oklch(0.68 0.2 145); }
+html[data-event="valentines"] { --primary: oklch(0.68 0.2 0); --accent: oklch(0.68 0.2 0); --ring: oklch(0.68 0.2 0); }
+html[data-event="gold"] { --primary: oklch(0.78 0.14 80); --accent: oklch(0.78 0.14 80); --ring: oklch(0.78 0.14 80); }

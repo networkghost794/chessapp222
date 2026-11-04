@@ -47,7 +47,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { BathroomBreak } from "./BathroomBreak";
 import { ProfilePage } from "./ProfilePage";
 import { HomeDashboard } from "./HomeDashboard";
-import { useUiSettings, label } from "@/lib/appSettings";
+import { useUiSettings, label, useEventTheme } from "@/lib/appSettings";
 import { SettingsPage } from "./SettingsPage";
 import { FeedbackPage } from "./FeedbackPage";
 import { botDisplayIdentity, isImmersiveEnabled, useImmersive } from "@/lib/immersive";
@@ -445,6 +445,7 @@ export function ChessApp() {
   }, [history]);
 
   const ui = useUiSettings();
+  useEventTheme();
   const navItems: Array<{ key: SidebarKey; label: string; icon: typeof Home; onClick?: () => void }> = [
     { key: "home", label: label(ui, "nav.home"), icon: Home, onClick: () => { setSidebar("home"); setMode("home"); } },
     { key: "play", label: label(ui, "nav.playBots"), icon: Swords, onClick: () => { setSidebar("play"); if (mode !== "match") setMode("hub"); } },

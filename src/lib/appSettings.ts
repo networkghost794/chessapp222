@@ -9,7 +9,18 @@ export type UiSettings = {
   hiddenTiers: BotCategory[];
   gridColumns: number;
   labels: Record<string, string>;
+  eventTheme: EventTheme;
 };
+
+export type EventTheme = "none" | "halloween" | "christmas" | "stpatricks" | "valentines" | "gold";
+export const EVENT_THEMES: { value: EventTheme; label: string }[] = [
+  { value: "none", label: "Default" },
+  { value: "halloween", label: "Halloween" },
+  { value: "christmas", label: "Christmas" },
+  { value: "stpatricks", label: "St. Patrick's Day" },
+  { value: "valentines", label: "Valentine's Day" },
+  { value: "gold", label: "Gold Classic" },
+];
 
 /** Editable text labels: key -> default text. */
 export const LABEL_DEFAULTS: Record<string, string> = {
@@ -21,10 +32,13 @@ export const LABEL_DEFAULTS: Record<string, string> = {
   "nav.gameModes": "Game Modes",
   "nav.updates": "Updates",
   "nav.settings": "Settings",
+  "home.title": "Home",
+  "gameOver.newGame": "New Game",
+  "gameOver.rematch": "Rematch",
 };
 
 const DEFAULTS: UiSettings = {
-  tierLabels: {}, tierOrder: BOT_CATEGORIES.map((c) => c.value), hiddenTiers: [], gridColumns: 5, labels: {},
+  tierLabels: {}, tierOrder: BOT_CATEGORIES.map((c) => c.value), hiddenTiers: [], gridColumns: 5, labels: {}, eventTheme: "none",
 };
 
 let cache: UiSettings = DEFAULTS;
@@ -42,6 +56,7 @@ function normalize(v: Partial<UiSettings> | null | undefined): UiSettings {
     hiddenTiers: (v?.hiddenTiers ?? []).filter((c) => all.includes(c)),
     gridColumns: Math.min(8, Math.max(3, Number(v?.gridColumns ?? 5))),
     labels: v?.labels ?? {},
+    eventTheme: EVENT_THEMES.some((t) => t.value === v?.eventTheme) ? v!.eventTheme! : "none",
   };
 }
 
@@ -84,4 +99,14 @@ export function visibleTiers(s: UiSettings) {
 
 export function label(s: UiSettings, key: string): string {
   return s.labels[key]?.trim() || LABEL_DEFAULTS[key] || key;
+}
+
+/** Applies the owner-chosen seasonal theme to the whole page. */
+export function useEventTheme() {
+  const s = useUiSettings();
+  useEffect(() => {
+    const el = document.documentElement;
+    if (s.eventTheme === "none") el.removeAttribute("data-event");
+    else el.setAttribute("data-event", s.eventTheme);
+  }, [s.eventTheme]);
 }
