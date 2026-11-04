@@ -151,3 +151,52 @@ html[data-event="christmas"] { --primary: oklch(0.6 0.2 25); --accent: oklch(0.6
 html[data-event="stpatricks"] { --primary: oklch(0.68 0.2 145); --accent: oklch(0.8 0.15 95); --ring: oklch(0.68 0.2 145); }
 html[data-event="valentines"] { --primary: oklch(0.68 0.2 0); --accent: oklch(0.68 0.2 0); --ring: oklch(0.68 0.2 0); }
 html[data-event="gold"] { --primary: oklch(0.78 0.14 80); --accent: oklch(0.78 0.14 80); --ring: oklch(0.78 0.14 80); }
+
+/* ===== Christmas event ===== */
+html[data-event="christmas"] {
+  --xmas-red: oklch(0.55 0.21 27); --xmas-green: oklch(0.6 0.17 150); --xmas-gold: oklch(0.85 0.15 85);
+  --xmas-blue: oklch(0.7 0.14 240); --xmas-snow: oklch(0.98 0.005 240); --xmas-wire: oklch(0.3 0.04 150);
+  --app-bg: oklch(0.24 0.045 155); --background: oklch(0.24 0.045 155);
+  --card: oklch(0.29 0.05 155); --border: oklch(0.4 0.05 155);
+}
+html[data-event="christmas"] body {
+  background-image: radial-gradient(circle at 50% 120%, oklch(0.55 0.15 50 / 0.25), transparent 50%);
+  background-attachment: fixed;
+}
+.xmas-bulb { width: 9px; height: 13px; border-radius: 50% 50% 45% 45%; box-shadow: 0 0 10px 2px currentColor; animation: xmas-twinkle 1.6s ease-in-out infinite; }
+.xmas-flake { position: absolute; top: -12px; border-radius: 50%; background: var(--xmas-snow); opacity: .7; animation: xmas-snow linear infinite; }
+@keyframes xmas-twinkle { 0%,100%{opacity:1} 50%{opacity:.35} }
+@keyframes xmas-snow { 0%{transform:translate(0,-10px)} 100%{transform:translate(30px,105vh)} }
+
+/* Snow caps on cards */
+html[data-event="christmas"] .evt-card { position: relative; overflow: visible; }
+html[data-event="christmas"] .evt-card::before {
+  content: ""; position: absolute; left: -2px; right: -2px; top: -7px; height: 14px; z-index: 2; pointer-events: none;
+  background: radial-gradient(circle at 10px 12px, var(--xmas-snow) 9px, transparent 10px) 0 0/22px 14px repeat-x,
+              linear-gradient(var(--xmas-snow), var(--xmas-snow)) 0 4px/100% 6px no-repeat;
+  border-radius: 8px 8px 0 0; filter: drop-shadow(0 2px 2px oklch(0 0 0 / .25));
+}
+/* Gift-wrapped stat cards: ribbon cross + bow */
+html[data-event="christmas"] .evt-gift {
+  background: linear-gradient(90deg, transparent calc(50% - 6px), var(--xmas-red) calc(50% - 6px), var(--xmas-red) calc(50% + 6px), transparent calc(50% + 6px)),
+              linear-gradient(135deg, oklch(0.42 0.1 40), oklch(0.34 0.08 35));
+  border-color: var(--xmas-gold);
+}
+html[data-event="christmas"] .evt-gift > * { position: relative; z-index: 1; text-shadow: 0 1px 2px oklch(0 0 0 / .6); }
+html[data-event="christmas"] .evt-gift::after {
+  content: "🎀"; position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 26px; z-index: 3;
+}
+/* Fireplace glow behind the CTA */
+html[data-event="christmas"] .evt-hearth {
+  background: radial-gradient(ellipse at 50% 140%, oklch(0.65 0.19 45 / .55), transparent 60%), var(--color-card);
+}
+/* Candy-cane Play button */
+html[data-event="christmas"] .evt-play {
+  background: repeating-linear-gradient(135deg, var(--xmas-green) 0 12px, oklch(0.7 0.16 150) 12px 24px) !important;
+  border: 2px solid var(--xmas-snow); box-shadow: 0 0 14px oklch(0.7 0.16 150 / .5);
+}
+/* Game mode cards: chocolate wrapper look */
+html[data-event="christmas"] .evt-mode {
+  background: linear-gradient(180deg, oklch(0.4 0.08 45) 0 38%, var(--xmas-red) 38%);
+  border-color: var(--xmas-gold);
+}
