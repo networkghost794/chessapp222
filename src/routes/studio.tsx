@@ -1,12 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AuthProvider, useAuth } from "@/lib/useAuth";
-import { OwnerPortal } from "@/components/chess/OwnerPortal";
+import { Customizer } from "@/components/chess/Customizer";
+import { UpdateLogManager } from "@/components/chess/UpdateLogManager";
+import { VerificationReviewPanel } from "@/components/chess/VerificationRequest";
 import { Toaster } from "@/components/ui/sonner";
 import { ArrowLeft, Crown } from "lucide-react";
 import { useState } from "react";
 import { BotWorkshop } from "@/components/chess/BotWorkshop";
 import { cn } from "@/lib/utils";
-import { TestBench } from "@/components/chess/TestBench";
 import { StudioBotEditor } from "@/components/chess/StudioBotEditor";
 
 export const Route = createFileRoute("/studio")({
@@ -39,7 +40,7 @@ function NotFound() {
 
 function StudioGate() {
   const { user, isOwner, loading } = useAuth();
-  const [tab, setTab] = useState<"workshop" | "builder" | "bench" | "editor">("workshop");
+  const [tab, setTab] = useState<"workshop" | "builder" | "verify" | "updates" | "customize">("workshop");
   const [editRequest, setEditRequest] = useState<{ id: string; n: number } | null>(null);
   if (loading) {
     return <div className="min-h-screen grid place-items-center text-sm text-muted-foreground">Loading…</div>;
@@ -64,7 +65,7 @@ function StudioGate() {
         </div>
       </header>
       <div className="max-w-[1400px] mx-auto px-4 pt-4 flex gap-1">
-        {([["workshop", "Bot Workshop"], ["builder", "Bot Builder"], ["bench", "Test Bench"], ["editor", "Book & Site Tools"]] as const).map(([id, l]) => (
+        {([["workshop", "Bot Workshop"], ["builder", "Bot Builder"], ["verify", "Verification"], ["updates", "Update Logs"], ["customize", "Customize App"]] as const).map(([id, l]) => (
           <button key={id} onClick={() => setTab(id)}
             className={cn("h-8 px-3 rounded-md text-xs font-semibold",
               tab === id ? "bg-warning/15 text-warning ring-1 ring-warning/40" : "text-muted-foreground hover:text-foreground")}>
@@ -79,12 +80,9 @@ function StudioGate() {
         <div className={cn("max-w-[1600px] mx-auto mt-4", tab !== "builder" && "hidden")}>
           <StudioBotEditor editRequest={editRequest} />
         </div>
-        <div className={cn("max-w-[1400px] mx-auto mt-4", tab !== "bench" && "hidden")}>
-          <TestBench />
-        </div>
-        <div className={cn(tab !== "editor" && "hidden")}>
-          <OwnerPortal editRequest={editRequest} defaultOpen />
-        </div>
+        <div className={cn("max-w-[1000px] mx-auto mt-4", tab !== "verify" && "hidden")}><VerificationReviewPanel /></div>
+        <div className={cn("max-w-[1000px] mx-auto mt-4", tab !== "updates" && "hidden")}><UpdateLogManager /></div>
+        <div className={cn("max-w-[1000px] mx-auto mt-4", tab !== "customize" && "hidden")}><Customizer /></div>
       </main>
     </div>
   );
