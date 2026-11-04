@@ -32,9 +32,6 @@ export const LABEL_DEFAULTS: Record<string, string> = {
   "nav.gameModes": "Game Modes",
   "nav.updates": "Updates",
   "nav.settings": "Settings",
-  "home.title": "Home",
-  "gameOver.newGame": "New Game",
-  "gameOver.rematch": "Rematch",
 };
 
 const DEFAULTS: UiSettings = {
