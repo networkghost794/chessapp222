@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { BadgeCheck, Bot, Crown, Pencil, Swords, Trophy, User, Target, Flag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TitleBadge } from "./ChessApp";
+import { EventHat } from "./EventDecor";
 
 type BotRow = { bot_id: string; bot_name: string; wins: number; losses: number; draws: number; updated_at: string };
 
@@ -53,10 +54,13 @@ export function HomeDashboard({ profile, onPlay, onEditProfile }: { profile: Pro
       {/* Banner */}
       <section className="rounded-lg bg-card border border-border/60">
         <div className="p-5 md:p-6 flex flex-col sm:flex-row gap-5">
-          <div className="w-28 h-28 md:w-36 md:h-36 rounded-md bg-secondary grid place-items-center overflow-hidden ring-1 ring-border shrink-0">
-            {profile.avatar_url
-              ? <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
-              : <User className="w-12 h-12 text-muted-foreground" />}
+          <div className="evt-avatar relative shrink-0">
+            <div className="w-28 h-28 md:w-36 md:h-36 rounded-md bg-secondary grid place-items-center overflow-hidden ring-1 ring-border">
+              {profile.avatar_url
+                ? <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
+                : <User className="w-12 h-12 text-muted-foreground" />}
+            </div>
+            <EventHat />
           </div>
           <div className="flex-1 min-w-0 flex flex-col">
             <div className="flex items-start justify-between gap-3">
@@ -100,7 +104,7 @@ export function HomeDashboard({ profile, onPlay, onEditProfile }: { profile: Pro
             {stats.map((s) => {
               const Icon = s.icon;
               return (
-                <div key={s.label} className="rounded-lg bg-card border border-border/60 p-4 flex items-center gap-3">
+                <div key={s.label} className="evt-card evt-gift relative rounded-lg bg-card border border-border/60 p-4 flex items-center gap-3">
                   <Icon className={cn("w-8 h-8 shrink-0", s.tone)} />
                   <div className="min-w-0">
                     <div className="text-[11px] text-muted-foreground">{s.label}</div>
@@ -112,12 +116,12 @@ export function HomeDashboard({ profile, onPlay, onEditProfile }: { profile: Pro
           </div>
 
           {/* Play CTA */}
-          <section className="rounded-lg bg-card border border-border/60 p-5 flex items-center justify-between gap-4">
+          <section className="evt-card evt-hearth rounded-lg bg-card border border-border/60 p-5 flex items-center justify-between gap-4">
             <div>
               <div className="font-bold">Ready for a game?</div>
               <div className="text-sm text-muted-foreground">Pick a bot and test your skills.</div>
             </div>
-            <Button onClick={onPlay} className="bg-success text-primary-foreground hover:bg-success/90 font-bold h-11 px-6">
+            <Button onClick={onPlay} className="evt-play bg-success text-primary-foreground hover:bg-success/90 font-bold h-11 px-6">
               <Swords className="w-4 h-4 mr-2" /> Play Bots
             </Button>
           </section>

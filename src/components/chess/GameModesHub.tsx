@@ -133,7 +133,7 @@ function ModeCard({
   return (
     <Card
       className={cn(
-        "p-5 flex flex-col gap-3 min-h-[180px]",
+        "evt-card evt-mode p-5 flex flex-col gap-3 min-h-[180px]",
         available ? "bg-card hover:border-primary/40 transition-colors" : "bg-card/50 opacity-70",
       )}
     >

@@ -17,6 +17,7 @@ export const BOARD_THEMES: BoardTheme[] = [
   { id: "orange", name: "Orange", light: "#fbe0bd", dark: "#d18b47" },
   { id: "red", name: "Red", light: "#f0d0cc", dark: "#b94a48" },
   { id: "sand", name: "Sand", light: "#f4ecd8", dark: "#c9b38b" },
+  { id: "gingerbread", name: "Gingerbread & Frosting", light: "#fbf1ea", dark: "#a8683c" },
 ];
 
 export type PieceSet = { id: string; name: string };

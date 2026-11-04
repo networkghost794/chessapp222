@@ -57,6 +57,7 @@ import { getTitleColor, refreshTitleColors, subscribeTitleColors } from "@/lib/b
 import { MessageCircle } from "lucide-react";
 import { playMoveResultSound } from "@/lib/sounds";
 import { GameModesHub } from "./GameModesHub";
+import { EventDecor } from "./EventDecor";
 import { initSettingsEffects } from "@/lib/settings";
 
 type ColorChoice = "white" | "black" | "random";
@@ -456,6 +457,7 @@ export function ChessApp() {
 
   return (
     <div className="min-h-screen w-full flex overflow-x-hidden">
+      <EventDecor />
       {/* Sidebar */}
       <aside className="w-16 md:w-56 shrink-0 border-r border-border bg-card/40 flex flex-col">
         <div className="px-3 md:px-4 py-4 flex items-center gap-2 border-b border-border">
