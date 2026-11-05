@@ -1,23 +1,42 @@
 // Self-contained Stockfish engine wrapped in a Web Worker.
-// Loads stockfish.js v10 (asm.js, single-file) from a CDN via importScripts
-// inside a Blob worker — no external HTTP fetches per move, no server dependency.
+// Loads Stockfish 18 NNUE (WebAssembly) from /engine; falls back to v10 asm.js.
 
 let workerRef: Worker | null = null;
 const listeners = new Set<(line: string) => void>();
 
 const STOCKFISH_CDN =
   "https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js";
+export const MODERN_ENGINE_URL = "/engine/stockfish-18-lite-single.js";
+export const ENGINE_VERSION = "Stockfish 18 NNUE (WASM)";
+
+function legacyWorker(): Worker {
+  const stub = `try { importScripts(${JSON.stringify(STOCKFISH_CDN)}); }
+    catch (e) { self.postMessage('SF_LOAD_ERROR:' + (e && e.message ? e.message : e)); }`;
+  return new Worker(URL.createObjectURL(new Blob([stub], { type: "text/javascript" })));
+}
 
 function ensureWorker(): Worker {
   if (workerRef) return workerRef;
-  const stub = `try { importScripts(${JSON.stringify(STOCKFISH_CDN)}); }
-    catch (e) { self.postMessage('SF_LOAD_ERROR:' + (e && e.message ? e.message : e)); }`;
-  const blob = new Blob([stub], { type: "text/javascript" });
-  const w = new Worker(URL.createObjectURL(blob));
-  w.onmessage = (ev) => {
-    const line = typeof ev.data === "string" ? ev.data : String(ev.data);
-    listeners.forEach((fn) => fn(line));
+  const attach = (w: Worker) => {
+    w.onmessage = (ev) => {
+      const line = typeof ev.data === "string" ? ev.data : String(ev.data);
+      listeners.forEach((fn) => fn(line));
+    };
   };
+  let w: Worker;
+  try {
+    // Modern Stockfish 18 NNUE (WebAssembly, single-threaded) served from /engine.
+    w = new Worker(MODERN_ENGINE_URL);
+    w.onerror = () => {
+      // Fallback to the legacy engine if WASM fails to load in this browser.
+      console.warn("[stockfish] Stockfish 18 failed to load, falling back to v10");
+      const fb = legacyWorker(); attach(fb); workerRef = fb;
+      fb.postMessage("uci"); fb.postMessage("isready");
+    };
+  } catch {
+    w = legacyWorker();
+  }
+  attach(w);
   workerRef = w;
   // initial handshake
   w.postMessage("uci");
@@ -40,7 +59,7 @@ export type TopMove = { uci: string; cp: number | null; mate: number | null };
  */
 export function analyseTopMoves(
   fen: string,
-  opts: { multipv: number; depth: number; elo?: number; movetime?: number; skill?: number },
+  opts: { multipv: number; depth: number; elo?: number; movetime?: number; skill?: number; timeoutMs?: number },
 ): Promise<TopMove[]> {
   ensureWorker();
   return new Promise((resolve) => {
@@ -60,7 +79,7 @@ export function analyseTopMoves(
     const guard = setTimeout(() => {
       send("stop");
       setTimeout(finish, 120);
-    }, (opts.movetime ?? 4000) + 1500);
+    }, (opts.timeoutMs ?? opts.movetime ?? 4000) + 1500);
     const off = onLine((line) => {
       if (line.startsWith("info") && line.includes(" multipv ")) {
         const mpv = Number(/ multipv (\d+)/.exec(line)?.[1] ?? 0);
@@ -83,6 +102,7 @@ export function analyseTopMoves(
 
     // Configure skill from Elo (Stockfish "UCI_LimitStrength" + "UCI_Elo")
     send("ucinewgame");
+    send("setoption name Hash value 32");
     if (opts.elo && opts.elo > 0) {
       send("setoption name UCI_LimitStrength value true");
       send(`setoption name UCI_Elo value ${Math.max(1320, Math.min(3190, opts.elo))}`);
@@ -92,7 +112,7 @@ export function analyseTopMoves(
     send(`setoption name Skill Level value ${Math.max(0, Math.min(20, opts.skill ?? 20))}`);
     send(`setoption name MultiPV value ${Math.max(1, opts.multipv)}`);
     send(`position fen ${fen}`);
-    const goDepth = `go depth ${Math.max(1, Math.min(20, opts.depth))}`;
+    const goDepth = `go depth ${Math.max(1, Math.min(30, opts.depth))}`;
     send(opts.movetime ? `${goDepth} movetime ${Math.max(50, opts.movetime)}` : goDepth);
   });
 }

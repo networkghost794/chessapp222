@@ -170,13 +170,46 @@ export type ThinkingTime = { minMs: number; maxMs: number };
 export const defaultThinkingTime = (): ThinkingTime => ({ minMs: 800, maxMs: 2000 });
 
 /** Engine brain overrides (Studio Expert). 0 / "auto" keeps the Elo-based defaults. */
+export type EngineProfile = "stockfish" | "komodo" | "leela" | "berserk" | "rubichess" | "ethereal" | "igel";
 export type EngineConfig = {
-  depth: number;          // 0 = auto by Elo, else 1–22
-  multipv: number;        // 0 = auto (24), else 1–40
+  depth: number;          // 0 = auto by Elo, else 1–30
+  multipv: number;        // 0 = auto, else 1–40
   eloPool: boolean;       // apply Elo candidate-pool limit
   eloBlunders: boolean;   // apply Elo-scaled blunder injection
+  profile: EngineProfile; // engine thinking flavour (style bias on top of Stockfish 18 eval)
+  pureMode: boolean;      // pure engine: skip strength/mistake layers, play the top move
+  timeoutSec: number;     // hard cap per search (seconds)
 };
-export const defaultEngineConfig = (): EngineConfig => ({ depth: 0, multipv: 0, eloPool: true, eloBlunders: true });
+export const defaultEngineConfig = (): EngineConfig => ({
+  depth: 0, multipv: 0, eloPool: true, eloBlunders: true, profile: "stockfish", pureMode: false, timeoutSec: 0,
+});
+
+/** Engine flavours. All run on Stockfish 18 NNUE; the profile biases which
+ *  near-equal move is chosen, the way that engine is known to play. */
+export const ENGINE_PROFILES: { value: EngineProfile; name: string; tag: string; desc: string; bias: Partial<MoveStyle> }[] = [
+  { value: "stockfish", name: "Stockfish 18 NNUE", tag: "Concrete executioner", bias: {},
+    desc: "The world's #1 engine. Pure calculation: plays the objectively best move, cold and precise, punishes every mistake." },
+  { value: "komodo", name: "Komodo Dragon style", tag: "Positional boa constrictor", bias: { positional: 30, kingSafety: 20, capture: -15, check: -15 },
+    desc: "Built with a grandmaster's judgment. Slow squeezes, bishop pair, pawn structure, safe king and flawless endgames. Karpov-like." },
+  { value: "leela", name: "Leela Zero (Lc0) style", tag: "Romantic spatial artist", bias: { pieceDevelopment: 25, pawnAdvance: 20, positional: 15, capture: -10 },
+    desc: "Neural-net intuition. Grabs space, activates every piece and is happy to give material for long-term domination." },
+  { value: "berserk", name: "Berserk style", tag: "Savage king hunter", bias: { check: 30, capture: 20, pawnAdvance: 15, kingSafety: -15 },
+    desc: "Sharp and aggressive. Opens lines toward your king, loves initiative and chaotic tactical fights. Tal-like." },
+  { value: "rubichess", name: "RubiChess style", tag: "Iron fortress", bias: { kingSafety: 35, positional: 10, pawnAdvance: -15, check: -10 },
+    desc: "Rock-solid defender. Keeps its king safe, builds fortresses and counter-punches the moment you overextend." },
+  { value: "ethereal", name: "Ethereal style", tag: "Balanced classical master", bias: { positional: 15, pieceDevelopment: 15 },
+    desc: "Clean, sound classical chess. Controls the centre, keeps tension and grinds small edges without taking risks." },
+  { value: "igel", name: "Igel style", tag: "Counter-attacking hedgehog", bias: { kingSafety: 20, positional: 10, capture: 15, pawnAdvance: -10 },
+    desc: "Coils behind a solid pawn wall, waits, then strikes with sudden breaks and counter-blows when you push." },
+];
+
+export function applyEngineProfile(style: MoveStyle, profile: EngineProfile | undefined): MoveStyle {
+  const p = ENGINE_PROFILES.find((x) => x.value === profile);
+  if (!p) return style;
+  const out = { ...style };
+  for (const k of Object.keys(p.bias) as (keyof MoveStyle)[]) out[k] = Math.max(0, Math.min(100, out[k] + (p.bias[k] ?? 0)));
+  return out;
+}
 
 
 
@@ -694,7 +727,8 @@ export async function chooseBotMove(
     try {
       const phase = isEndgame(game, bot.endgameTrigger) ? bot.endgame : bot.middlegame;
       const eng = bot.engine ?? defaultEngineConfig();
-      const multipv = Math.min(legal.length, eng.multipv > 0 ? eng.multipv : 24);
+      const autoPv = eng.pureMode ? 3 : (bot.elo ?? 1500) >= 3000 ? 4 : 24;
+      const multipv = Math.min(legal.length, eng.multipv > 0 ? eng.multipv : autoPv);
       // Depth cap by ELO — weaker bots search shallower.
       // NOTE: strength is controlled by the candidate-filter pipeline below,
       // NOT by search depth. We deliberately keep depth modest even for
@@ -704,14 +738,19 @@ export async function chooseBotMove(
       // bots take 15+ seconds per move while adding nothing to move quality
       // once the candidate filter runs.
       const elo = Math.max(100, Math.min(3200, bot.elo ?? 1500));
-      const depth = eng.depth > 0 ? Math.min(22, eng.depth) :
+      const rawElo = bot.elo ?? 1500;
+      const depth = eng.depth > 0 ? Math.min(30, eng.depth) :
+        eng.pureMode ? 18 :
+        rawElo >= 3000 ? 16 :
         elo < 400 ? 4 :
         elo < 800 ? 6 :
         elo < 1400 ? 8 :
         elo < 2000 ? 9 :
         elo < 2500 ? 10 : 11;
       // NOTE: do NOT pass Elo to UCI_LimitStrength — we control strength via candidate filtering below.
-      const top = await analyseTopMoves(game.fen(), { multipv, depth });
+      const timeoutMs = eng.timeoutSec > 0 ? eng.timeoutSec * 1000 : depth >= 20 ? 30000 : depth >= 15 ? 15000 : 4000;
+      const top = await analyseTopMoves(game.fen(), { multipv, depth, timeoutMs });
+      const pStyle = applyEngineProfile(phase.style, eng.profile);
 
       const scored: ScoredMove[] = [];
       for (const tm of top) {
@@ -742,6 +781,16 @@ export async function chooseBotMove(
       if (bot.errorRules.forceMate) {
         const mateNow = scored.find((s) => s.mate !== null && s.mate > 0);
         if (mateNow) return { move: mateNow.vm, source: "engine" };
+      }
+
+      // ---------- Pure engine mode: top move, profile breaks ≤5cp ties ----------
+      if (eng.pureMode) {
+        const best = scored[0];
+        if (best.mate !== null) return { move: best.vm, source: "engine" };
+        const ties = scored.filter((s) => s.mate === null && best.cp - s.cp <= 5);
+        if (ties.length <= 1 || !eng.profile || eng.profile === "stockfish") return { move: best.vm, source: "engine" };
+        ties.sort((a, b) => styleScore(classifyMove(game, b.vm), pStyle) - styleScore(classifyMove(game, a.vm), pStyle));
+        return { move: ties[0].vm, source: "engine" };
       }
 
       // ============================================================
@@ -856,7 +905,7 @@ export async function chooseBotMove(
 
       const weighted = pool.map((s) => {
         const cls = classifyMove(game, s.vm);
-        const sty = styleScore(cls, phase.style);
+        const sty = styleScore(cls, pStyle);
         // gently favour stronger moves within the bucket: weight by style * (1 - loss/tolerance)
         const loss = Math.max(0, eloBestCp - s.cp);
         const closeness = tolerance > 0 ? Math.max(0.1, 1 - loss / (tolerance + 1)) : 1;

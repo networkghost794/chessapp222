@@ -7,17 +7,37 @@ const listeners = new Set<(line: string) => void>();
 
 const STOCKFISH_CDN =
   "https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js";
+export const MODERN_ENGINE_URL = "/engine/stockfish-18-lite-single.js";
+export const ENGINE_VERSION = "Stockfish 18 NNUE (WASM)";
+
+function legacyWorker(): Worker {
+  const stub = `try { importScripts(${JSON.stringify(STOCKFISH_CDN)}); }
+    catch (e) { self.postMessage('SF_LOAD_ERROR:' + (e && e.message ? e.message : e)); }`;
+  return new Worker(URL.createObjectURL(new Blob([stub], { type: "text/javascript" })));
+}
 
 function ensureWorker(): Worker {
   if (workerRef) return workerRef;
-  const stub = `try { importScripts(${JSON.stringify(STOCKFISH_CDN)}); }
-    catch (e) { self.postMessage('SF_LOAD_ERROR:' + (e && e.message ? e.message : e)); }`;
-  const blob = new Blob([stub], { type: "text/javascript" });
-  const w = new Worker(URL.createObjectURL(blob));
-  w.onmessage = (ev) => {
-    const line = typeof ev.data === "string" ? ev.data : String(ev.data);
-    listeners.forEach((fn) => fn(line));
+  const attach = (w: Worker) => {
+    w.onmessage = (ev) => {
+      const line = typeof ev.data === "string" ? ev.data : String(ev.data);
+      listeners.forEach((fn) => fn(line));
+    };
   };
+  let w: Worker;
+  try {
+    // Modern Stockfish 18 NNUE (WebAssembly, single-threaded) served from /engine.
+    w = new Worker(MODERN_ENGINE_URL);
+    w.onerror = () => {
+      // Fallback to the legacy engine if WASM fails to load in this browser.
+      console.warn("[stockfish] Stockfish 18 failed to load, falling back to v10");
+      const fb = legacyWorker(); attach(fb); workerRef = fb;
+      fb.postMessage("uci"); fb.postMessage("isready");
+    };
+  } catch {
+    w = legacyWorker();
+  }
+  attach(w);
   workerRef = w;
   w.postMessage("uci");
   w.postMessage("isready");

@@ -3,7 +3,7 @@ import { Chess, type Square } from "chess.js";
 import { toast } from "sonner";
 import { Copy, Plus, Save, Trash2, Play, RotateCcw, Search, FlaskConical } from "lucide-react";
 import {
-  BOT_CATEGORIES, DEFAULT_BUCKET_MAP, STRENGTH_LABELS, chooseBotMove, defaultEndgameTrigger, defaultEngineConfig,
+  BOT_CATEGORIES, DEFAULT_BUCKET_MAP, ENGINE_PROFILES, type EngineProfile, STRENGTH_LABELS, chooseBotMove, defaultEndgameTrigger, defaultEngineConfig,
   defaultErrorRules, defaultHumanMistake, defaultOpening, defaultPhase, defaultThinkingTime, deleteBot, loadBots,
   publishBot, refreshFromCloud, subscribeBots, updateBot,
   type BotCategory, type BotConfig, type BotPublishInput, type ExpectedMoves, type MoveStyle, type PhaseConfig, type StrengthBucket,
@@ -210,7 +210,17 @@ export function StudioBotEditor({ editRequest }: { editRequest?: { id: string; n
           <Slider label="Max loss when winning" suffix="cp" max={500} step={5} value={draft.errorRules.winningMaxLossCp} onChange={(v) => set("errorRules", { ...draft.errorRules, winningMaxLossCp: v })} />
         </Card>}
         {exp && <Card title="Engine brain" impact="Engine impact: high">
-          <Slider label="Search depth (0 = auto by rating)" value={draft.engine.depth} max={22} onChange={(v) => set("engine", { ...draft.engine, depth: v })} />
+          <p className="text-[10px] font-semibold text-primary">Running on Stockfish 18 NNUE</p>
+          <label className="block text-[11px] font-medium">Engine style</label>
+          <select className="w-full rounded-md border border-border bg-background px-2 py-1 text-xs" value={draft.engine.profile ?? "stockfish"}
+            onChange={(e) => set("engine", { ...draft.engine, profile: e.target.value as EngineProfile })}>
+            {ENGINE_PROFILES.map((p) => <option key={p.value} value={p.value}>{p.name} — {p.tag}</option>)}
+          </select>
+          <p className="text-[10px] text-muted-foreground">{ENGINE_PROFILES.find((p) => p.value === (draft.engine.profile ?? "stockfish"))?.desc}</p>
+          <Toggle label="Pure engine mode (no strength limits or mistakes)" value={!!draft.engine.pureMode} onChange={(v) => set("engine", { ...draft.engine, pureMode: v })} />
+          <Slider label="Search depth (0 = auto by rating)" value={draft.engine.depth} max={30} onChange={(v) => set("engine", { ...draft.engine, depth: v })} />
+          <Slider label="Max think per move (0 = auto)" suffix="s" value={draft.engine.timeoutSec ?? 0} max={60} onChange={(v) => set("engine", { ...draft.engine, timeoutSec: v })} />
+          <p className="text-[10px] text-muted-foreground">Estimated wait: {(() => { const d = draft.engine.depth || 11; const pv = draft.engine.multipv || 24; const t = 0.05 * Math.pow(1.45, Math.max(0, d - 8)) * Math.sqrt(pv); return t < 1 ? "under 1s" : `~${Math.round(t)}s`; })()}</p>
           <Slider label="Candidate lines / MultiPV (0 = auto 24)" value={draft.engine.multipv} max={40} onChange={(v) => set("engine", { ...draft.engine, multipv: v })} />
           <Toggle label="Limit candidate pool by rating" value={draft.engine.eloPool} onChange={(v) => set("engine", { ...draft.engine, eloPool: v })} />
           <Toggle label="Rating-based blunder injection" value={draft.engine.eloBlunders} onChange={(v) => set("engine", { ...draft.engine, eloBlunders: v })} />
