@@ -24,11 +24,14 @@ export function BotChatBubble({
   lines,
   minIntervalMs = 10_000,
   maxIntervalMs = 25_000,
-}: Props) {
+  inline = false,
+}: Props & { inline?: boolean }) {
   const [settings] = useSettings();
   const pool = (lines && lines.length > 0) ? lines : DEFAULT_LINES;
   const [text, setText] = useState<string | null>(null);
   const [visible, setVisible] = useState(false);
+  const [lastText, setLastText] = useState<string | null>(null);
+  useEffect(() => { if (text) setLastText(text); }, [text]);
 
   useEffect(() => {
     if (!active) { setVisible(false); setText(null); return; }
@@ -63,6 +66,17 @@ export function BotChatBubble({
   }, [active, pool, minIntervalMs, maxIntervalMs]);
 
   // The dialogue scheduler above keeps running; we only hide the bubble.
+  if (inline) {
+    if (!settings.botSpeech) return null;
+    const shown = text ?? lastText ?? pool[0];
+    return (
+      <div className="relative flex-1 min-w-0 rounded-xl bg-foreground text-background px-4 py-3 text-sm font-medium shadow-lg">
+        <span className="absolute top-1/2 -left-1.5 -translate-y-1/2 w-3 h-3 rotate-45 bg-foreground" />
+        <span className="relative">{shown}</span>
+      </div>
+    );
+  }
+
   if (!text || !settings.botSpeech) return null;
 
   return (
