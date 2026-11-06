@@ -161,15 +161,15 @@ export function BotVsBotMode({ onBack }: { onBack?: () => void }) {
   }
 
   return (
-    <div className="max-w-[1500px] mx-auto space-y-6">
+    <div className="max-w-[1500px] mx-auto space-y-8">
       <div className="flex items-center justify-between gap-3">
         <header className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-md bg-primary/15 grid place-items-center ring-1 ring-primary/30">
+          <div className="w-10 h-10 rounded-lg bg-primary/15 grid place-items-center ring-1 ring-primary/30">
             <Swords className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <div className="text-xl font-bold leading-tight">Bot vs Bot · Single Match</div>
-            <div className="text-xs text-muted-foreground">Pick two bots and watch them battle.</div>
+            <div className="text-xl font-bold leading-tight tracking-tight">Bot vs Bot · Single Match</div>
+            <div className="text-xs text-muted-foreground mt-0.5">Pick two bots and watch them battle.</div>
           </div>
         </header>
         {onBack && (
@@ -179,18 +179,18 @@ export function BotVsBotMode({ onBack }: { onBack?: () => void }) {
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="bg-card p-4">
-          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Match Speed</div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <Card className="evt-card bg-card p-5">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Match Speed</div>
           <SpeedSelector value={speed} onChange={setSpeed} />
-          <div className="text-[10px] text-muted-foreground mt-2">
+          <div className="text-[11px] text-muted-foreground mt-3">
             Only affects delay between visible moves. Bot strength is unchanged.
           </div>
         </Card>
 
-        <Card className="bg-card p-4 space-y-3">
+        <Card className="evt-card bg-card p-5 space-y-4">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Starting Position</div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Starting Position</div>
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => { setGameType("standard"); setCustomFen(null); }}
@@ -202,7 +202,7 @@ export function BotVsBotMode({ onBack }: { onBack?: () => void }) {
                 )}
               >
                 <div className="text-sm font-semibold">Standard Game</div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">Normal chess start</div>
+                <div className="text-[11px] text-muted-foreground mt-1">Normal chess start</div>
               </button>
               <button
                 onClick={() => setGameType("custom")}
@@ -214,7 +214,7 @@ export function BotVsBotMode({ onBack }: { onBack?: () => void }) {
                 )}
               >
                 <div className="text-sm font-semibold">Custom Position</div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">
+                <div className="text-[11px] text-muted-foreground mt-1">
                   {customFen ? "Position set ✓" : "Design your own"}
                 </div>
               </button>
@@ -226,19 +226,19 @@ export function BotVsBotMode({ onBack }: { onBack?: () => void }) {
             )}
           </div>
 
-          <div className="flex items-center justify-between border-t border-border/60 pt-3">
+          <div className="flex items-center justify-between border-t border-border/60 pt-4">
             <div>
-              <div className="text-xs font-semibold">Show Evaluation Bar</div>
-              <div className="text-[10px] text-muted-foreground">Stockfish eval — display only, does not affect bots.</div>
+              <div className="text-sm font-semibold">Show Evaluation Bar</div>
+              <div className="text-[11px] text-muted-foreground mt-0.5">Stockfish eval — display only, does not affect bots.</div>
             </div>
             <Switch checked={showEval} onCheckedChange={setShowEval} />
           </div>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-6 lg:gap-8 items-start">
         <SidePicker label="White" selected={botA} onSelect={setBotA} bots={bots} otherId={botB?.id ?? null} />
-        <div className="hidden lg:flex flex-col items-center justify-center pt-16 text-3xl font-black text-primary">VS</div>
+        <div className="hidden lg:flex flex-col items-center justify-center pt-20 text-3xl font-black text-primary tracking-wider">VS</div>
         <SidePicker label="Black" selected={botB} onSelect={setBotB} bots={bots} otherId={botA?.id ?? null} />
       </div>
 
@@ -246,7 +246,7 @@ export function BotVsBotMode({ onBack }: { onBack?: () => void }) {
         <Button
           onClick={start}
           disabled={!botA || !botB || (gameType === "custom" && !customFen)}
-          className="bg-success text-primary-foreground hover:bg-success/90 font-bold h-12 px-8 text-base"
+          className="evt-play bg-success text-primary-foreground hover:bg-success/90 font-bold h-12 px-10 text-base tracking-wide"
         >
           <Play className="w-5 h-5 mr-2" /> Start Match
         </Button>
@@ -287,9 +287,9 @@ export function SidePicker({
   otherId: string | null;
 }) {
   return (
-    <Card className="bg-card p-3 min-w-0">
-      <div className="flex items-center justify-between px-1 mb-2">
-        <div className="text-sm font-semibold">{label}</div>
+    <Card className="evt-card bg-card p-4 min-w-0">
+      <div className="flex items-center justify-between px-1 mb-3">
+        <div className="text-xs font-semibold uppercase tracking-wide">{label}</div>
         {selected && (
           <button
             className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
@@ -301,8 +301,8 @@ export function SidePicker({
       </div>
 
       {selected ? (
-        <div className="rounded-lg p-3 bg-primary/10 border border-primary/40 flex items-center gap-3">
-          <div className="w-12 h-12 rounded-md bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-border">
+        <div className="rounded-xl p-3.5 bg-primary/10 border border-primary/40 flex items-center gap-3">
+          <div className="w-12 h-12 rounded-lg bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-border">
             {selected.avatar ? (
               <img src={selected.avatar} alt={selected.name} className="w-full h-full object-cover" />
             ) : (
@@ -316,11 +316,11 @@ export function SidePicker({
               )}
               <span className="truncate">{selected.name}</span>
             </div>
-            <div className="text-[11px] text-muted-foreground">ELO {selected.elo} · {selected.category}</div>
+            <div className="text-[11px] text-muted-foreground mt-0.5">ELO {selected.elo} · {selected.category}</div>
           </div>
         </div>
       ) : (
-        <div className="text-[11px] text-muted-foreground text-center py-2 border border-dashed border-border/60 rounded-md mb-2">
+        <div className="text-[11px] text-muted-foreground text-center py-3 border border-dashed border-border/60 rounded-lg mb-2">
           Choose a bot below
         </div>
       )}
@@ -359,7 +359,7 @@ export function SidePicker({
                             isOther && "opacity-40 cursor-not-allowed",
                           )}
                         >
-                          <div className="w-11 h-11 rounded-md bg-secondary grid place-items-center overflow-hidden ring-1 ring-border">
+                          <div className="w-11 h-11 rounded-lg bg-secondary grid place-items-center overflow-hidden ring-1 ring-border">
                             {b.avatar ? (
                               <img src={b.avatar} alt={b.name} className="w-full h-full object-cover" />
                             ) : (
@@ -590,9 +590,9 @@ export function BotVsBotMatch({
         {headerExtra}
         <BotHeaderCard bot={flipped ? white : black} sideLabel={flipped ? "White" : "Black"} />
 
-        <Card className="p-5 md:p-6 bg-card min-w-0">
+        <Card className="evt-card p-5 md:p-6 bg-card min-w-0">
           <div className="flex items-center justify-between mb-4 gap-2">
-            <div className="text-sm font-medium truncate">
+            <div className="text-sm font-semibold truncate">
               {gameOver
                 ? (replayIndex === null ? statusText : `Replay · move ${replayIndex + 1}/${history.length}`)
                 : statusText}
@@ -658,25 +658,32 @@ export function BotVsBotMatch({
         <BotHeaderCard bot={flipped ? black : white} sideLabel={flipped ? "Black" : "White"} />
       </section>
 
-      <aside className="flex flex-col gap-3">
-        <Card className="bg-card p-3 flex-1 min-h-[260px]">
-          <div className="flex items-center justify-between px-1 mb-2">
-            <div className="text-sm font-semibold">Moves</div>
+      <aside className="flex flex-col gap-4">
+        <Card className="evt-card bg-card p-4 flex-1 min-h-[260px]">
+          <div className="flex items-center justify-between px-1 mb-3">
+            <div className="text-xs font-semibold uppercase tracking-wide">Moves</div>
             {gameOver && <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Click to review</div>}
           </div>
-          <div className="max-h-[480px] overflow-auto scroll-thin rounded-md">
+          <div className="max-h-[480px] overflow-auto scroll-thin rounded-lg">
             {moveRows.length === 0 ? (
-              <div className="text-xs text-muted-foreground px-2 py-4">No moves yet.</div>
+              <div className="text-xs text-muted-foreground px-3 py-6 text-center">No moves yet.</div>
             ) : (
               <table className="w-full text-sm">
+                <thead className="text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border/40">
+                  <tr>
+                    <th className="text-left px-2 py-1.5 w-8">#</th>
+                    <th className="text-left px-2 py-1.5">White</th>
+                    <th className="text-left px-2 py-1.5">Black</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {moveRows.map((r) => (
-                    <tr key={r.n} className="odd:bg-secondary/30">
-                      <td className="px-2 py-1 text-muted-foreground w-8 text-xs">{r.n}.</td>
+                    <tr key={r.n} className="odd:bg-secondary/20 hover:bg-secondary/40 transition-colors">
+                      <td className="px-2 py-1.5 text-muted-foreground w-8 text-xs font-mono">{r.n}.</td>
                       <MoveCell san={r.w} idx={r.wIdx} active={replayIndex === r.wIdx} clickable={canReplay} onClick={goTo} />
                       {r.bIdx !== undefined ? (
                         <MoveCell san={r.b!} idx={r.bIdx} active={replayIndex === r.bIdx} clickable={canReplay} onClick={goTo} muted />
-                      ) : <td className="px-2 py-1" />}
+                      ) : <td className="px-2 py-1.5" />}
                     </tr>
                   ))}
                 </tbody>
@@ -720,7 +727,7 @@ function MoveCell({
   return (
     <td
       className={cn(
-        "px-2 py-1 font-mono select-none",
+        "px-2 py-1.5 font-mono select-none text-sm",
         muted && "text-muted-foreground",
         clickable && "cursor-pointer hover:text-primary",
         active && "bg-primary/25 text-primary font-semibold rounded-sm",
@@ -733,24 +740,27 @@ function MoveCell({
 }
 
 export function BotHeaderCard({ bot, sideLabel }: { bot: BotConfig; sideLabel: string }) {
+  const isWhite = sideLabel === "White";
   return (
-    <Card className="bg-card p-3 flex items-center gap-3">
-      <div className="w-11 h-11 rounded-full bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-primary/40">
+    <Card className="evt-card bg-card p-4 flex items-center gap-4">
+      <div className="w-12 h-12 rounded-full bg-secondary grid place-items-center overflow-hidden shrink-0 ring-2 ring-primary/40">
         {bot.avatar ? (
           <img src={bot.avatar} alt={bot.name} className="w-full h-full object-cover" />
         ) : (
-          <User className="w-5 h-5 text-muted-foreground" />
+          <User className="w-6 h-6 text-muted-foreground" />
         )}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-semibold truncate inline-flex items-center gap-2">
+        <div className="text-sm font-bold truncate inline-flex items-center gap-2">
           {!isImmersiveEnabled() && <TitleBadge title={bot.title} color={bot.titleColor} size="sm" />}
           <span className="truncate">{botDisplayIdentity(bot, isImmersiveEnabled()).name}</span>
-          <span className="text-muted-foreground/70 font-normal">({bot.elo})</span>
         </div>
-        <div className="text-[11px] text-muted-foreground truncate">{bot.category}</div>
+        <div className="text-[11px] text-muted-foreground truncate mt-0.5">{bot.category} · ELO {bot.elo}</div>
       </div>
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">{sideLabel}</div>
+      <div className="flex items-center gap-2 shrink-0 px-3 py-1.5 rounded-full bg-secondary/50">
+        <span className={cn("w-3 h-3 rounded-full ring-1 ring-border", isWhite ? "bg-white" : "bg-zinc-900")} />
+        <span className="text-[11px] font-semibold uppercase tracking-wider">{sideLabel}</span>
+      </div>
     </Card>
   );
 }

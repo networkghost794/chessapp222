@@ -173,12 +173,12 @@ function BotVsBotEntry({ onBack, onPick }: { onBack: () => void; onPick: (v: Hub
     <div className="max-w-[1100px] mx-auto space-y-6">
       <div className="flex items-center justify-between gap-3">
         <header className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-md bg-primary/15 grid place-items-center ring-1 ring-primary/30">
+          <div className="w-10 h-10 rounded-lg bg-primary/15 grid place-items-center ring-1 ring-primary/30">
             <Swords className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <div className="text-xl font-bold leading-tight">Bot vs Bot</div>
-            <div className="text-xs text-muted-foreground">Choose how you want to watch.</div>
+            <div className="text-xl font-bold leading-tight tracking-tight">Bot vs Bot</div>
+            <div className="text-xs text-muted-foreground mt-0.5">Choose how you want to watch.</div>
           </div>
         </header>
         <Button variant="ghost" size="sm" onClick={onBack}>
@@ -187,13 +187,13 @@ function BotVsBotEntry({ onBack, onPick }: { onBack: () => void; onPick: (v: Hub
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="p-6 bg-card hover:border-primary/40 transition-colors flex flex-col gap-4">
-          <div className="w-11 h-11 rounded-md bg-primary/15 text-primary grid place-items-center ring-1 ring-primary/30">
+        <Card className="evt-card p-6 bg-card hover:border-primary/40 transition-colors flex flex-col gap-4">
+          <div className="w-11 h-11 rounded-lg bg-primary/15 text-primary grid place-items-center ring-1 ring-primary/30">
             <Swords className="w-6 h-6" />
           </div>
           <div>
-            <div className="text-lg font-bold">Single Match</div>
-            <div className="text-xs text-muted-foreground mt-1">
+            <div className="text-lg font-bold tracking-tight">Single Match</div>
+            <div className="text-xs text-muted-foreground mt-1 leading-relaxed">
               One-off exhibition between two bots. Includes speed control and replay.
             </div>
           </div>
@@ -202,13 +202,13 @@ function BotVsBotEntry({ onBack, onPick }: { onBack: () => void; onPick: (v: Hub
           </Button>
         </Card>
 
-        <Card className="p-6 bg-card hover:border-primary/40 transition-colors flex flex-col gap-4">
-          <div className="w-11 h-11 rounded-md bg-primary/15 text-primary grid place-items-center ring-1 ring-primary/30">
+        <Card className="evt-card p-6 bg-card hover:border-primary/40 transition-colors flex flex-col gap-4">
+          <div className="w-11 h-11 rounded-lg bg-primary/15 text-primary grid place-items-center ring-1 ring-primary/30">
             <Trophy className="w-6 h-6" />
           </div>
           <div>
-            <div className="text-lg font-bold">Tournament</div>
-            <div className="text-xs text-muted-foreground mt-1">
+            <div className="text-lg font-bold tracking-tight">Tournament</div>
+            <div className="text-xs text-muted-foreground mt-1 leading-relaxed">
               Round robin, knockout, or championship match. Watch broadcast-style, one game at a
               time.
             </div>
@@ -334,12 +334,12 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
     <div className="max-w-[1200px] mx-auto space-y-6">
       <div className="flex items-center justify-between gap-3">
         <header className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-md bg-primary/15 grid place-items-center ring-1 ring-primary/30">
+          <div className="w-10 h-10 rounded-lg bg-primary/15 grid place-items-center ring-1 ring-primary/30">
             <Trophy className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <div className="text-xl font-bold leading-tight">Create Tournament</div>
-            <div className="text-xs text-muted-foreground">Set the format and pick your bots.</div>
+            <div className="text-xl font-bold leading-tight tracking-tight">Create Tournament</div>
+            <div className="text-xs text-muted-foreground mt-0.5">Set the format and pick your bots.</div>
           </div>
         </header>
         <Button variant="ghost" size="sm" onClick={onBack}>
@@ -349,9 +349,9 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] gap-6">
         <div className="space-y-4 min-w-0">
-          <Card className="bg-card p-4 space-y-3">
+          <Card className="evt-card bg-card p-5 space-y-5">
             <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
                 Tournament Name
               </div>
               <Input
@@ -362,7 +362,7 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
             </div>
 
             <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
                 Format
               </div>
               <div className="grid grid-cols-3 gap-2">
@@ -389,26 +389,26 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
                     )}
                   >
                     <div className="text-sm font-semibold">{opt.label}</div>
-                    <div className="text-[10px] text-muted-foreground mt-0.5">{opt.sub}</div>
+                    <div className="text-[11px] text-muted-foreground mt-1 leading-snug">{opt.sub}</div>
                   </button>
                 ))}
               </div>
             </div>
 
             <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
                 Match Speed
               </div>
               <SpeedSelector value={speed} onChange={setSpeed} />
-              <div className="text-[10px] text-muted-foreground mt-1.5">
+              <div className="text-[11px] text-muted-foreground mt-2">
                 Only changes the visible pace between moves. Bot strength is unchanged.
               </div>
             </div>
           </Card>
 
           {playerProfile && (
-            <Card className="bg-card p-3 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-md bg-primary/15 grid place-items-center ring-1 ring-primary/40 overflow-hidden shrink-0">
+            <Card className="evt-card bg-card p-4 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-primary/15 grid place-items-center ring-1 ring-primary/40 overflow-hidden shrink-0">
                 {playerProfile.avatar ? (
                   <img
                     src={playerProfile.avatar}
@@ -421,7 +421,7 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold truncate">Play as yourself</div>
-                <div className="text-[11px] text-muted-foreground truncate">
+                <div className="text-[11px] text-muted-foreground truncate mt-0.5">
                   {playerProfile.name} · ELO {playerProfile.elo}
                 </div>
               </div>
@@ -447,13 +447,13 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
           />
         </div>
 
-        <aside className="space-y-3">
-          <Card className="bg-card p-4">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+        <aside className="space-y-4">
+          <Card className="evt-card bg-card p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
               Selected ({participants.length})
             </div>
             {participants.length === 0 ? (
-              <div className="text-xs text-muted-foreground py-3 text-center border border-dashed border-border/60 rounded-md">
+              <div className="text-xs text-muted-foreground py-4 text-center border border-dashed border-border/60 rounded-lg">
                 No participants yet
               </div>
             ) : (
@@ -463,7 +463,7 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
                   return (
                     <div
                       key={p.id}
-                      className="flex items-center gap-2 bg-secondary/40 rounded-md p-2"
+                      className="flex items-center gap-2 bg-secondary/40 rounded-lg p-2"
                     >
                       <ParticipantAvatar participant={p} size={28} />
                       <div className="min-w-0 flex-1">
@@ -494,21 +494,21 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
             )}
           </Card>
 
-          <Card className="bg-card p-4 space-y-2 text-xs">
-            <div className="font-semibold">Format rules</div>
+          <Card className="evt-card bg-card p-4 space-y-2 text-xs">
+            <div className="font-semibold text-sm">Format rules</div>
             {type === "round-robin" && (
-              <div className="text-muted-foreground">
+              <div className="text-muted-foreground leading-relaxed">
                 Every bot plays every other bot once. Min 3 bots. Win = 1 pt, Draw = 0.5, Loss = 0.
               </div>
             )}
             {type === "knockout" && (
-              <div className="text-muted-foreground">
+              <div className="text-muted-foreground leading-relaxed">
                 Single-elimination bracket. Loser is out; draws re-decided by higher ELO. Min 2
                 bots.
               </div>
             )}
             {type === "championship" && (
-              <div className="text-muted-foreground">
+              <div className="text-muted-foreground leading-relaxed">
                 Best of 4 games between exactly 2 bots. Colors alternate each game.
               </div>
             )}
@@ -517,12 +517,12 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
           <Button
             onClick={startTournament}
             disabled={!canStart}
-            className="w-full h-11 font-bold bg-success text-primary-foreground hover:bg-success/90"
+            className="evt-play w-full h-12 font-bold bg-success text-primary-foreground hover:bg-success/90"
           >
             <Play className="w-4 h-4 mr-1.5" /> Start Tournament
           </Button>
           {!canStart && (
-            <div className="text-[10px] text-center text-muted-foreground">
+            <div className="text-[11px] text-center text-muted-foreground">
               {type === "championship"
                 ? "Select exactly 2 bots."
                 : type === "round-robin"
@@ -679,15 +679,15 @@ function TournamentRunning({
   }, [done, type, schedule, standings, byId]);
 
   return (
-    <div className="max-w-[1500px] mx-auto space-y-4">
+    <div className="max-w-[1500px] mx-auto space-y-5">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <header className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-md bg-primary/15 grid place-items-center ring-1 ring-primary/30 shrink-0">
+          <div className="w-10 h-10 rounded-lg bg-primary/15 grid place-items-center ring-1 ring-primary/30 shrink-0">
             <Trophy className="w-5 h-5 text-primary" />
           </div>
           <div className="min-w-0">
-            <div className="text-xl font-bold leading-tight truncate">{name}</div>
-            <div className="text-xs text-muted-foreground">
+            <div className="text-xl font-bold leading-tight tracking-tight truncate">{name}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">
               {labelForType(type)} · {participants.length} players · Speed: {speed}
             </div>
           </div>
@@ -715,11 +715,11 @@ function TournamentRunning({
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6">
         <div className="min-w-0">
           {done ? (
-            <Card className="bg-card p-8 text-center space-y-4">
+            <Card className="evt-card bg-card p-10 text-center space-y-5">
               <Crown className="w-14 h-14 text-primary mx-auto" />
-              <div className="text-2xl font-black">Tournament Complete</div>
+              <div className="text-2xl font-black tracking-tight">Tournament Complete</div>
               {champion && (
-                <div className="flex flex-col items-center gap-2">
+                <div className="flex flex-col items-center gap-3">
                   <ParticipantAvatar participant={champion} size={80} />
                   <div className="text-lg font-bold inline-flex items-center gap-2">
                     {pTitle(champion).title && (
@@ -744,10 +744,10 @@ function TournamentRunning({
               </Button>
             </Card>
           ) : paused ? (
-            <Card className="bg-card p-8 text-center space-y-4">
+            <Card className="evt-card bg-card p-10 text-center space-y-5">
               <Pause className="w-12 h-12 text-primary mx-auto" />
-              <div className="text-lg font-bold">Tournament paused</div>
-              <div className="text-xs text-muted-foreground">
+              <div className="text-lg font-bold tracking-tight">Tournament paused</div>
+              <div className="text-xs text-muted-foreground leading-relaxed">
                 Review the standings and resume whenever you're ready.
               </div>
               <Button onClick={() => setPaused(false)}>
@@ -760,8 +760,8 @@ function TournamentRunning({
               const blackP = byId.get(current.blackId);
               if (!whiteP || !blackP) return null;
               const header = (
-                <Card className="bg-card p-2.5 flex items-center justify-between text-xs">
-                  <span className="font-semibold">
+                <Card className="evt-card bg-card p-3 flex items-center justify-between text-xs">
+                  <span className="font-semibold tracking-wide">
                     {labelForType(type)} · Round {current.round} · Game {currentIdx + 1} of{" "}
                     {schedule.length}
                   </span>
@@ -781,9 +781,9 @@ function TournamentRunning({
                 current.result === "white" ? "1–0" : current.result === "black" ? "0–1" : "½–½";
 
               const banner = finished ? (
-                <Card className="bg-card p-4 flex flex-wrap items-center justify-between gap-3 border-primary/40">
+                <Card className="evt-card bg-card p-4 flex flex-wrap items-center justify-between gap-3 border-primary/40">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-md bg-primary/15 grid place-items-center ring-1 ring-primary/30 shrink-0">
+                    <div className="w-9 h-9 rounded-lg bg-primary/15 grid place-items-center ring-1 ring-primary/30 shrink-0">
                       <Crown className="w-4 h-4 text-primary" />
                     </div>
                     <div className="min-w-0">
@@ -851,7 +851,7 @@ function TournamentRunning({
           ) : null}
         </div>
 
-        <aside className="space-y-3">
+        <aside className="space-y-4">
           <StandingsCard standings={standings} participants={byId} />
           <ScheduleCard schedule={schedule} participants={byId} currentIdx={currentIdx} />
         </aside>
@@ -868,20 +868,20 @@ function StandingsCard({
   participants: Map<string, Participant>;
 }) {
   return (
-    <Card className="bg-card p-3">
-      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1 mb-2">
+    <Card className="evt-card bg-card p-4">
+      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1 mb-3">
         Standings
       </div>
       <div className="overflow-auto scroll-thin max-h-[320px]">
         <table className="w-full text-xs">
-          <thead className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          <thead className="text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border/40">
             <tr>
-              <th className="text-left px-2 py-1 w-6">#</th>
-              <th className="text-left px-2 py-1">Player</th>
-              <th className="text-center px-1 py-1">W</th>
-              <th className="text-center px-1 py-1">L</th>
-              <th className="text-center px-1 py-1">D</th>
-              <th className="text-right px-2 py-1">Pts</th>
+              <th className="text-left px-2 py-1.5 w-6">#</th>
+              <th className="text-left px-2 py-1.5">Player</th>
+              <th className="text-center px-1 py-1.5">W</th>
+              <th className="text-center px-1 py-1.5">L</th>
+              <th className="text-center px-1 py-1.5">D</th>
+              <th className="text-right px-2 py-1.5">Pts</th>
             </tr>
           </thead>
           <tbody>
@@ -892,10 +892,10 @@ function StandingsCard({
               return (
                 <tr
                   key={s.botId}
-                  className={cn("odd:bg-secondary/30", p.kind === "player" && "bg-primary/10")}
+                  className={cn("hover:bg-secondary/30 transition-colors", i % 2 === 1 && "bg-secondary/20", p.kind === "player" && "bg-primary/10")}
                 >
-                  <td className="px-2 py-1 font-semibold">{i + 1}</td>
-                  <td className="px-2 py-1">
+                  <td className="px-2 py-2 font-semibold font-mono">{i + 1}</td>
+                  <td className="px-2 py-2">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <ParticipantAvatar participant={p} size={20} />
                       <span className="truncate inline-flex items-center gap-1">
@@ -907,10 +907,10 @@ function StandingsCard({
                       </span>
                     </div>
                   </td>
-                  <td className="text-center px-1 py-1">{s.wins}</td>
-                  <td className="text-center px-1 py-1">{s.losses}</td>
-                  <td className="text-center px-1 py-1">{s.draws}</td>
-                  <td className="text-right px-2 py-1 font-mono font-semibold">
+                  <td className="text-center px-1 py-2 font-mono">{s.wins}</td>
+                  <td className="text-center px-1 py-2 font-mono">{s.losses}</td>
+                  <td className="text-center px-1 py-2 font-mono">{s.draws}</td>
+                  <td className="text-right px-2 py-2 font-mono font-semibold">
                     {s.points.toFixed(1)}
                   </td>
                 </tr>
@@ -933,11 +933,11 @@ function ScheduleCard({
   currentIdx: number;
 }) {
   return (
-    <Card className="bg-card p-3">
-      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1 mb-2">
+    <Card className="evt-card bg-card p-4">
+      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1 mb-3">
         Schedule
       </div>
-      <div className="overflow-auto scroll-thin max-h-[300px] space-y-1">
+      <div className="overflow-auto scroll-thin max-h-[300px] space-y-1.5">
         {schedule.map((p, i) => {
           const w = participants.get(p.whiteId);
           const b = participants.get(p.blackId);
@@ -948,11 +948,11 @@ function ScheduleCard({
             <div
               key={i}
               className={cn(
-                "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs",
+                "flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs transition-colors",
                 isCurrent && !done ? "bg-primary/15 ring-1 ring-primary/40" : "bg-secondary/30",
               )}
             >
-              <span className="text-[10px] text-muted-foreground w-8 shrink-0">
+              <span className="text-[10px] text-muted-foreground w-10 shrink-0 font-mono">
                 R{p.round}·{i + 1}
               </span>
               <span
@@ -1033,8 +1033,8 @@ function MultiBotPicker({
 }) {
   const atMax = max != null && selectedIds.length >= max;
   return (
-    <Card className="bg-card p-3">
-      <div className="flex items-center justify-between px-1 mb-2">
+    <Card className="evt-card bg-card p-4">
+      <div className="flex items-center justify-between px-1 mb-3">
         <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Bot Library
         </div>
@@ -1069,7 +1069,7 @@ function MultiBotPicker({
                           disabled={disabled}
                           onClick={() => onToggle(b.id)}
                           className={cn(
-                            "flex items-center gap-2 rounded-lg p-2 transition-colors border text-left min-w-0",
+                            "flex items-center gap-2 rounded-xl p-2.5 transition-colors border text-left min-w-0",
                             isMe
                               ? "bg-primary/15 border-primary/40"
                               : "bg-secondary/30 hover:bg-secondary/60 border-transparent",
@@ -1084,7 +1084,7 @@ function MultiBotPicker({
                               )}
                               <span className="truncate">{botDisplayIdentity(b, isImmersiveEnabled()).name}</span>
                             </div>
-                            <div className="text-[10px] text-muted-foreground">ELO {b.elo}</div>
+                            <div className="text-[10px] text-muted-foreground mt-0.5">ELO {b.elo}</div>
                           </div>
                           {isMe && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
                         </button>
