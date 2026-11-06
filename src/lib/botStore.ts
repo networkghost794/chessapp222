@@ -115,8 +115,11 @@ export const defaultErrorRules = (): ErrorRules => ({
 /** Opening book settings (Polyglot .bin). */
 export type OpeningConfig = {
   enabled: boolean;
-  bookBin?: string;        // base64
+  bookBin?: string;        // base64 (legacy, small books only)
   bookName?: string;
+  /** Public URL of the .bin stored in file storage (preferred). */
+  bookUrl?: string;
+  bookSize?: number;
   /** Selection mode — proportional random by Polyglot weights. */
   mode: "proportional";
   /** 0–100 — how strongly book moves are preferred INSIDE the existing
@@ -135,7 +138,18 @@ export const defaultOpening = (): OpeningConfig => ({
 // Decoded book cache — keyed by bot id + book name + size, so the base64
 // payload is decoded exactly once per session instead of every move.
 const bookCache = new Map<string, Uint8Array>();
-function getBookBytes(bot: BotConfig): Uint8Array | null {
+async function getBookBytes(bot: BotConfig): Promise<Uint8Array | null> {
+  const url = bot.opening.bookUrl;
+  if (url) {
+    let bytes = bookCache.get(url);
+    if (!bytes) {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      bytes = new Uint8Array(await res.arrayBuffer());
+      bookCache.set(url, bytes);
+    }
+    return bytes;
+  }
   const b64 = bot.opening.bookBin;
   if (!b64) return null;
   const key = `${bot.id}|${bot.opening.bookName ?? ""}|${b64.length}`;
@@ -335,6 +349,8 @@ function rowToBot(r: Record<string, unknown>): BotConfig {
       enabled: !!op.enabled,
       bookBin: op.bookBin ? String(op.bookBin) : undefined,
       bookName: op.bookName ? String(op.bookName) : undefined,
+      bookUrl: op.bookUrl ? String(op.bookUrl) : undefined,
+      bookSize: op.bookSize ? Number(op.bookSize) : undefined,
       mode: "proportional",
       influence: typeof op.influence === "number" ? op.influence : 70,
       maxBookDepth: typeof op.maxBookDepth === "number" ? op.maxBookDepth : 22,
@@ -516,6 +532,30 @@ export async function updateBot(id: string, input: BotPublishInput): Promise<Bot
   return data ? rowToBot(data) : null;
 }
 
+/** Upload a compiled Polyglot book to file storage and return its public URL. */
+export async function uploadBookFile(bytes: Uint8Array, name: string): Promise<string> {
+  const { data: userData } = await supabase.auth.getUser();
+  const uid = userData.user?.id;
+  if (!uid) throw new Error("Sign in required to save books");
+  const safe = name.replace(/[^a-z0-9._-]/gi, "_");
+  const path = `${uid}/books/${Date.now()}-${safe}`;
+  const blob = new Blob([bytes], { type: "application/octet-stream" });
+  const { error } = await supabase.storage.from("bot-avatars").upload(path, blob, { upsert: false, contentType: "application/octet-stream" });
+  if (error) throw new Error(`Book upload failed: ${error.message}`);
+  return supabase.storage.from("bot-avatars").getPublicUrl(path).data.publicUrl;
+}
+
+/** Build a full update input from an existing bot plus overrides. */
+export function botToInput(b: BotConfig, patch: Partial<BotPublishInput> = {}): BotPublishInput {
+  return {
+    name: b.name, elo: b.elo, avatarDataUrl: undefined, quote: b.quote, category: b.category,
+    dialogueLines: b.dialogueLines, middlegame: b.middlegame, endgame: b.endgame, opening: b.opening,
+    errorRules: b.errorRules, endgameTrigger: b.endgameTrigger, bucketMap: b.bucketMap,
+    humanMistake: b.humanMistake, title: b.title ?? null, titleColor: b.titleColor ?? null,
+    country: b.country ?? null, thinking: b.thinking, engine: b.engine, ...patch,
+  };
+}
+
 export async function deleteBot(id: string) {
   await supabase.from("custom_bots").delete().eq("id", id);
   if (getActiveBotId() === id) setActiveBotId(null);
@@ -679,9 +719,9 @@ export async function chooseBotMove(
   // preference inside the existing strength → personality → mistake
   // pipeline below. Map: uci → normalised weight share (0..1).
   let bookShares: Map<string, number> | null = null;
-  if (bot?.opening.enabled && bot.opening.bookBin && game.history().length < (bot.opening.maxBookDepth ?? 22)) {
+  if (bot?.opening.enabled && (bot.opening.bookBin || bot.opening.bookUrl) && game.history().length < (bot.opening.maxBookDepth ?? 22)) {
     try {
-      const book = getBookBytes(bot);
+      const book = await getBookBytes(bot);
       if (book) {
         const entries = lookupPolyglot(book, polyglotHash(game));
         const legalEntries: { uci: string; w: number }[] = [];
