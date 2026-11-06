@@ -539,7 +539,7 @@ export async function uploadBookFile(bytes: Uint8Array, name: string): Promise<s
   if (!uid) throw new Error("Sign in required to save books");
   const safe = name.replace(/[^a-z0-9._-]/gi, "_");
   const path = `${uid}/books/${Date.now()}-${safe}`;
-  const blob = new Blob([bytes], { type: "application/octet-stream" });
+  const blob = new Blob([bytes as BlobPart], { type: "application/octet-stream" });
   const { error } = await supabase.storage.from("bot-avatars").upload(path, blob, { upsert: false, contentType: "application/octet-stream" });
   if (error) throw new Error(`Book upload failed: ${error.message}`);
   return supabase.storage.from("bot-avatars").getPublicUrl(path).data.publicUrl;

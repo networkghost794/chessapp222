@@ -85,7 +85,7 @@ export function OpeningLab() {
 
   const download = () => {
     if (!lab) return;
-    const url = URL.createObjectURL(new Blob([lab.book], { type: "application/octet-stream" }));
+    const url = URL.createObjectURL(new Blob([lab.book as BlobPart], { type: "application/octet-stream" }));
     const a = document.createElement("a"); a.href = url; a.download = bookName; a.click(); URL.revokeObjectURL(url);
   };
 
