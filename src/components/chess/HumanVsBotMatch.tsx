@@ -7,11 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Flag, FlipHorizontal2, User } from "lucide-react";
 import { TitleBadge } from "./ChessApp";
 import { cn } from "@/lib/utils";
-import {
-  chooseBotMove,
-  pickThinkingDelayMs,
-  type BotConfig,
-} from "@/lib/botStore";
+import { chooseBotMove, pickThinkingDelayMs, type BotConfig } from "@/lib/botStore";
 import { playMoveResultSound } from "@/lib/sounds";
 import type { MatchResult } from "./BotVsBotMode";
 import { SimulatorLegend } from "./SimulatorLegend";
@@ -64,13 +60,18 @@ export function HumanVsBotMatch({
   const force = useCallback(() => setTick((t) => t + 1), []);
   const finishedRef = useRef(false);
 
-
   const requestBotMove = useCallback(async () => {
-    if (game.isGameOver()) { setPending(false); return; }
+    if (game.isGameOver()) {
+      setPending(false);
+      return;
+    }
     const startedAt = Date.now();
     try {
       const result = await chooseBotMove(game, bot);
-      if (!result) { setPending(false); return; }
+      if (!result) {
+        setPending(false);
+        return;
+      }
       const targetMs = pickThinkingDelayMs(bot);
       const elapsed = Date.now() - startedAt;
       if (elapsed < targetMs) await new Promise((r) => setTimeout(r, targetMs - elapsed));
@@ -131,7 +132,10 @@ export function HumanVsBotMatch({
         (m) => m.to === to,
       );
       if (!legal) return false;
-      if (isPromotion) { setPromotion({ from, to }); return true; }
+      if (isPromotion) {
+        setPromotion({ from, to });
+        return true;
+      }
       return finishMove(from, to);
     },
     [game, pending, resigned, playerColor, finishMove],
@@ -174,13 +178,16 @@ export function HumanVsBotMatch({
       const bestKey = Object.entries(res.byMove).find(([, v]) => v === "purple")?.[0] ?? null;
       setBestFrom(bestKey ? bestKey.slice(0, 2) : null);
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [perspectiveRating, pending, resigned, history.length, playerColor]);
 
   const moveRows = useMemo(() => {
     const rows: Array<{ n: number; w: string; b?: string }> = [];
-    for (let i = 0; i < history.length; i += 2) rows.push({ n: i / 2 + 1, w: history[i], b: history[i + 1] });
+    for (let i = 0; i < history.length; i += 2)
+      rows.push({ n: i / 2 + 1, w: history[i], b: history[i + 1] });
     return rows;
   }, [history]);
 
@@ -188,7 +195,8 @@ export function HumanVsBotMatch({
     if (game.isCheckmate()) return `Checkmate — ${game.turn() === "w" ? botId.name : "You"} loses`;
     if (game.isDraw()) return "Draw";
     if (resigned) return "You resigned";
-    if (game.inCheck()) return `${game.turn() === playerColor ? "You are" : botId.name + " is"} in check`;
+    if (game.inCheck())
+      return `${game.turn() === playerColor ? "You are" : botId.name + " is"} in check`;
     return `${game.turn() === playerColor ? "Your" : botId.name + "'s"} move`;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [history.length, game, botId.name, playerColor, resigned]);
@@ -276,7 +284,10 @@ export function HumanVsBotMatch({
         open={!!promotion}
         color={playerColor}
         onSelect={(p) => {
-          if (promotion) { finishMove(promotion.from, promotion.to, p); setPromotion(null); }
+          if (promotion) {
+            finishMove(promotion.from, promotion.to, p);
+            setPromotion(null);
+          }
         }}
       />
     </div>
@@ -314,7 +325,9 @@ function ParticipantHeader({
           <span className="text-muted-foreground/70 font-normal">({elo})</span>
         </div>
       </div>
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">{side}</div>
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">
+        {side}
+      </div>
     </Card>
   );
 }

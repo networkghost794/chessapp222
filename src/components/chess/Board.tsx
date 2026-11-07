@@ -23,7 +23,6 @@ interface BoardProps {
   bestFrom?: string | null;
 }
 
-
 type DragState = {
   from: Square;
   // pointer position in board-local px
@@ -36,7 +35,15 @@ type DragState = {
   moved: boolean;
 };
 
-export function Board({ game, flipped, disabled, lastMove, onAttemptMove, indicators, bestFrom }: BoardProps) {
+export function Board({
+  game,
+  flipped,
+  disabled,
+  lastMove,
+  onAttemptMove,
+  indicators,
+  bestFrom,
+}: BoardProps) {
   const [settings] = useSettings();
   const animEnabled = settings.animations;
   const [selected, setSelected] = useState<Square | null>(null);
@@ -70,11 +77,17 @@ export function Board({ game, flipped, disabled, lastMove, onAttemptMove, indica
   const mate = useMemo(() => {
     if (!game.isCheckmate()) return null;
     const loser = game.turn();
-    let lose: Square | null = null, win: Square | null = null;
-    for (const rank of RANKS) for (const file of FILES) {
-      const sq = (file + rank) as Square; const p = game.get(sq);
-      if (p?.type === "k") { if (p.color === loser) lose = sq; else win = sq; }
-    }
+    let lose: Square | null = null,
+      win: Square | null = null;
+    for (const rank of RANKS)
+      for (const file of FILES) {
+        const sq = (file + rank) as Square;
+        const p = game.get(sq);
+        if (p?.type === "k") {
+          if (p.color === loser) lose = sq;
+          else win = sq;
+        }
+      }
     return { lose, win };
   }, [game, game.fen()]);
 
@@ -202,9 +215,7 @@ export function Board({ game, flipped, disabled, lastMove, onAttemptMove, indica
                   isDark ? "bg-board-dark" : "bg-board-light",
                 )}
               >
-                {(isLastFrom || isLastTo) && (
-                  <div className="absolute inset-0 bg-board-move" />
-                )}
+                {(isLastFrom || isLastTo) && <div className="absolute inset-0 bg-board-move" />}
                 {isSelected && <div className="absolute inset-0 bg-board-highlight" />}
                 {isCheck && <div className="absolute inset-0 bg-board-check" />}
                 {bestFrom === sq && (
@@ -212,30 +223,51 @@ export function Board({ game, flipped, disabled, lastMove, onAttemptMove, indica
                 )}
                 {mate?.lose === sq && (
                   <span className="absolute top-[3%] right-[3%] w-[30%] h-[30%] rounded-full bg-destructive grid place-items-center z-20 shadow-md ring-2 ring-background/70 anim-badge-pop pointer-events-none">
-                    <svg viewBox="0 0 24 24" className="w-[70%] h-[70%]" fill="var(--destructive-foreground)"><path d="M11 2h2v2h2v2h-2v2.2a4 4 0 0 1 3 3.8l-1 7H9l-1-7a4 4 0 0 1 3-3.8V6H9V4h2z" transform="rotate(90 12 12)"/></svg>
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="w-[70%] h-[70%]"
+                      fill="var(--destructive-foreground)"
+                    >
+                      <path
+                        d="M11 2h2v2h2v2h-2v2.2a4 4 0 0 1 3 3.8l-1 7H9l-1-7a4 4 0 0 1 3-3.8V6H9V4h2z"
+                        transform="rotate(90 12 12)"
+                      />
+                    </svg>
                   </span>
                 )}
                 {mate?.win === sq && (
                   <span className="absolute top-[3%] right-[3%] w-[30%] h-[30%] rounded-full bg-success grid place-items-center z-20 shadow-md ring-2 ring-background/70 anim-badge-pop pointer-events-none">
-                    <svg viewBox="0 0 24 24" className="w-[68%] h-[68%]" fill="var(--primary-foreground)"><path d="M3 7l4.5 4L12 4l4.5 7L21 7l-2 11H5z"/></svg>
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="w-[68%] h-[68%]"
+                      fill="var(--primary-foreground)"
+                    >
+                      <path d="M3 7l4.5 4L12 4l4.5 7L21 7l-2 11H5z" />
+                    </svg>
                   </span>
                 )}
-                {isDragOver && <div className="absolute inset-0 ring-4 ring-primary/70 ring-inset" />}
+                {isDragOver && (
+                  <div className="absolute inset-0 ring-4 ring-primary/70 ring-inset" />
+                )}
 
                 {/* coord labels */}
                 {fIdx === 0 && (
-                  <span className={cn(
-                    "absolute top-0.5 left-1 text-[10px] font-semibold pointer-events-none",
-                    isDark ? "text-board-light" : "text-board-dark",
-                  )}>
+                  <span
+                    className={cn(
+                      "absolute top-0.5 left-1 text-[10px] font-semibold pointer-events-none",
+                      isDark ? "text-board-light" : "text-board-dark",
+                    )}
+                  >
                     {rank}
                   </span>
                 )}
                 {rIdx === 7 && (
-                  <span className={cn(
-                    "absolute bottom-0.5 right-1 text-[10px] font-semibold pointer-events-none",
-                    isDark ? "text-board-light" : "text-board-dark",
-                  )}>
+                  <span
+                    className={cn(
+                      "absolute bottom-0.5 right-1 text-[10px] font-semibold pointer-events-none",
+                      isDark ? "text-board-light" : "text-board-dark",
+                    )}
+                  >
                     {file}
                   </span>
                 )}
@@ -279,7 +311,12 @@ export function Board({ game, flipped, disabled, lastMove, onAttemptMove, indica
                 {/* Empty placeholder while source piece is being dragged (keeps square selectable) */}
                 {piece && isDragSource && (
                   <div className="w-[88%] h-[88%] opacity-30">
-                    <PieceImg color={piece.color} type={piece.type} draggable={false} className="w-full h-full" />
+                    <PieceImg
+                      color={piece.color}
+                      type={piece.type}
+                      draggable={false}
+                      className="w-full h-full"
+                    />
                   </div>
                 )}
               </div>
@@ -288,27 +325,33 @@ export function Board({ game, flipped, disabled, lastMove, onAttemptMove, indica
         )}
 
         {/* Floating dragged piece overlay */}
-        {drag && (() => {
-          const piece = game.get(drag.from);
-          if (!piece) return null;
-          return (
-            <div
-              className="absolute pointer-events-none z-50"
-              style={{
-                left: drag.x - drag.size / 2,
-                top: drag.y - drag.size / 2,
-                width: drag.size,
-                height: drag.size,
-                transform: "scale(1.15)",
-                transformOrigin: "center",
-                filter: "drop-shadow(0 8px 14px rgba(0,0,0,0.45))",
-                willChange: "left, top",
-              }}
-            >
-              <PieceImg color={piece.color} type={piece.type} draggable={false} className="w-full h-full" />
-            </div>
-          );
-        })()}
+        {drag &&
+          (() => {
+            const piece = game.get(drag.from);
+            if (!piece) return null;
+            return (
+              <div
+                className="absolute pointer-events-none z-50"
+                style={{
+                  left: drag.x - drag.size / 2,
+                  top: drag.y - drag.size / 2,
+                  width: drag.size,
+                  height: drag.size,
+                  transform: "scale(1.15)",
+                  transformOrigin: "center",
+                  filter: "drop-shadow(0 8px 14px rgba(0,0,0,0.45))",
+                  willChange: "left, top",
+                }}
+              >
+                <PieceImg
+                  color={piece.color}
+                  type={piece.type}
+                  draggable={false}
+                  className="w-full h-full"
+                />
+              </div>
+            );
+          })()}
       </div>
     </div>
   );

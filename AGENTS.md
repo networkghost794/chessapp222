@@ -1,2 +1,1 @@
-
 - Bot engine is Stockfish 18 Lite NNUE (single-thread WASM) served from public/engine/; v10 CDN asm.js is only a load-failure fallback. Why: no COOP/COEP headers needed and the full 113MB net is too large.

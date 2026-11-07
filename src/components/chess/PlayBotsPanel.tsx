@@ -5,8 +5,13 @@ import { useAuth } from "@/lib/useAuth";
 import { cn } from "@/lib/utils";
 import { botDisplayIdentity, useImmersive } from "@/lib/immersive";
 import {
-  loadBots, subscribeBots, getActiveBotId, setActiveBotId, deleteBot,
-  type BotConfig, type BotCategory,
+  loadBots,
+  subscribeBots,
+  getActiveBotId,
+  setActiveBotId,
+  deleteBot,
+  type BotConfig,
+  type BotCategory,
 } from "@/lib/botStore";
 import { useUiSettings, visibleTiers, label } from "@/lib/appSettings";
 
@@ -14,8 +19,14 @@ export type SideChoice = "white" | "black" | "random";
 
 /** Chess.com-style bot picker: showcase portrait, tier accordions, 5-col grid, win crowns. */
 export function PlayBotsPanel({
-  colorChoice, setColorChoice, onPlay,
-}: { colorChoice: SideChoice; setColorChoice: (c: SideChoice) => void; onPlay: () => void }) {
+  colorChoice,
+  setColorChoice,
+  onPlay,
+}: {
+  colorChoice: SideChoice;
+  setColorChoice: (c: SideChoice) => void;
+  onPlay: () => void;
+}) {
   const { user, isOwner } = useAuth();
   const [immersive] = useImmersive();
   const [bots, setBots] = useState<BotConfig[]>([]);
@@ -26,14 +37,21 @@ export function PlayBotsPanel({
   const [beaten, setBeaten] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    const refresh = () => { setBots(loadBots()); setActive(getActiveBotId()); };
+    const refresh = () => {
+      setBots(loadBots());
+      setActive(getActiveBotId());
+    };
     refresh();
     return subscribeBots(refresh);
   }, []);
 
   useEffect(() => {
     if (!user) return;
-    supabase.from("bot_stats").select("bot_id,wins").eq("user_id", user.id).gt("wins", 0)
+    supabase
+      .from("bot_stats")
+      .select("bot_id,wins")
+      .eq("user_id", user.id)
+      .gt("wins", 0)
       .then(({ data }) => setBeaten(new Set((data ?? []).map((r) => String(r.bot_id)))));
   }, [user]);
 
@@ -45,7 +63,10 @@ export function PlayBotsPanel({
     setOpen(active?.category ?? bots[0].category);
   }, [bots, active, open]);
 
-  const pick = (b: BotConfig) => { setActiveBotId(b.id); setActive(b.id); };
+  const pick = (b: BotConfig) => {
+    setActiveBotId(b.id);
+    setActive(b.id);
+  };
   const ident = active ? botDisplayIdentity(active, immersive) : null;
 
   return (
@@ -60,27 +81,43 @@ export function PlayBotsPanel({
         {active ? (
           <>
             <div className="h-[168px] max-w-[220px] flex items-end">
-              {active.avatar
-                ? <img src={active.avatar} alt={active.name} className="h-full w-auto max-w-full object-contain object-bottom drop-shadow-[0_8px_14px_rgba(0,0,0,0.4)]" />
-                : <User className="h-full w-auto text-muted-foreground/60" />}
+              {active.avatar ? (
+                <img
+                  src={active.avatar}
+                  alt={active.name}
+                  className="h-full w-auto max-w-full object-contain object-bottom drop-shadow-[0_8px_14px_rgba(0,0,0,0.4)]"
+                />
+              ) : (
+                <User className="h-full w-auto text-muted-foreground/60" />
+              )}
             </div>
             <div className="mt-2 flex items-center gap-2 flex-wrap">
               <span className="font-bold text-lg">{ident?.name}</span>
               <span className="text-muted-foreground">{active.elo}</span>
-              {active.country && !immersive && <span className="text-lg leading-none">{active.country}</span>}
-              {beaten.has(active.id) && <Crown className="w-4 h-4 text-[color:var(--sim-ok)] fill-current" />}
+              {active.country && !immersive && (
+                <span className="text-lg leading-none">{active.country}</span>
+              )}
+              {beaten.has(active.id) && (
+                <Crown className="w-4 h-4 text-[color:var(--sim-ok)] fill-current" />
+              )}
             </div>
-            {active.quote && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">“{active.quote}”</p>}
+            {active.quote && (
+              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">“{active.quote}”</p>
+            )}
           </>
         ) : (
-          <div className="text-sm text-muted-foreground py-8 text-center">{label(ui, "playBots.empty")}</div>
+          <div className="text-sm text-muted-foreground py-8 text-center">
+            {label(ui, "playBots.empty")}
+          </div>
         )}
       </div>
 
       {/* Tiers */}
       <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-2">
         {tiers.map((section) => {
-          const list = bots.filter((b) => b.category === section.value).sort((a, b) => a.orderIndex - b.orderIndex);
+          const list = bots
+            .filter((b) => b.category === section.value)
+            .sort((a, b) => a.orderIndex - b.orderIndex);
           const isOpen = open === section.value;
           const cover = list[0]?.avatar;
           return (
@@ -92,15 +129,24 @@ export function PlayBotsPanel({
               >
                 {!isOpen && (
                   <span className="h-9 w-9 shrink-0">
-                    {cover ? <img src={cover} alt="" className="h-full w-full object-contain" /> : null}
+                    {cover ? (
+                      <img src={cover} alt="" className="h-full w-full object-contain" />
+                    ) : null}
                   </span>
                 )}
                 <span className="font-bold flex-1">{section.label}</span>
                 <span className="text-xs text-muted-foreground">{list.length} bots</span>
               </button>
               {isOpen && (
-                <div className="grid gap-2 px-3 pb-3" style={{ gridTemplateColumns: `repeat(${ui.gridColumns}, minmax(0, 1fr))` }}>
-                  {list.length === 0 && <div className="col-span-full text-xs text-muted-foreground py-2">No bots yet.</div>}
+                <div
+                  className="grid gap-2 px-3 pb-3"
+                  style={{ gridTemplateColumns: `repeat(${ui.gridColumns}, minmax(0, 1fr))` }}
+                >
+                  {list.length === 0 && (
+                    <div className="col-span-full text-xs text-muted-foreground py-2">
+                      No bots yet.
+                    </div>
+                  )}
                   {list.map((b) => {
                     const sel = b.id === activeId;
                     return (
@@ -108,23 +154,31 @@ export function PlayBotsPanel({
                         key={b.id}
                         type="button"
                         onClick={() => pick(b)}
-                        onDoubleClick={() => { pick(b); onPlay(); }}
+                        onDoubleClick={() => {
+                          pick(b);
+                          onPlay();
+                        }}
                         title={`${botDisplayIdentity(b, immersive).name} (${b.elo})`}
                         className={cn(
                           "group relative aspect-square rounded-md bg-background/40 overflow-hidden ring-2 transition",
                           sel ? "ring-success" : "ring-transparent hover:ring-border",
                         )}
                       >
-                        {b.avatar
-                          ? <img src={b.avatar} alt={b.name} className="h-full w-full object-cover" />
-                          : <User className="w-1/2 h-1/2 m-auto mt-[25%] text-muted-foreground" />}
+                        {b.avatar ? (
+                          <img src={b.avatar} alt={b.name} className="h-full w-full object-cover" />
+                        ) : (
+                          <User className="w-1/2 h-1/2 m-auto mt-[25%] text-muted-foreground" />
+                        )}
                         {beaten.has(b.id) && (
                           <Crown className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-4 h-4 text-[color:var(--sim-ok)] fill-current drop-shadow" />
                         )}
                         {isOwner && (
                           <span
                             role="button"
-                            onClick={(e) => { e.stopPropagation(); if (confirm(`Delete ${b.name}?`)) deleteBot(b.id); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(`Delete ${b.name}?`)) deleteBot(b.id);
+                            }}
                             className="absolute top-0.5 right-0.5 hidden group-hover:grid place-items-center h-5 w-5 rounded bg-background/80"
                           >
                             <Trash2 className="w-3 h-3" />
@@ -143,18 +197,20 @@ export function PlayBotsPanel({
       {/* Launch bar */}
       <div className="border-t border-border/60 p-3 space-y-2 bg-secondary/20">
         <div className="grid grid-cols-3 gap-1.5">
-          {([
+          {[
             { v: "white" as const, label: "White" },
             { v: "random" as const, label: "Random" },
             { v: "black" as const, label: "Black" },
-          ]).map((o) => (
+          ].map((o) => (
             <button
               key={o.v}
               type="button"
               onClick={() => setColorChoice(o.v)}
               className={cn(
                 "text-xs font-semibold py-2 rounded-md border transition-colors",
-                colorChoice === o.v ? "bg-success/15 border-success text-success" : "bg-secondary/40 border-border/60 text-muted-foreground hover:bg-secondary",
+                colorChoice === o.v
+                  ? "bg-success/15 border-success text-success"
+                  : "bg-secondary/40 border-border/60 text-muted-foreground hover:bg-secondary",
               )}
             >
               {o.label}

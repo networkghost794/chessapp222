@@ -3,12 +3,23 @@ import { POLY_KEYS } from "./polyglotKeys";
 
 // Polyglot piece order: bp=0, wp=1, bn=2, wn=3, bb=4, wb=5, br=6, wr=7, bq=8, wq=9, bk=10, wk=11
 const PIECE_OFFSET: Record<string, number> = {
-  bp: 0, wp: 1, bn: 2, wn: 3, bb: 4, wb: 5, br: 6, wr: 7, bq: 8, wq: 9, bk: 10, wk: 11,
+  bp: 0,
+  wp: 1,
+  bn: 2,
+  wn: 3,
+  bb: 4,
+  wb: 5,
+  br: 6,
+  wr: 7,
+  bq: 8,
+  wq: 9,
+  bk: 10,
+  wk: 11,
 };
-const RANDOM_PIECE = 0;          // 768 entries (12 * 64)
-const RANDOM_CASTLE = 768;        // 4 entries: K Q k q
-const RANDOM_ENPASSANT = 772;     // 8 entries: files a..h
-const RANDOM_TURN = 780;          // 1 entry
+const RANDOM_PIECE = 0; // 768 entries (12 * 64)
+const RANDOM_CASTLE = 768; // 4 entries: K Q k q
+const RANDOM_ENPASSANT = 772; // 8 entries: files a..h
+const RANDOM_TURN = 780; // 1 entry
 
 const MASK64 = (1n << 64n) - 1n;
 
@@ -51,9 +62,10 @@ export function polyglotHash(game: Chess): bigint {
       if (ff < 0 || ff > 7) continue;
       const r = 8 - pawnRank; // row index
       const sq = game.board()[r]?.[ff];
-      if (sq && (sq.color === turn) && sq.type === "p") canCapture = true;
+      if (sq && sq.color === turn && sq.type === "p") canCapture = true;
     }
-    void ourPawn; void epRow;
+    void ourPawn;
+    void epRow;
     if (canCapture) key ^= POLY_KEYS[RANDOM_ENPASSANT + file];
   }
 
@@ -69,7 +81,8 @@ export function lookupPolyglot(book: Uint8Array, key: bigint): PolyEntry[] {
   // 16-byte entries sorted by key. Binary search.
   const n = Math.floor(book.length / 16);
   const dv = new DataView(book.buffer, book.byteOffset, book.byteLength);
-  let lo = 0, hi = n;
+  let lo = 0,
+    hi = n;
   while (lo < hi) {
     const mid = (lo + hi) >>> 1;
     const k = dv.getBigUint64(mid * 16, false);
@@ -97,7 +110,7 @@ export function polyglotMoveToUci(game: Chess, mv: number): string {
   const fromRow = (mv >> 9) & 0b111;
   const promo = (mv >> 12) & 0b111;
   const sq = (f: number, r: number) => String.fromCharCode(97 + f) + (r + 1);
-  let from = sq(fromFile, fromRow);
+  const from = sq(fromFile, fromRow);
   let to = sq(toFile, toRow);
   // Castling fixups (polyglot encodes king-takes-rook)
   const piece = game.get(from as Parameters<Chess["get"]>[0]);

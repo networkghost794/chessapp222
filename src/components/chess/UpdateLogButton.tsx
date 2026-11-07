@@ -57,7 +57,9 @@ export function UpdateLogButton() {
 
       if (!cancelled) setHasUnseen(!seen);
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [user, loading]);
 
   const handleOpen = async () => {

@@ -54,7 +54,9 @@ export function UpdatesPopup() {
         setOpen(true);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [user, loading]);
 
   const dismiss = async () => {
@@ -68,7 +70,12 @@ export function UpdatesPopup() {
 
   if (!update) return null;
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) dismiss(); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) dismiss();
+      }}
+    >
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -85,7 +92,9 @@ export function UpdatesPopup() {
           {update.content}
         </div>
         <DialogFooter>
-          <Button onClick={dismiss} className="bg-primary text-primary-foreground">OK</Button>
+          <Button onClick={dismiss} className="bg-primary text-primary-foreground">
+            OK
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -1,0 +1,8 @@
+{
+  "name": "Chess App",
+  "description": "Interactive chess platform featuring custom bot personalities, Stockfish 18 engine, opening lab, placement tests, and live match analytics.",
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ],
+  "permissions": []
+}

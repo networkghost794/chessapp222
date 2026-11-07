@@ -35,7 +35,12 @@ export const LABEL_DEFAULTS: Record<string, string> = {
 };
 
 const DEFAULTS: UiSettings = {
-  tierLabels: {}, tierOrder: BOT_CATEGORIES.map((c) => c.value), hiddenTiers: [], gridColumns: 5, labels: {}, eventTheme: "none",
+  tierLabels: {},
+  tierOrder: BOT_CATEGORIES.map((c) => c.value),
+  hiddenTiers: [],
+  gridColumns: 5,
+  labels: {},
+  eventTheme: "none",
 };
 
 let cache: UiSettings = DEFAULTS;
@@ -58,7 +63,11 @@ function normalize(v: Partial<UiSettings> | null | undefined): UiSettings {
 }
 
 export async function refreshUiSettings(): Promise<UiSettings> {
-  const { data } = await supabase.from("app_settings").select("value").eq("key", "ui").maybeSingle();
+  const { data } = await supabase
+    .from("app_settings")
+    .select("value")
+    .eq("key", "ui")
+    .maybeSingle();
   cache = normalize(data?.value as Partial<UiSettings> | undefined);
   loaded = true;
   emit();
@@ -66,7 +75,8 @@ export async function refreshUiSettings(): Promise<UiSettings> {
 }
 
 export async function saveUiSettings(next: UiSettings): Promise<string | null> {
-  const { error } = await supabase.from("app_settings")
+  const { error } = await supabase
+    .from("app_settings")
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .upsert({ key: "ui", value: next as any, updated_at: new Date().toISOString() });
   if (error) return error.message;
@@ -82,7 +92,9 @@ export function useUiSettings(): UiSettings {
     subs.add(f);
     if (!loaded) refreshUiSettings();
     else f();
-    return () => { subs.delete(f); };
+    return () => {
+      subs.delete(f);
+    };
   }, []);
   return s;
 }
@@ -91,7 +103,10 @@ export function useUiSettings(): UiSettings {
 export function visibleTiers(s: UiSettings) {
   return s.tierOrder
     .filter((c) => !s.hiddenTiers.includes(c))
-    .map((c) => ({ value: c, label: s.tierLabels[c]?.trim() || BOT_CATEGORIES.find((x) => x.value === c)!.label }));
+    .map((c) => ({
+      value: c,
+      label: s.tierLabels[c]?.trim() || BOT_CATEGORIES.find((x) => x.value === c)!.label,
+    }));
 }
 
 export function label(s: UiSettings, key: string): string {

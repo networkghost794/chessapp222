@@ -16,7 +16,10 @@ export const Route = createFileRoute("/studio")({
   head: () => ({
     meta: [
       { title: "Studio — BotBoard" },
-      { name: "description", content: "Private workspace for managing BotBoard bots and settings." },
+      {
+        name: "description",
+        content: "Private workspace for managing BotBoard bots and settings.",
+      },
       { name: "robots", content: "noindex, nofollow" },
       { property: "og:title", content: "Studio — BotBoard" },
       { property: "og:description", content: "Private BotBoard workspace." },
@@ -33,7 +36,9 @@ function NotFound() {
       <div>
         <div className="text-6xl font-black text-muted-foreground/40">404</div>
         <div className="mt-2 text-sm text-muted-foreground">Page not found</div>
-        <Link to="/" className="mt-6 inline-block text-sm text-primary hover:underline">Go home</Link>
+        <Link to="/" className="mt-6 inline-block text-sm text-primary hover:underline">
+          Go home
+        </Link>
       </div>
     </div>
   );
@@ -41,10 +46,16 @@ function NotFound() {
 
 function StudioGate() {
   const { user, isOwner, loading } = useAuth();
-  const [tab, setTab] = useState<"workshop" | "builder" | "openings" | "verify" | "updates" | "customize">("workshop");
+  const [tab, setTab] = useState<
+    "workshop" | "builder" | "openings" | "verify" | "updates" | "customize"
+  >("workshop");
   const [editRequest, setEditRequest] = useState<{ id: string; n: number } | null>(null);
   if (loading) {
-    return <div className="min-h-screen grid place-items-center text-sm text-muted-foreground">Loading…</div>;
+    return (
+      <div className="min-h-screen grid place-items-center text-sm text-muted-foreground">
+        Loading…
+      </div>
+    );
   }
   if (!user || !isOwner) return <NotFound />;
   return (
@@ -60,31 +71,63 @@ function StudioGate() {
               <div className="text-[10px] text-muted-foreground">Owner workspace</div>
             </div>
           </div>
-          <Link to="/" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
+          <Link
+            to="/"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+          >
             <ArrowLeft className="w-3.5 h-3.5" /> Back to Arena
           </Link>
         </div>
       </header>
       <div className="max-w-[1400px] mx-auto px-4 pt-4 flex gap-1">
-        {([["workshop", "Bot Workshop"], ["builder", "Bot Builder"], ["openings", "Opening Lab"], ["verify", "Verification"], ["updates", "Update Logs"], ["customize", "Customize App"]] as const).map(([id, l]) => (
-          <button key={id} onClick={() => setTab(id)}
-            className={cn("h-8 px-3 rounded-md text-xs font-semibold",
-              tab === id ? "bg-warning/15 text-warning ring-1 ring-warning/40" : "text-muted-foreground hover:text-foreground")}>
+        {(
+          [
+            ["workshop", "Bot Workshop"],
+            ["builder", "Bot Builder"],
+            ["openings", "Opening Lab"],
+            ["verify", "Verification"],
+            ["updates", "Update Logs"],
+            ["customize", "Customize App"],
+          ] as const
+        ).map(([id, l]) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            className={cn(
+              "h-8 px-3 rounded-md text-xs font-semibold",
+              tab === id
+                ? "bg-warning/15 text-warning ring-1 ring-warning/40"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
             {l}
           </button>
         ))}
       </div>
       <main className="px-4 pb-10">
         <div className={cn("max-w-[1400px] mx-auto mt-4", tab !== "workshop" && "hidden")}>
-          <BotWorkshop onEdit={(id) => { setEditRequest((r) => ({ id, n: (r?.n ?? 0) + 1 })); setTab("builder"); }} />
+          <BotWorkshop
+            onEdit={(id) => {
+              setEditRequest((r) => ({ id, n: (r?.n ?? 0) + 1 }));
+              setTab("builder");
+            }}
+          />
         </div>
         <div className={cn("max-w-[1600px] mx-auto mt-4", tab !== "builder" && "hidden")}>
           <StudioBotEditor editRequest={editRequest} />
         </div>
-        <div className={cn("max-w-[1600px] mx-auto mt-4", tab !== "openings" && "hidden")}><OpeningLab /></div>
-        <div className={cn("max-w-[1000px] mx-auto mt-4", tab !== "verify" && "hidden")}><VerificationReviewPanel /></div>
-        <div className={cn("max-w-[1000px] mx-auto mt-4", tab !== "updates" && "hidden")}><UpdateLogManager /></div>
-        <div className={cn("max-w-[1000px] mx-auto mt-4", tab !== "customize" && "hidden")}><Customizer /></div>
+        <div className={cn("max-w-[1600px] mx-auto mt-4", tab !== "openings" && "hidden")}>
+          <OpeningLab />
+        </div>
+        <div className={cn("max-w-[1000px] mx-auto mt-4", tab !== "verify" && "hidden")}>
+          <VerificationReviewPanel />
+        </div>
+        <div className={cn("max-w-[1000px] mx-auto mt-4", tab !== "updates" && "hidden")}>
+          <UpdateLogManager />
+        </div>
+        <div className={cn("max-w-[1000px] mx-auto mt-4", tab !== "customize" && "hidden")}>
+          <Customizer />
+        </div>
       </main>
     </div>
   );

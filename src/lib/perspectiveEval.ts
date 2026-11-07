@@ -55,7 +55,6 @@ function movetimeForRating(rating: number): number {
   return 1900;
 }
 
-
 /** Deterministic 32-bit string hash — same position+rating ⇒ same perception. */
 function hash32(str: string): number {
   let h = 2166136261;
@@ -156,7 +155,6 @@ async function computePerspective(fen: string, rating: number): Promise<Perspect
   const yellowTol = isEngine ? 60 : 320 - 240 * s;
   const maxGreens = isEngine ? 3 : Math.max(2, Math.round(8 - 5 * s));
 
-
   const byMove: Record<string, MoveVerdict> = {};
   let greens = 0;
   for (const [key, score] of sorted) {
@@ -182,7 +180,6 @@ async function computePerspective(fen: string, rating: number): Promise<Perspect
     }
     byMove[engineBestKey] = "purple";
   }
-
 
   const rank: Record<MoveVerdict, number> = { purple: 4, green: 3, yellow: 2, red: 1 };
   const bySquare: Record<string, MoveVerdict> = {};

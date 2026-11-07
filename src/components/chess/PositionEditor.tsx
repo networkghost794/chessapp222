@@ -26,13 +26,11 @@ const START_BOARD: Board = (() => {
 
 const EMPTY_BOARD: Board = (() => {
   const b: Board = {};
-  for (const rank of RANKS) for (const file of FILES) b[(file + rank)] = null;
+  for (const rank of RANKS) for (const file of FILES) b[file + rank] = null;
   return b;
 })();
 
-type PaletteItem =
-  | { kind: "piece"; color: Color; type: PieceSymbol }
-  | { kind: "erase" };
+type PaletteItem = { kind: "piece"; color: Color; type: PieceSymbol } | { kind: "erase" };
 
 const PALETTE_ORDER: PaletteItem[] = [
   { kind: "piece", color: "w", type: "k" },
@@ -56,9 +54,15 @@ function boardToFen(board: Board, turn: Color): string {
     let row = "";
     let empty = 0;
     for (const file of FILES) {
-      const p = board[(file + rank)];
-      if (!p) { empty++; continue; }
-      if (empty > 0) { row += empty; empty = 0; }
+      const p = board[file + rank];
+      if (!p) {
+        empty++;
+        continue;
+      }
+      if (empty > 0) {
+        row += empty;
+        empty = 0;
+      }
       const ch = p.type;
       row += p.color === "w" ? ch.toUpperCase() : ch;
     }
@@ -134,25 +138,37 @@ export function PositionEditor({ onCancel, onConfirm }: PositionEditorProps) {
         {/* Palette + controls */}
         <div className="space-y-3">
           <Card className="p-3 bg-card">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Pieces</div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+              Pieces
+            </div>
             <div className="grid grid-cols-6 gap-1.5">
               {PALETTE_ORDER.map((item, idx) => {
                 const key = item.kind === "piece" ? `${item.color}${item.type}` : "erase";
                 const active =
                   (selected.kind === "erase" && item.kind === "erase") ||
-                  (selected.kind === "piece" && item.kind === "piece" && selected.color === item.color && selected.type === item.type);
+                  (selected.kind === "piece" &&
+                    item.kind === "piece" &&
+                    selected.color === item.color &&
+                    selected.type === item.type);
                 return (
                   <button
                     key={idx}
                     onClick={() => setSelected(item)}
                     className={cn(
                       "aspect-square rounded-md flex items-center justify-center border transition-colors",
-                      active ? "bg-primary/15 border-primary/50" : "bg-secondary/30 border-transparent hover:bg-secondary/60",
+                      active
+                        ? "bg-primary/15 border-primary/50"
+                        : "bg-secondary/30 border-transparent hover:bg-secondary/60",
                     )}
                     title={key}
                   >
                     {item.kind === "piece" ? (
-                      <PieceImg color={item.color} type={item.type} draggable={false} className="w-[80%] h-[80%]" />
+                      <PieceImg
+                        color={item.color}
+                        type={item.type}
+                        draggable={false}
+                        className="w-[80%] h-[80%]"
+                      />
                     ) : (
                       <Trash2 className="w-4 h-4 text-muted-foreground" />
                     )}
@@ -166,13 +182,17 @@ export function PositionEditor({ onCancel, onConfirm }: PositionEditorProps) {
           </Card>
 
           <Card className="p-3 bg-card space-y-2">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Side to move</div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Side to move
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => setTurn("w")}
                 className={cn(
                   "rounded-md py-2 text-sm font-semibold border transition-colors",
-                  turn === "w" ? "bg-primary/15 border-primary/50 text-primary" : "bg-secondary/30 border-transparent hover:bg-secondary/60",
+                  turn === "w"
+                    ? "bg-primary/15 border-primary/50 text-primary"
+                    : "bg-secondary/30 border-transparent hover:bg-secondary/60",
                 )}
               >
                 ⚪ White
@@ -181,7 +201,9 @@ export function PositionEditor({ onCancel, onConfirm }: PositionEditorProps) {
                 onClick={() => setTurn("b")}
                 className={cn(
                   "rounded-md py-2 text-sm font-semibold border transition-colors",
-                  turn === "b" ? "bg-primary/15 border-primary/50 text-primary" : "bg-secondary/30 border-transparent hover:bg-secondary/60",
+                  turn === "b"
+                    ? "bg-primary/15 border-primary/50 text-primary"
+                    : "bg-secondary/30 border-transparent hover:bg-secondary/60",
                 )}
               >
                 ⚫ Black
@@ -190,10 +212,20 @@ export function PositionEditor({ onCancel, onConfirm }: PositionEditorProps) {
           </Card>
 
           <Card className="p-3 bg-card space-y-2">
-            <Button variant="secondary" size="sm" className="w-full" onClick={() => setBoard({ ...START_BOARD })}>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="w-full"
+              onClick={() => setBoard({ ...START_BOARD })}
+            >
               <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Reset to starting position
             </Button>
-            <Button variant="ghost" size="sm" className="w-full" onClick={() => setBoard({ ...EMPTY_BOARD })}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full"
+              onClick={() => setBoard({ ...EMPTY_BOARD })}
+            >
               Clear board
             </Button>
           </Card>
@@ -202,15 +234,15 @@ export function PositionEditor({ onCancel, onConfirm }: PositionEditorProps) {
             {fen}
           </div>
           {!validation.valid && (
-            <div className="text-[11px] text-destructive font-medium">
-              {validation.error}
-            </div>
+            <div className="text-[11px] text-destructive font-medium">{validation.error}</div>
           )}
         </div>
       </div>
 
       <div className="flex justify-end gap-2">
-        <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+        <Button variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
         <Button
           disabled={!validation.valid}
           onClick={() => onConfirm(fen)}
@@ -239,7 +271,8 @@ function validateFen(fen: string): { valid: true } | { valid: false; error: stri
     const parts = fen.split(" ");
     parts[1] = turn === "w" ? "b" : "w";
     const flipped = new Chess(parts.join(" "));
-    if (flipped.inCheck()) return { valid: false, error: "The side NOT to move is in check — illegal position." };
+    if (flipped.inCheck())
+      return { valid: false, error: "The side NOT to move is in check — illegal position." };
     return { valid: true };
   } catch (e) {
     return { valid: false, error: (e as Error).message || "Invalid position." };

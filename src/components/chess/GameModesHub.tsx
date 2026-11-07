@@ -45,9 +45,7 @@ type Participant =
   | { kind: "player"; id: string; profile: PlayerProfileLite };
 
 function pName(p: Participant): string {
-  return p.kind === "bot"
-    ? botDisplayIdentity(p.bot, isImmersiveEnabled()).name
-    : p.profile.name;
+  return p.kind === "bot" ? botDisplayIdentity(p.bot, isImmersiveEnabled()).name : p.profile.name;
 }
 function pElo(p: Participant): number {
   return p.kind === "bot" ? p.bot.elo : p.profile.elo;
@@ -78,7 +76,6 @@ export function GameModesHub() {
   if (view === "sandbox") return <SandboxBoard onBack={() => setView("home")} />;
   if (view === "bvb-entry")
     return <BotVsBotEntry onBack={() => setView("home")} onPick={setView} />;
-
 
   return (
     <div className="max-w-[1200px] mx-auto space-y-6">
@@ -178,7 +175,9 @@ function BotVsBotEntry({ onBack, onPick }: { onBack: () => void; onPick: (v: Hub
           </div>
           <div>
             <div className="text-xl font-bold leading-tight tracking-tight">Bot vs Bot</div>
-            <div className="text-xs text-muted-foreground mt-0.5">Choose how you want to watch.</div>
+            <div className="text-xs text-muted-foreground mt-0.5">
+              Choose how you want to watch.
+            </div>
           </div>
         </header>
         <Button variant="ghost" size="sm" onClick={onBack}>
@@ -339,7 +338,9 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
           </div>
           <div>
             <div className="text-xl font-bold leading-tight tracking-tight">Create Tournament</div>
-            <div className="text-xs text-muted-foreground mt-0.5">Set the format and pick your bots.</div>
+            <div className="text-xs text-muted-foreground mt-0.5">
+              Set the format and pick your bots.
+            </div>
           </div>
         </header>
         <Button variant="ghost" size="sm" onClick={onBack}>
@@ -389,7 +390,9 @@ function TournamentMode({ onBack }: { onBack: () => void }) {
                     )}
                   >
                     <div className="text-sm font-semibold">{opt.label}</div>
-                    <div className="text-[11px] text-muted-foreground mt-1 leading-snug">{opt.sub}</div>
+                    <div className="text-[11px] text-muted-foreground mt-1 leading-snug">
+                      {opt.sub}
+                    </div>
                   </button>
                 ))}
               </div>
@@ -892,7 +895,11 @@ function StandingsCard({
               return (
                 <tr
                   key={s.botId}
-                  className={cn("hover:bg-secondary/30 transition-colors", i % 2 === 1 && "bg-secondary/20", p.kind === "player" && "bg-primary/10")}
+                  className={cn(
+                    "hover:bg-secondary/30 transition-colors",
+                    i % 2 === 1 && "bg-secondary/20",
+                    p.kind === "player" && "bg-primary/10",
+                  )}
                 >
                   <td className="px-2 py-2 font-semibold font-mono">{i + 1}</td>
                   <td className="px-2 py-2">
@@ -1082,9 +1089,13 @@ function MultiBotPicker({
                               {b.title && !isImmersiveEnabled() && (
                                 <TitleBadge title={b.title} color={b.titleColor} size="sm" />
                               )}
-                              <span className="truncate">{botDisplayIdentity(b, isImmersiveEnabled()).name}</span>
+                              <span className="truncate">
+                                {botDisplayIdentity(b, isImmersiveEnabled()).name}
+                              </span>
                             </div>
-                            <div className="text-[10px] text-muted-foreground mt-0.5">ELO {b.elo}</div>
+                            <div className="text-[10px] text-muted-foreground mt-0.5">
+                              ELO {b.elo}
+                            </div>
                           </div>
                           {isMe && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
                         </button>

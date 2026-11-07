@@ -102,11 +102,21 @@ export function AuthScreen() {
               <form onSubmit={handleLogin} className="space-y-3">
                 <div>
                   <Label className="text-xs">Email</Label>
-                  <Input type="email" required value={lEmail} onChange={(e) => setLEmail(e.target.value)} />
+                  <Input
+                    type="email"
+                    required
+                    value={lEmail}
+                    onChange={(e) => setLEmail(e.target.value)}
+                  />
                 </div>
                 <div>
                   <Label className="text-xs">Password</Label>
-                  <Input type="password" required value={lPass} onChange={(e) => setLPass(e.target.value)} />
+                  <Input
+                    type="password"
+                    required
+                    value={lPass}
+                    onChange={(e) => setLPass(e.target.value)}
+                  />
                 </div>
                 <Button type="submit" className="w-full" disabled={lLoading}>
                   {lLoading && <Loader2 className="w-4 h-4 animate-spin mr-1" />} Log In
@@ -136,15 +146,31 @@ export function AuthScreen() {
                 </div>
                 <div>
                   <Label className="text-xs">Username</Label>
-                  <Input required minLength={3} value={sUser} onChange={(e) => setSUser(e.target.value)} />
+                  <Input
+                    required
+                    minLength={3}
+                    value={sUser}
+                    onChange={(e) => setSUser(e.target.value)}
+                  />
                 </div>
                 <div>
                   <Label className="text-xs">Email</Label>
-                  <Input type="email" required value={sEmail} onChange={(e) => setSEmail(e.target.value)} />
+                  <Input
+                    type="email"
+                    required
+                    value={sEmail}
+                    onChange={(e) => setSEmail(e.target.value)}
+                  />
                 </div>
                 <div>
                   <Label className="text-xs">Password</Label>
-                  <Input type="password" required minLength={6} value={sPass} onChange={(e) => setSPass(e.target.value)} />
+                  <Input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={sPass}
+                    onChange={(e) => setSPass(e.target.value)}
+                  />
                 </div>
                 <Button type="submit" className="w-full" disabled={sLoading}>
                   {sLoading && <Loader2 className="w-4 h-4 animate-spin mr-1" />} Create Account

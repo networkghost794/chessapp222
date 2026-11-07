@@ -6,13 +6,29 @@ import { cn } from "@/lib/utils";
 export type GameOutcome = "win" | "loss" | "draw";
 
 const DEFAULT_LINES: Record<GameOutcome, string[]> = {
-  win: ["Well played! You got me this time.", "Wow, I didn't see that coming.", "Nice game — I want a rematch!"],
-  loss: ["Good game! Better luck next time.", "That was fun. Try again?", "Close one — you'll get me soon."],
+  win: [
+    "Well played! You got me this time.",
+    "Wow, I didn't see that coming.",
+    "Nice game — I want a rematch!",
+  ],
+  loss: [
+    "Good game! Better luck next time.",
+    "That was fun. Try again?",
+    "Close one — you'll get me soon.",
+  ],
   draw: ["A fair result. Good game!", "Nobody wins today. Again?", "Evenly matched!"],
 };
 
 export function GameOverModal({
-  open, outcome, opponentName, opponentAvatar, reason, lines, onClose, onRematch, onNewGame,
+  open,
+  outcome,
+  opponentName,
+  opponentAvatar,
+  reason,
+  lines,
+  onClose,
+  onRematch,
+  onNewGame,
 }: {
   open: boolean;
   outcome: GameOutcome;
@@ -31,13 +47,14 @@ export function GameOverModal({
   }, [open, outcome]);
 
   const confetti = useMemo(
-    () => Array.from({ length: 60 }, (_, i) => ({
-      left: Math.random() * 100,
-      delay: Math.random() * 1.2,
-      dur: 2.4 + Math.random() * 2,
-      size: 5 + Math.random() * 7,
-      round: i % 3 === 0,
-    })),
+    () =>
+      Array.from({ length: 60 }, (_, i) => ({
+        left: Math.random() * 100,
+        delay: Math.random() * 1.2,
+        dur: 2.4 + Math.random() * 2,
+        size: 5 + Math.random() * 7,
+        round: i % 3 === 0,
+      })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [open],
   );
@@ -45,20 +62,33 @@ export function GameOverModal({
   if (!open) return null;
 
   const title =
-    outcome === "win" ? `You Beat ${opponentName}!` : outcome === "loss" ? `${opponentName} Won` : "Draw";
+    outcome === "win"
+      ? `You Beat ${opponentName}!`
+      : outcome === "loss"
+        ? `${opponentName} Won`
+        : "Draw";
   const icon = outcome === "win" ? "🏆" : outcome === "loss" ? "🏳️" : "🤝";
 
   return (
-    <div className="fixed inset-0 z-[80] grid place-items-center bg-background/40 backdrop-blur-[2px] p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[80] grid place-items-center bg-background/40 backdrop-blur-[2px] p-4"
+      onClick={onClose}
+    >
       {outcome === "win" && (
         <div className="pointer-events-none fixed inset-0 overflow-hidden">
           {confetti.map((c, i) => (
             <span
               key={i}
-              className={cn("absolute top-0 bg-foreground/90 anim-confetti", c.round && "rounded-full")}
+              className={cn(
+                "absolute top-0 bg-foreground/90 anim-confetti",
+                c.round && "rounded-full",
+              )}
               style={{
-                left: `${c.left}%`, width: c.size, height: c.size * (c.round ? 1 : 0.5),
-                animationDelay: `${c.delay}s`, animationDuration: `${c.dur}s`,
+                left: `${c.left}%`,
+                width: c.size,
+                height: c.size * (c.round ? 1 : 0.5),
+                animationDelay: `${c.delay}s`,
+                animationDuration: `${c.dur}s`,
               }}
             />
           ))}
@@ -68,20 +98,32 @@ export function GameOverModal({
         onClick={(e) => e.stopPropagation()}
         className="relative w-full max-w-[400px] rounded-xl bg-card text-card-foreground shadow-2xl ring-1 ring-border p-5 anim-modal-in"
       >
-        <button onClick={onClose} className="absolute top-3 right-3 text-muted-foreground hover:text-foreground" aria-label="Close">
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 text-muted-foreground hover:text-foreground"
+          aria-label="Close"
+        >
           <X className="w-5 h-5" />
         </button>
         <div className="text-center">
-          <h2 className="text-2xl font-extrabold tracking-tight">{icon} {title}</h2>
+          <h2 className="text-2xl font-extrabold tracking-tight">
+            {icon} {title}
+          </h2>
           <p className="mt-1 text-sm font-semibold text-muted-foreground">By {reason}</p>
         </div>
 
         <div className="mt-6 flex items-end gap-3">
           <div className="w-20 h-20 shrink-0 grid place-items-end">
             {opponentAvatar ? (
-              <img src={opponentAvatar} alt={opponentName} className="max-h-full max-w-full object-contain object-bottom drop-shadow-lg" />
+              <img
+                src={opponentAvatar}
+                alt={opponentName}
+                className="max-h-full max-w-full object-contain object-bottom drop-shadow-lg"
+              />
             ) : (
-              <div className="w-16 h-16 rounded-full bg-secondary grid place-items-center"><User className="w-7 h-7 text-muted-foreground" /></div>
+              <div className="w-16 h-16 rounded-full bg-secondary grid place-items-center">
+                <User className="w-7 h-7 text-muted-foreground" />
+              </div>
             )}
           </div>
           <div className="relative mb-3 flex-1 rounded-xl bg-foreground text-background px-4 py-3 text-sm font-medium">

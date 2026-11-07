@@ -13,7 +13,9 @@ export function SimulatorLegend({ label, showBest = true }: { label: string; sho
     <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg border border-border/60 bg-card/60 px-4 py-2.5 text-[11px] text-muted-foreground">
       <span className="inline-flex items-center gap-2 text-foreground">
         <Gauge className="h-3.5 w-3.5 text-primary" />
-        <span className="font-semibold uppercase tracking-[0.14em] text-[10px]">Strength Simulator</span>
+        <span className="font-semibold uppercase tracking-[0.14em] text-[10px]">
+          Strength Simulator
+        </span>
         <span className="text-muted-foreground">·</span>
         <span className="font-semibold tabular-nums">{label}</span>
       </span>

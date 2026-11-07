@@ -6,19 +6,19 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { MessageCircle, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/useAuth";
 
-const FEEDBACK_CATEGORIES = [
-  "Bug Report",
-  "Feature Request",
-  "General Feedback",
-] as const;
+const FEEDBACK_CATEGORIES = ["Bug Report", "Feature Request", "General Feedback"] as const;
 
-type Category = typeof FEEDBACK_CATEGORIES[number];
+type Category = (typeof FEEDBACK_CATEGORIES)[number];
 
 const schema = z.object({
   name: z.string().trim().min(1, "Name is required").max(80),
@@ -42,7 +42,10 @@ export function FeedbackPage() {
       setError(parsed.error.issues[0]?.message ?? "Invalid input");
       return;
     }
-    if (!user) { setError("You must be signed in."); return; }
+    if (!user) {
+      setError("You must be signed in.");
+      return;
+    }
     setSubmitting(true);
     const { error: insertErr } = await supabase.from("feedback").insert({
       user_id: user.id,
@@ -51,7 +54,10 @@ export function FeedbackPage() {
       category: parsed.data.category,
     });
     setSubmitting(false);
-    if (insertErr) { setError(insertErr.message); return; }
+    if (insertErr) {
+      setError(insertErr.message);
+      return;
+    }
     setSubmittedAt(new Date().toLocaleString());
     setMessage("");
   };
@@ -65,7 +71,8 @@ export function FeedbackPage() {
             <CardTitle className="text-base">Feedback / Report</CardTitle>
           </div>
           <CardDescription>
-            Report bugs, suggest features, or share general feedback. Submissions are reviewed by the owner.
+            Report bugs, suggest features, or share general feedback. Submissions are reviewed by
+            the owner.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -83,10 +90,14 @@ export function FeedbackPage() {
           <div>
             <Label className="text-xs">Category</Label>
             <Select value={category} onValueChange={(v) => setCategory(v as Category)}>
-              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="mt-1">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {FEEDBACK_CATEGORIES.map((c) => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>

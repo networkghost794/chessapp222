@@ -2,9 +2,19 @@ import type { Chess } from "chess.js";
 
 // Built-in opening repertoire. Each bot gets 5-6 real openings
 // (derived from its id) and picks a different one each game.
-export interface Opening { id: string; name: string; side: "w" | "b"; moves: string[] }
+export interface Opening {
+  id: string;
+  name: string;
+  side: "w" | "b";
+  moves: string[];
+}
 
-const L = (id: string, name: string, side: "w" | "b", line: string): Opening => ({ id, name, side, moves: line.split(" ") });
+const L = (id: string, name: string, side: "w" | "b", line: string): Opening => ({
+  id,
+  name,
+  side,
+  moves: line.split(" "),
+});
 
 export const OPENINGS: Opening[] = [
   // White
@@ -36,16 +46,36 @@ export const OPENINGS: Opening[] = [
   L("vsnf3", "Solid vs 1.Nf3", "b", "Nf3 d5 g3 Nf6 Bg2 c6 O-O Bg4"),
 ];
 
-function hash(s: string) { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; }
+function hash(s: string) {
+  let h = 2166136261;
+  for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  return h >>> 0;
+}
 
 /** 3 White + 3 Black openings per bot, stable per bot id. Black always keeps a reply to e4 and d4. */
 export function botRepertoire(botId: string): Opening[] {
   const pick = (list: Opening[], n: number, salt: string) =>
     [...list].sort((a, b) => hash(botId + salt + a.id) - hash(botId + salt + b.id)).slice(0, n);
-  const white = pick(OPENINGS.filter((o) => o.side === "w"), 3, "w");
-  const bE4 = pick(OPENINGS.filter((o) => o.side === "b" && o.moves[0] === "e4"), 1, "e");
-  const bD4 = pick(OPENINGS.filter((o) => o.side === "b" && o.moves[0] === "d4"), 1, "d");
-  const bOther = pick(OPENINGS.filter((o) => o.side === "b" && !bE4.includes(o) && !bD4.includes(o)), 1, "x");
+  const white = pick(
+    OPENINGS.filter((o) => o.side === "w"),
+    3,
+    "w",
+  );
+  const bE4 = pick(
+    OPENINGS.filter((o) => o.side === "b" && o.moves[0] === "e4"),
+    1,
+    "e",
+  );
+  const bD4 = pick(
+    OPENINGS.filter((o) => o.side === "b" && o.moves[0] === "d4"),
+    1,
+    "d",
+  );
+  const bOther = pick(
+    OPENINGS.filter((o) => o.side === "b" && !bE4.includes(o) && !bD4.includes(o)),
+    1,
+    "x",
+  );
   return [...white, ...bE4, ...bD4, ...bOther];
 }
 
@@ -81,9 +111,13 @@ export function repertoireMove(game: Chess, botId: string, elo: number): string 
   }
   if (hist.length >= st.depth) return null;
   const prefix = hist.join(" ");
-  const matches = (o: Opening) => o.moves.length > hist.length && o.moves.slice(0, hist.length).join(" ") === prefix;
+  const matches = (o: Opening) =>
+    o.moves.length > hist.length && o.moves.slice(0, hist.length).join(" ") === prefix;
   const chosen = OPENINGS.find((o) => o.id === st!.opening);
   // Follow the chosen line; if the opponent deviated, use any known line that still fits.
-  const line = chosen && matches(chosen) ? chosen : [...rep, ...OPENINGS.filter((o) => o.side === side)].find(matches);
+  const line =
+    chosen && matches(chosen)
+      ? chosen
+      : [...rep, ...OPENINGS.filter((o) => o.side === side)].find(matches);
   return line ? line.moves[hist.length] : null;
 }

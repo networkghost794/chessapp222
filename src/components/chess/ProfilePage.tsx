@@ -16,7 +16,11 @@ export function ProfilePage() {
         <div className="flex items-center gap-6">
           <div className="w-24 h-24 rounded-lg bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-border">
             {profile.avatar_url ? (
-              <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
+              <img
+                src={profile.avatar_url}
+                alt={profile.username}
+                className="w-full h-full object-cover"
+              />
             ) : (
               <User className="w-10 h-10 text-muted-foreground" />
             )}
@@ -50,7 +54,8 @@ export function ProfilePage() {
         {totalGames > 0 && (
           <div className="text-center pt-2">
             <div className="text-xs text-muted-foreground">
-              Win rate: <span className="text-foreground font-semibold">{winRate}%</span> across {totalGames} games
+              Win rate: <span className="text-foreground font-semibold">{winRate}%</span> across{" "}
+              {totalGames} games
             </div>
           </div>
         )}

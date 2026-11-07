@@ -34,7 +34,9 @@ export function PieceImg({
       onDragStart={onDragStart}
       onPointerDown={onPointerDown}
       className={className}
-      style={{ userSelect: "none", WebkitUserDrag: "none", pointerEvents: "auto" } as React.CSSProperties}
+      style={
+        { userSelect: "none", WebkitUserDrag: "none", pointerEvents: "auto" } as React.CSSProperties
+      }
     />
   );
 }

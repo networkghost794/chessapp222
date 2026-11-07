@@ -1,6 +1,11 @@
 import { useState } from "react";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,12 +14,37 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/useAuth";
 
-const EMOJIS = ["♞","♛","♚","♜","♝","♟","🔥","⚡","🧠","🦅","🐺","🦁","🐲","👑","🎯","🛡️","⚔️","🌟"];
-const STANDARD_TITLES = ["GM","IM","FM","CM","NM","WGM"];
+const EMOJIS = [
+  "♞",
+  "♛",
+  "♚",
+  "♜",
+  "♝",
+  "♟",
+  "🔥",
+  "⚡",
+  "🧠",
+  "🦅",
+  "🐺",
+  "🦁",
+  "🐲",
+  "👑",
+  "🎯",
+  "🛡️",
+  "⚔️",
+  "🌟",
+];
+const STANDARD_TITLES = ["GM", "IM", "FM", "CM", "NM", "WGM"];
 const CRTR = "👑 CRTR";
 const CREATOR_CODE = "ChessUP2";
 
-export function ProfileSettings({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+export function ProfileSettings({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
   const { profile, user, refreshProfile } = useAuth();
   const [icon, setIcon] = useState<string>(profile?.profile_icon ?? "");
   const [titleClaimOpen, setTitleClaimOpen] = useState<string | null>(null);
@@ -37,7 +67,9 @@ export function ProfileSettings({ open, onOpenChange }: { open: boolean; onOpenC
     if (code === CREATOR_CODE) {
       await supabase.from("profiles").update({ title_badge: CRTR }).eq("id", user.id);
       await refreshProfile();
-      setCreatorOpen(false); setCode(""); setCodeError("");
+      setCreatorOpen(false);
+      setCode("");
+      setCodeError("");
     } else {
       setCodeError("Invalid Master Override Code.");
     }
@@ -62,7 +94,9 @@ export function ProfileSettings({ open, onOpenChange }: { open: boolean; onOpenC
                     onClick={() => saveIcon(e)}
                     className={cn(
                       "h-9 rounded-md border text-lg transition-colors",
-                      icon === e ? "bg-primary/20 border-primary/60" : "bg-secondary/40 border-border/60 hover:bg-secondary",
+                      icon === e
+                        ? "bg-primary/20 border-primary/60"
+                        : "bg-secondary/40 border-border/60 hover:bg-secondary",
                     )}
                   >
                     {e}
@@ -103,18 +137,29 @@ export function ProfileSettings({ open, onOpenChange }: { open: boolean; onOpenC
               </div>
               {profile.title_badge && (
                 <p className="text-[11px] text-muted-foreground mt-2">
-                  Active: <span className="text-foreground font-semibold">{profile.title_badge}</span>{" "}
-                  <button className="underline ml-1" onClick={async () => {
-                    await supabase.from("profiles").update({ title_badge: null }).eq("id", user.id);
-                    await refreshProfile();
-                  }}>clear</button>
+                  Active:{" "}
+                  <span className="text-foreground font-semibold">{profile.title_badge}</span>{" "}
+                  <button
+                    className="underline ml-1"
+                    onClick={async () => {
+                      await supabase
+                        .from("profiles")
+                        .update({ title_badge: null })
+                        .eq("id", user.id);
+                      await refreshProfile();
+                    }}
+                  >
+                    clear
+                  </button>
                 </p>
               )}
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="secondary" onClick={() => onOpenChange(false)}>Close</Button>
+            <Button variant="secondary" onClick={() => onOpenChange(false)}>
+              Close
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -124,17 +169,29 @@ export function ProfileSettings({ open, onOpenChange }: { open: boolean; onOpenC
           <DialogHeader>
             <DialogTitle>Verification Required</DialogTitle>
             <DialogDescription>
-              To claim the <span className="text-foreground font-semibold">{titleClaimOpen}</span> title, you must submit
-              proof of a real-life verified FIDE or National Elo rating matching Master standards.
+              To claim the <span className="text-foreground font-semibold">{titleClaimOpen}</span>{" "}
+              title, you must submit proof of a real-life verified FIDE or National Elo rating
+              matching Master standards.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="secondary" onClick={() => setTitleClaimOpen(null)}>Understood</Button>
+            <Button variant="secondary" onClick={() => setTitleClaimOpen(null)}>
+              Understood
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={creatorOpen} onOpenChange={(v) => { setCreatorOpen(v); if (!v) { setCode(""); setCodeError(""); } }}>
+      <Dialog
+        open={creatorOpen}
+        onOpenChange={(v) => {
+          setCreatorOpen(v);
+          if (!v) {
+            setCode("");
+            setCodeError("");
+          }
+        }}
+      >
         <DialogContent className="max-w-xs">
           <DialogHeader>
             <DialogTitle>👑 CRTR — Master Override</DialogTitle>
@@ -143,13 +200,18 @@ export function ProfileSettings({ open, onOpenChange }: { open: boolean; onOpenC
           <Input
             type="password"
             value={code}
-            onChange={(e) => { setCode(e.target.value); setCodeError(""); }}
+            onChange={(e) => {
+              setCode(e.target.value);
+              setCodeError("");
+            }}
             onKeyDown={(e) => e.key === "Enter" && tryCreatorUnlock()}
             placeholder="••••••••"
             autoFocus
           />
           {codeError && <p className="text-xs text-destructive">{codeError}</p>}
-          <Button onClick={tryCreatorUnlock} className="w-full">Unlock</Button>
+          <Button onClick={tryCreatorUnlock} className="w-full">
+            Unlock
+          </Button>
         </DialogContent>
       </Dialog>
     </>

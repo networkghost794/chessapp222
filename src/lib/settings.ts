@@ -71,8 +71,20 @@ export function getSettings(): Settings {
     botSpeech: readBool(KEYS.botSpeech, DEFAULT_SETTINGS.botSpeech),
     immersive: readBool(KEYS.immersive, DEFAULT_SETTINGS.immersive),
     boardSize,
-    pieceSet: (() => { try { return localStorage.getItem(KEYS.pieceSet) || "neo"; } catch { return "neo"; } })(),
-    boardTheme: (() => { try { return localStorage.getItem(KEYS.boardTheme) || "green"; } catch { return "green"; } })(),
+    pieceSet: (() => {
+      try {
+        return localStorage.getItem(KEYS.pieceSet) || "neo";
+      } catch {
+        return "neo";
+      }
+    })(),
+    boardTheme: (() => {
+      try {
+        return localStorage.getItem(KEYS.boardTheme) || "green";
+      } catch {
+        return "green";
+      }
+    })(),
   };
 }
 
@@ -145,7 +157,10 @@ export function initSettingsEffects(): () => void {
 
 /* ---------------- react access ---------------- */
 
-export function useSettings(): [Settings, <K extends keyof Settings>(k: K, v: Settings[K]) => void] {
+export function useSettings(): [
+  Settings,
+  <K extends keyof Settings>(k: K, v: Settings[K]) => void,
+] {
   const [state, setState] = useState<Settings>(DEFAULT_SETTINGS);
 
   useEffect(() => {

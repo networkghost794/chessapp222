@@ -27,14 +27,20 @@ export function BotChatBubble({
   inline = false,
 }: Props & { inline?: boolean }) {
   const [settings] = useSettings();
-  const pool = (lines && lines.length > 0) ? lines : DEFAULT_LINES;
+  const pool = lines && lines.length > 0 ? lines : DEFAULT_LINES;
   const [text, setText] = useState<string | null>(null);
   const [visible, setVisible] = useState(false);
   const [lastText, setLastText] = useState<string | null>(null);
-  useEffect(() => { if (text) setLastText(text); }, [text]);
+  useEffect(() => {
+    if (text) setLastText(text);
+  }, [text]);
 
   useEffect(() => {
-    if (!active) { setVisible(false); setText(null); return; }
+    if (!active) {
+      setVisible(false);
+      setText(null);
+      return;
+    }
     let cancelled = false;
     let showTimer: ReturnType<typeof setTimeout> | undefined;
     let hideTimer: ReturnType<typeof setTimeout> | undefined;
@@ -52,7 +58,12 @@ export function BotChatBubble({
           if (cancelled) return;
           setVisible(false);
           // remove after fade-out
-          setTimeout(() => { if (!cancelled) { setText(null); schedule(); } }, 400);
+          setTimeout(() => {
+            if (!cancelled) {
+              setText(null);
+              schedule();
+            }
+          }, 400);
         }, 4000 + 20);
       }, delay);
     };

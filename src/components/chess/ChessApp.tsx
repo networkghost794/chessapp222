@@ -73,9 +73,17 @@ function botDisplay(bot: BotConfig) {
 }
 
 const TITLE_NAMES: Record<string, string> = {
-  GM: "Grandmaster", IM: "International Master", FM: "FIDE Master", CM: "Candidate Master",
-  NM: "National Master", WGM: "Woman Grandmaster", WIM: "Woman International Master",
-  WFM: "Woman FIDE Master", WCM: "Woman Candidate Master", CRTR: "Creator & Founder", SF: "Stockfish Engine",
+  GM: "Grandmaster",
+  IM: "International Master",
+  FM: "FIDE Master",
+  CM: "Candidate Master",
+  NM: "National Master",
+  WGM: "Woman Grandmaster",
+  WIM: "Woman International Master",
+  WFM: "Woman FIDE Master",
+  WCM: "Woman Candidate Master",
+  CRTR: "Creator & Founder",
+  SF: "Stockfish Engine",
 };
 
 /** Chess.com-style title chip (cc-user-title-component). */
@@ -92,14 +100,22 @@ export function TitleBadge({
   const clean = title.replace(/[^\p{L}\p{N}]/gu, "").toUpperCase() || title;
   const isCreator = clean === "CRTR";
   const custom = getTitleColor(clean, color) ?? getTitleColor(title, color);
-  const px = size === "lg" ? "px-[0.4em] text-[15px]" : size === "sm" ? "px-[0.35em] text-[11px]" : "px-[0.35em] text-[13px]";
+  const px =
+    size === "lg"
+      ? "px-[0.4em] text-[15px]"
+      : size === "sm"
+        ? "px-[0.35em] text-[11px]"
+        : "px-[0.35em] text-[13px]";
   return (
     <span
       title={TITLE_NAMES[clean] ?? clean}
       className={cn(
         "inline-flex items-center justify-center rounded-[3px] font-extrabold leading-[1.45] tracking-[0.01em] shrink-0 select-none text-white cursor-default",
         px,
-        !custom && (isCreator ? "bg-[image:var(--title-creator)] shadow-[0_0_8px_-2px_var(--title-creator-glow)]" : "bg-[color:var(--title-red)]"),
+        !custom &&
+          (isCreator
+            ? "bg-[image:var(--title-creator)] shadow-[0_0_8px_-2px_var(--title-creator-glow)]"
+            : "bg-[color:var(--title-red)]"),
       )}
       style={custom ? { backgroundColor: custom } : undefined}
     >
@@ -126,7 +142,12 @@ function PlayerIdentity({
   const cls = size === "lg" ? "text-2xl" : size === "sm" ? "text-sm" : "text-base";
   const badgeSize = size === "lg" ? "md" : "sm";
   return (
-    <span className={cn("inline-flex items-center gap-2 font-semibold tracking-tight max-w-full min-w-0", cls)}>
+    <span
+      className={cn(
+        "inline-flex items-center gap-2 font-semibold tracking-tight max-w-full min-w-0",
+        cls,
+      )}
+    >
       <TitleBadge title={title} color={titleColor} size={badgeSize} />
       {icon && <span className="text-[0.9em] leading-none shrink-0">{icon}</span>}
       <span className="text-foreground truncate min-w-0">{username}</span>
@@ -135,12 +156,29 @@ function PlayerIdentity({
   );
 }
 
-function MiniProfileCard({ profile }: { profile: { username: string; avatar_url: string | null; elo_rating: number; title_badge?: string | null; profile_icon?: string | null; wins: number; losses: number; draws: number } }) {
+function MiniProfileCard({
+  profile,
+}: {
+  profile: {
+    username: string;
+    avatar_url: string | null;
+    elo_rating: number;
+    title_badge?: string | null;
+    profile_icon?: string | null;
+    wins: number;
+    losses: number;
+    draws: number;
+  };
+}) {
   return (
     <Card className="bg-card p-3 flex items-center gap-3">
       <div className="w-10 h-10 rounded-md bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-border">
         {profile.avatar_url ? (
-          <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
+          <img
+            src={profile.avatar_url}
+            alt={profile.username}
+            className="w-full h-full object-cover"
+          />
         ) : (
           <User className="w-4 h-4 text-muted-foreground" />
         )}
@@ -171,7 +209,6 @@ export function ChessApp() {
   // Apply persisted appearance/board preferences and follow OS theme changes.
   useEffect(() => initSettingsEffects(), []);
 
-
   const [flipped, setFlipped] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
   const [uciHistory, setUciHistory] = useState<string[]>([]);
@@ -185,14 +222,22 @@ export function ChessApp() {
   const [colorChoice, setColorChoice] = useState<ColorChoice>("white");
   const [playerColor, setPlayerColor] = useState<Color>("w");
   const [botStats, setBotStats] = useState<BotStats>(EMPTY_STATS);
-  const [resultModal, setResultModal] = useState<{ open: boolean; title: string; detail: string; reason: string }>({
-    open: false, title: "", detail: "", reason: "",
+  const [resultModal, setResultModal] = useState<{
+    open: boolean;
+    title: string;
+    detail: string;
+    reason: string;
+  }>({
+    open: false,
+    title: "",
+    detail: "",
+    reason: "",
   });
 
   const game = gameRef.current;
 
   const [bathroomOpen, setBathroomOpen] = useState(false);
-  
+
   const [resignedFlag, setResignedFlag] = useState(false);
   const [matchActive, setMatchActive] = useState(false);
 
@@ -204,7 +249,7 @@ export function ChessApp() {
   useEffect(() => {
     const refresh = () => {
       const id = getActiveBotId();
-      setActiveBotState(id ? loadBots().find((b) => b.id === id) ?? null : null);
+      setActiveBotState(id ? (loadBots().find((b) => b.id === id) ?? null) : null);
     };
     refresh();
     const unsub = subscribeBots(refresh);
@@ -212,57 +257,71 @@ export function ChessApp() {
     return unsub;
   }, []);
 
-  const loadBotStats = useCallback(async (bot: BotConfig | null) => {
-    if (!user || !bot) { setBotStats(EMPTY_STATS); return; }
-    const { data, error } = await supabase
-      .from("bot_stats")
-      .select("wins,losses,draws")
-      .eq("user_id", user.id)
-      .eq("bot_id", bot.id)
-      .maybeSingle();
-    if (error) { setBotStats(EMPTY_STATS); return; }
-    setBotStats(data ?? EMPTY_STATS);
-  }, [user]);
+  const loadBotStats = useCallback(
+    async (bot: BotConfig | null) => {
+      if (!user || !bot) {
+        setBotStats(EMPTY_STATS);
+        return;
+      }
+      const { data, error } = await supabase
+        .from("bot_stats")
+        .select("wins,losses,draws")
+        .eq("user_id", user.id)
+        .eq("bot_id", bot.id)
+        .maybeSingle();
+      if (error) {
+        setBotStats(EMPTY_STATS);
+        return;
+      }
+      setBotStats(data ?? EMPTY_STATS);
+    },
+    [user],
+  );
 
-  useEffect(() => { loadBotStats(activeBot); }, [activeBot, loadBotStats]);
-
+  useEffect(() => {
+    loadBotStats(activeBot);
+  }, [activeBot, loadBotStats]);
 
   const requestBotMoveRef = useRef<() => void>(() => {});
 
-  const requestBotMove = useCallback(
-    async () => {
-      if (game.isGameOver()) { setPending(false); return; }
-      const startedAt = Date.now();
-      try {
-        const result = await chooseBotMove(game, activeBot, {
-        });
-        if (!result) { setPending(false); return; }
-        const { move: pick } = result;
-        // Per-bot thinking delay (min..max ms). Cosmetic pacing only.
-        const targetMs = pickThinkingDelayMs(activeBot);
-        const elapsed = Date.now() - startedAt;
-        if (elapsed < targetMs) await new Promise((r) => setTimeout(r, targetMs - elapsed));
-        const m = game.move({
-          from: pick.from as Square,
-          to: pick.to as Square,
-          promotion: pick.promotion as "q" | "r" | "b" | "n" | undefined,
-        });
-        if (!m) throw new Error(`Illegal engine move ${pick.from}${pick.to}`);
-        playMoveResultSound(m);
-        setHistory((h) => [...h, m.san]);
-        setUciHistory((h) => [...h, pick.from + pick.to + (pick.promotion ?? "")]);
-        setLastMove({ from: pick.from as Square, to: pick.to as Square });
-        force();
-      } catch {
-        /* swallow */
-      } finally {
+  const requestBotMove = useCallback(async () => {
+    if (game.isGameOver()) {
+      setPending(false);
+      return;
+    }
+    const startedAt = Date.now();
+    try {
+      const result = await chooseBotMove(game, activeBot, {});
+      if (!result) {
         setPending(false);
+        return;
       }
-    },
-    [game, force, activeBot],
-  );
+      const { move: pick } = result;
+      // Per-bot thinking delay (min..max ms). Cosmetic pacing only.
+      const targetMs = pickThinkingDelayMs(activeBot);
+      const elapsed = Date.now() - startedAt;
+      if (elapsed < targetMs) await new Promise((r) => setTimeout(r, targetMs - elapsed));
+      const m = game.move({
+        from: pick.from as Square,
+        to: pick.to as Square,
+        promotion: pick.promotion as "q" | "r" | "b" | "n" | undefined,
+      });
+      if (!m) throw new Error(`Illegal engine move ${pick.from}${pick.to}`);
+      playMoveResultSound(m);
+      setHistory((h) => [...h, m.san]);
+      setUciHistory((h) => [...h, pick.from + pick.to + (pick.promotion ?? "")]);
+      setLastMove({ from: pick.from as Square, to: pick.to as Square });
+      force();
+    } catch {
+      /* swallow */
+    } finally {
+      setPending(false);
+    }
+  }, [game, force, activeBot]);
 
-  useEffect(() => { requestBotMoveRef.current = requestBotMove; }, [requestBotMove]);
+  useEffect(() => {
+    requestBotMoveRef.current = requestBotMove;
+  }, [requestBotMove]);
 
   const beginMatch = useCallback(() => {
     gameRef.current = new Chess();
@@ -387,17 +446,20 @@ export function ChessApp() {
     else if (game.isCheckmate()) reason = "Checkmate";
 
     if (resignedFlag) {
-      userField = "losses"; botField = "wins";
+      userField = "losses";
+      botField = "wins";
       title = "Defeat";
       detail = `You resigned — ${activeBotName ?? "the bot"} wins.`;
     } else if (game.isCheckmate()) {
       const loser = game.turn();
       if (loser === playerColor) {
-        userField = "losses"; botField = "wins";
+        userField = "losses";
+        botField = "wins";
         title = "Defeat";
         detail = `${activeBotName ?? "Bot"} delivered checkmate.`;
       } else {
-        userField = "wins"; botField = "losses";
+        userField = "wins";
+        botField = "losses";
         title = "Victory";
         detail = `You checkmated ${activeBotName ?? "the bot"}!`;
       }
@@ -412,9 +474,13 @@ export function ChessApp() {
       elo_rating: profile.elo_rating,
     };
     profUpdate[userField] = profUpdate[userField] + 1;
-    supabase.from("profiles").update(profUpdate).eq("id", user.id).then(({ error }) => {
-      if (!error) refreshProfile();
-    });
+    supabase
+      .from("profiles")
+      .update(profUpdate)
+      .eq("id", user.id)
+      .then(({ error }) => {
+        if (!error) refreshProfile();
+      });
 
     if (activeBot) {
       const next: BotStats = {
@@ -423,19 +489,35 @@ export function ChessApp() {
         draws: botStats.draws + (botField === "draws" ? 1 : 0),
       };
       setBotStats(next);
-      supabase.from("bot_stats").upsert({
-        user_id: user.id,
-        bot_id: activeBot.id,
-        bot_name: activeBot.name,
-        ...next,
-      }, { onConflict: "user_id,bot_id" }).then(() => {});
+      supabase
+        .from("bot_stats")
+        .upsert(
+          {
+            user_id: user.id,
+            bot_id: activeBot.id,
+            bot_name: activeBot.name,
+            ...next,
+          },
+          { onConflict: "user_id,bot_id" },
+        )
+        .then(() => {});
       if (botField === "wins") incrementBotLifetime(activeBot.id, 1, 0);
       else if (botField === "losses") incrementBotLifetime(activeBot.id, 0, 1);
     }
 
     setResultModal({ open: true, title, detail, reason });
     setMatchActive(false);
-  }, [history.length, game, user, profile, refreshProfile, activeBot, playerColor, botStats, resignedFlag]);
+  }, [
+    history.length,
+    game,
+    user,
+    profile,
+    refreshProfile,
+    activeBot,
+    playerColor,
+    botStats,
+    resignedFlag,
+  ]);
 
   const moveRows = useMemo(() => {
     const rows: Array<{ n: number; w: string; b?: string }> = [];
@@ -447,12 +529,49 @@ export function ChessApp() {
 
   const ui = useUiSettings();
   useEventTheme();
-  const navItems: Array<{ key: SidebarKey; label: string; icon: typeof Home; onClick?: () => void }> = [
-    { key: "home", label: label(ui, "nav.home"), icon: Home, onClick: () => { setSidebar("home"); setMode("home"); } },
-    { key: "play", label: label(ui, "nav.playBots"), icon: Swords, onClick: () => { setSidebar("play"); if (mode !== "match") setMode("hub"); } },
-    { key: "modes", label: label(ui, "nav.gameModes"), icon: Bot, onClick: () => { setSidebar("modes"); setMode("modes"); } },
+  const navItems: Array<{
+    key: SidebarKey;
+    label: string;
+    icon: typeof Home;
+    onClick?: () => void;
+  }> = [
+    {
+      key: "home",
+      label: label(ui, "nav.home"),
+      icon: Home,
+      onClick: () => {
+        setSidebar("home");
+        setMode("home");
+      },
+    },
+    {
+      key: "play",
+      label: label(ui, "nav.playBots"),
+      icon: Swords,
+      onClick: () => {
+        setSidebar("play");
+        if (mode !== "match") setMode("hub");
+      },
+    },
+    {
+      key: "modes",
+      label: label(ui, "nav.gameModes"),
+      icon: Bot,
+      onClick: () => {
+        setSidebar("modes");
+        setMode("modes");
+      },
+    },
     { key: "updates", label: label(ui, "nav.updates"), icon: Bell },
-    { key: "settings", label: label(ui, "nav.settings"), icon: Settings, onClick: () => { setSidebar("settings"); setMode("settings"); } },
+    {
+      key: "settings",
+      label: label(ui, "nav.settings"),
+      icon: Settings,
+      onClick: () => {
+        setSidebar("settings");
+        setMode("settings");
+      },
+    },
   ];
 
   return (
@@ -473,19 +592,26 @@ export function ChessApp() {
           {navItems.map((item, idx) => {
             const Icon = item.icon;
             const active =
-              item.key === "home" ? mode === "home" :
-              item.key === "play" ? mode === "hub" || mode === "match" :
-              item.key === "modes" ? mode === "modes" :
-              item.key === "profile" ? mode === "profile" :
-              item.key === "settings" ? mode === "settings" :
-              false;
+              item.key === "home"
+                ? mode === "home"
+                : item.key === "play"
+                  ? mode === "hub" || mode === "match"
+                  : item.key === "modes"
+                    ? mode === "modes"
+                    : item.key === "profile"
+                      ? mode === "profile"
+                      : item.key === "settings"
+                        ? mode === "settings"
+                        : false;
             const content = (
               <button
                 key={idx}
                 onClick={item.onClick}
                 className={cn(
                   "w-full flex items-center gap-3 px-2 md:px-3 py-2 rounded-md text-left text-sm transition-colors",
-                  active ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground",
+                  active
+                    ? "bg-primary/15 text-primary font-semibold"
+                    : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground",
                 )}
               >
                 <Icon className="w-4 h-4 shrink-0" />
@@ -495,8 +621,12 @@ export function ChessApp() {
             if (item.key === "updates") {
               return (
                 <div key={idx} className="px-0">
-                  <div className="md:hidden grid place-items-center py-1"><UpdateLogButton /></div>
-                  <div className="hidden md:block"><UpdateLogButton /></div>
+                  <div className="md:hidden grid place-items-center py-1">
+                    <UpdateLogButton />
+                  </div>
+                  <div className="hidden md:block">
+                    <UpdateLogButton />
+                  </div>
                 </div>
               );
             }
@@ -538,8 +668,14 @@ export function ChessApp() {
           {mode === "home" && profile && (
             <HomeDashboard
               profile={profile}
-              onPlay={() => { setSidebar("play"); setMode("hub"); }}
-              onEditProfile={() => { setSidebar("settings"); setMode("settings"); }}
+              onPlay={() => {
+                setSidebar("play");
+                setMode("hub");
+              }}
+              onEditProfile={() => {
+                setSidebar("settings");
+                setMode("settings");
+              }}
             />
           )}
 
@@ -577,7 +713,6 @@ export function ChessApp() {
           {mode === "settings" && <SettingsPage />}
           {mode === "modes" && <GameModesHub />}
         </main>
-
       </div>
 
       <PromotionDialog
@@ -618,24 +753,34 @@ export function ChessApp() {
               side="right"
             />
           </div>
-          <div className="absolute bottom-8 text-xs text-muted-foreground">Click anywhere to skip</div>
+          <div className="absolute bottom-8 text-xs text-muted-foreground">
+            Click anywhere to skip
+          </div>
         </div>
       )}
 
       <GameOverModal
         open={resultModal.open}
-        outcome={resultModal.title === "Victory" ? "win" : resultModal.title === "Defeat" ? "loss" : "draw"}
+        outcome={
+          resultModal.title === "Victory" ? "win" : resultModal.title === "Defeat" ? "loss" : "draw"
+        }
         opponentName={activeBotName ?? activeBot?.name ?? "Opponent"}
         opponentAvatar={activeBot?.avatar ?? null}
         reason={resultModal.reason || "Game Over"}
         lines={undefined}
         onClose={() => setResultModal((r) => ({ ...r, open: false }))}
-        onRematch={() => { setResultModal((r) => ({ ...r, open: false })); triggerPlay(); }}
-        onNewGame={() => { setResultModal((r) => ({ ...r, open: false })); setMode("hub"); }}
+        onRematch={() => {
+          setResultModal((r) => ({ ...r, open: false }));
+          triggerPlay();
+        }}
+        onNewGame={() => {
+          setResultModal((r) => ({ ...r, open: false }));
+          setMode("hub");
+        }}
       />
 
       <BathroomBreak open={bathroomOpen} onClose={() => setBathroomOpen(false)} />
-      
+
       <UpdatesPopup />
     </div>
   );
@@ -655,7 +800,11 @@ function HomeView({
       <div className="flex items-center gap-5">
         <div className="w-20 h-20 rounded-md bg-secondary grid place-items-center overflow-hidden ring-1 ring-border shrink-0">
           {profile.avatar_url ? (
-            <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
+            <img
+              src={profile.avatar_url}
+              alt={profile.username}
+              className="w-full h-full object-cover"
+            />
           ) : (
             <User className="w-8 h-8 text-muted-foreground" />
           )}
@@ -684,7 +833,8 @@ function HomeView({
       </div>
 
       <div className="text-xs text-muted-foreground border-t border-border pt-6">
-        Welcome back. Choose <span className="text-foreground">Play Bots</span> from the sidebar to enter the hub.
+        Welcome back. Choose <span className="text-foreground">Play Bots</span> from the sidebar to
+        enter the hub.
       </div>
     </div>
   );
@@ -714,27 +864,49 @@ function HubView({
       <div className="min-w-0 mx-auto w-full max-w-[calc(min(78vh,760px)*var(--board-scale,1))]">
         <div className="flex items-center gap-2 mb-2 h-10">
           <div className="w-9 h-9 rounded-sm bg-secondary overflow-hidden grid place-items-center">
-            {activeBot?.avatar ? <img src={activeBot.avatar} alt="" className="w-full h-full object-cover" /> : <Bot className="w-4 h-4 text-muted-foreground" />}
+            {activeBot?.avatar ? (
+              <img src={activeBot.avatar} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <Bot className="w-4 h-4 text-muted-foreground" />
+            )}
           </div>
           <span className="text-sm font-bold inline-flex items-center gap-1.5">
             {ident?.title && <TitleBadge title={ident.title} color={ident.titleColor} size="sm" />}
             {ident?.name ?? "Opponent"}
-            {activeBot && <span className="font-normal text-muted-foreground">({activeBot.elo})</span>}
+            {activeBot && (
+              <span className="font-normal text-muted-foreground">({activeBot.elo})</span>
+            )}
             {activeBot?.country && !immersive && <span>{activeBot.country}</span>}
           </span>
         </div>
-        <Board game={idleGame} flipped={flipped} disabled lastMove={null} onAttemptMove={() => false} />
+        <Board
+          game={idleGame}
+          flipped={flipped}
+          disabled
+          lastMove={null}
+          onAttemptMove={() => false}
+        />
         <div className="flex items-center gap-2 mt-2 h-10">
           <div className="w-9 h-9 rounded-sm bg-secondary overflow-hidden grid place-items-center">
-            {profile?.avatar_url ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" /> : <User className="w-4 h-4 text-muted-foreground" />}
+            {profile?.avatar_url ? (
+              <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <User className="w-4 h-4 text-muted-foreground" />
+            )}
           </div>
           <span className="text-sm font-bold inline-flex items-center gap-1.5">
             {profile?.title_badge && <TitleBadge title={profile.title_badge} size="sm" />}
             {profile?.username ?? "You"}
-            {profile && <span className="font-normal text-muted-foreground">({profile.elo_rating})</span>}
+            {profile && (
+              <span className="font-normal text-muted-foreground">({profile.elo_rating})</span>
+            )}
           </span>
-          <a href="https://sites.google.com/view/chess-bot-library" target="_blank" rel="noopener noreferrer"
-            className="ml-auto text-xs text-muted-foreground hover:text-primary inline-flex items-center gap-1">
+          <a
+            href="https://sites.google.com/view/chess-bot-library"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-auto text-xs text-muted-foreground hover:text-primary inline-flex items-center gap-1"
+          >
             Bot Library <ExternalLink className="w-3 h-3" />
           </a>
         </div>
@@ -787,25 +959,39 @@ function MatchView({
         {/* Top: Bot */}
         {activeBot && (
           <div className="relative">
-            <BotChatBubble active={matchActive && !game.isGameOver() && !resignedFlag} lines={activeBot.dialogueLines} />
+            <BotChatBubble
+              active={matchActive && !game.isGameOver() && !resignedFlag}
+              lines={activeBot.dialogueLines}
+            />
             <Card className="bg-card p-3 flex items-center gap-3">
               <div className="w-11 h-11 rounded-full bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-primary/40">
                 {activeBot.avatar ? (
-                  <img src={activeBot.avatar} alt={activeBot.name} className="w-full h-full object-cover" />
+                  <img
+                    src={activeBot.avatar}
+                    alt={activeBot.name}
+                    className="w-full h-full object-cover"
+                  />
                 ) : (
                   <User className="w-5 h-5 text-muted-foreground" />
                 )}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold truncate inline-flex items-center gap-2">
-                  <TitleBadge title={botDisplay(activeBot).title} color={botDisplay(activeBot).titleColor} size="sm" />
+                  <TitleBadge
+                    title={botDisplay(activeBot).title}
+                    color={botDisplay(activeBot).titleColor}
+                    size="sm"
+                  />
                   <span className="truncate">{botDisplay(activeBot).name}</span>
                   <span className="text-muted-foreground/70 font-normal">({activeBot.elo})</span>
                 </div>
-                <div className="text-[11px] text-muted-foreground truncate">{activeBot.category}</div>
+                <div className="text-[11px] text-muted-foreground truncate">
+                  {activeBot.category}
+                </div>
               </div>
               <div className="text-[11px] text-muted-foreground text-right shrink-0">
-                <span className="text-success">{botStats.wins}W</span> · <span className="text-destructive">{botStats.losses}L</span> · {botStats.draws}D
+                <span className="text-success">{botStats.wins}W</span> ·{" "}
+                <span className="text-destructive">{botStats.losses}L</span> · {botStats.draws}D
               </div>
             </Card>
           </div>
@@ -890,7 +1076,12 @@ function VsCard({
   side: "left" | "right";
 }) {
   return (
-    <div className={cn("flex flex-col items-center gap-3", side === "right" ? "text-right" : "text-left")}>
+    <div
+      className={cn(
+        "flex flex-col items-center gap-3",
+        side === "right" ? "text-right" : "text-left",
+      )}
+    >
       <div className="w-24 h-24 md:w-32 md:h-32 rounded-md bg-secondary grid place-items-center overflow-hidden ring-2 ring-primary/40 shadow-[0_0_30px_hsl(var(--primary)/0.3)]">
         {avatar ? (
           <img src={avatar} alt={name} className="w-full h-full object-cover" />
@@ -902,7 +1093,11 @@ function VsCard({
         <TitleBadge title={title} color={titleColor} size="md" />
         <div className="text-base md:text-xl font-bold">{name}</div>
         <div className="text-xs text-muted-foreground">({elo})</div>
-        {subtitle && <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">{subtitle}</div>}
+        {subtitle && (
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">
+            {subtitle}
+          </div>
+        )}
       </div>
     </div>
   );

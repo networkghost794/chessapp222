@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -66,7 +72,11 @@ export function PlacementTest({ open }: { open: boolean }) {
 
   return (
     <Dialog open={open}>
-      <DialogContent className="max-w-md" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+      <DialogContent
+        className="max-w-md"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>Real-Elo Placement Test</DialogTitle>
           <DialogDescription>
@@ -93,10 +103,7 @@ export function PlacementTest({ open }: { open: boolean }) {
             {QUESTIONS.map((_, i) => (
               <div
                 key={i}
-                className={cn(
-                  "h-1 flex-1 rounded-full",
-                  i <= step ? "bg-primary" : "bg-secondary",
-                )}
+                className={cn("h-1 flex-1 rounded-full", i <= step ? "bg-primary" : "bg-secondary")}
               />
             ))}
           </div>

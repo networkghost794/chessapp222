@@ -72,18 +72,38 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "chess" },
-      { name: "description", content: "A modern, responsive web application for playing chess against custom AI bots." },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "chess" },
-      { property: "og:description", content: "A modern, responsive web application for playing chess against custom AI bots." },
+      { title: "Chess App" },
+      {
+        name: "description",
+        content:
+          "Interactive chess platform featuring custom bot personalities, Stockfish 18 engine, opening lab, placement tests, and live match analytics.",
+      },
+      { name: "author", content: "Chess App" },
+      { property: "og:title", content: "Chess App" },
+      {
+        property: "og:description",
+        content:
+          "Interactive chess platform featuring custom bot personalities, Stockfish 18 engine, opening lab, placement tests, and live match analytics.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
-      { name: "twitter:title", content: "chess" },
-      { name: "twitter:description", content: "A modern, responsive web application for playing chess against custom AI bots." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/673ca39b-7bdd-4b40-b7f3-17c6998c12a4/id-preview-9df65364--94138a78-4af9-45ac-94e5-292e462e8801.lovable.app-1779327522482.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/673ca39b-7bdd-4b40-b7f3-17c6998c12a4/id-preview-9df65364--94138a78-4af9-45ac-94e5-292e462e8801.lovable.app-1779327522482.png" },
+      { name: "twitter:site", content: "@ChessApp" },
+      { name: "twitter:title", content: "Chess App" },
+      {
+        name: "twitter:description",
+        content:
+          "Interactive chess platform featuring custom bot personalities, Stockfish 18 engine, opening lab, placement tests, and live match analytics.",
+      },
+      {
+        property: "og:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/673ca39b-7bdd-4b40-b7f3-17c6998c12a4/id-preview-9df65364--94138a78-4af9-45ac-94e5-292e462e8801.lovable.app-1779327522482.png",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/673ca39b-7bdd-4b40-b7f3-17c6998c12a4/id-preview-9df65364--94138a78-4af9-45ac-94e5-292e462e8801.lovable.app-1779327522482.png",
+      },
     ],
     links: [
       {

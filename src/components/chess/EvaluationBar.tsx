@@ -46,7 +46,10 @@ export function EvaluationBar({
   const whiteAhead = whitePct >= 50;
 
   return (
-    <div className="flex flex-col items-stretch gap-1 select-none self-stretch" style={height ? { height } : undefined}>
+    <div
+      className="flex flex-col items-stretch gap-1 select-none self-stretch"
+      style={height ? { height } : undefined}
+    >
       <div className="text-[10px] font-mono text-muted-foreground min-h-[14px]">
         {whiteAhead ? label : ""}
       </div>
@@ -69,7 +72,9 @@ export function EvaluationBar({
           <div
             className={cn(
               "absolute inset-0",
-              mateSide === "w" ? "shadow-[inset_0_0_12px_2px_rgba(255,255,255,0.6)]" : "shadow-[inset_0_0_12px_2px_rgba(0,0,0,0.7)]",
+              mateSide === "w"
+                ? "shadow-[inset_0_0_12px_2px_rgba(255,255,255,0.6)]"
+                : "shadow-[inset_0_0_12px_2px_rgba(0,0,0,0.7)]",
             )}
           />
         )}

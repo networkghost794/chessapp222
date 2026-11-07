@@ -39,8 +39,9 @@ export function SandboxBoard({ onBack }: { onBack: () => void }) {
     (from: Square, to: Square) => {
       const piece = game.get(from);
       if (!piece) return false;
-      const legal = (game.moves({ square: from, verbose: true }) as Array<{ to: string; promotion?: string }>)
-        .filter((m) => m.to === to);
+      const legal = (
+        game.moves({ square: from, verbose: true }) as Array<{ to: string; promotion?: string }>
+      ).filter((m) => m.to === to);
       if (legal.length === 0) return false;
       if (legal.some((m) => m.promotion)) {
         setPromotion({ from, to });
@@ -68,7 +69,8 @@ export function SandboxBoard({ onBack }: { onBack: () => void }) {
 
   const moveRows = useMemo(() => {
     const rows: Array<{ n: number; w: string; b?: string }> = [];
-    for (let i = 0; i < history.length; i += 2) rows.push({ n: i / 2 + 1, w: history[i], b: history[i + 1] });
+    for (let i = 0; i < history.length; i += 2)
+      rows.push({ n: i / 2 + 1, w: history[i], b: history[i + 1] });
     return rows;
   }, [history]);
 
@@ -129,8 +131,6 @@ export function SandboxBoard({ onBack }: { onBack: () => void }) {
         </section>
 
         <aside className="flex flex-col gap-3">
-
-
           <Card className="bg-card p-3 flex-1 min-h-[220px]">
             <div className="text-sm font-semibold mb-2 px-1">Moves</div>
             <div className="max-h-[440px] overflow-auto scroll-thin rounded-md">

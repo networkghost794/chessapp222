@@ -48,13 +48,18 @@ export function BotRoster({ onSelect }: { onSelect?: (bot: BotConfig) => void })
     refreshTitleColors();
     const unsubBots = subscribeBots(refresh);
     const unsubColors = subscribeTitleColors(() => setColorTick((t) => t + 1));
-    return () => { unsubBots(); unsubColors(); };
+    return () => {
+      unsubBots();
+      unsubColors();
+    };
   }, []);
   void loadTitleColors;
 
   const handleDropOnBot = async (target: BotConfig) => {
     if (!isOwner || !dragId || dragId === target.id) {
-      setDragId(null); setDragOverId(null); setDragOverCat(null);
+      setDragId(null);
+      setDragOverId(null);
+      setDragOverCat(null);
       return;
     }
     const source = bots.find((b) => b.id === dragId);
@@ -66,17 +71,31 @@ export function BotRoster({ onSelect }: { onSelect?: (bot: BotConfig) => void })
     const targetIdx = targetList.findIndex((b) => b.id === target.id);
     const insertAt = targetIdx < 0 ? targetList.length : targetIdx;
     const newOrder = [...targetList.slice(0, insertAt), source, ...targetList.slice(insertAt)];
-    await reorderCategory(target.category, newOrder.map((b) => b.id));
-    setDragId(null); setDragOverId(null); setDragOverCat(null);
+    await reorderCategory(
+      target.category,
+      newOrder.map((b) => b.id),
+    );
+    setDragId(null);
+    setDragOverId(null);
+    setDragOverCat(null);
   };
 
   const handleDropOnCategory = async (cat: BotCategory) => {
-    if (!isOwner || !dragId) { setDragOverCat(null); return; }
+    if (!isOwner || !dragId) {
+      setDragOverCat(null);
+      return;
+    }
     const source = bots.find((b) => b.id === dragId);
-    if (!source || source.category === cat) { setDragOverCat(null); setDragId(null); return; }
+    if (!source || source.category === cat) {
+      setDragOverCat(null);
+      setDragId(null);
+      return;
+    }
     const targetCount = bots.filter((b) => b.category === cat).length;
     await updateBotPlacement(source.id, cat, targetCount);
-    setDragId(null); setDragOverId(null); setDragOverCat(null);
+    setDragId(null);
+    setDragOverId(null);
+    setDragOverCat(null);
   };
 
   return (
@@ -99,13 +118,23 @@ export function BotRoster({ onSelect }: { onSelect?: (bot: BotConfig) => void })
                     "text-xs font-semibold py-2.5 hover:no-underline",
                     dragOverCat === section.value && "bg-primary/10 rounded-md",
                   )}
-                  onDragOver={(e) => { if (isOwner && dragId) { e.preventDefault(); setDragOverCat(section.value); } }}
+                  onDragOver={(e) => {
+                    if (isOwner && dragId) {
+                      e.preventDefault();
+                      setDragOverCat(section.value);
+                    }
+                  }}
                   onDragLeave={() => setDragOverCat((c) => (c === section.value ? null : c))}
-                  onDrop={(e) => { e.preventDefault(); handleDropOnCategory(section.value); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    handleDropOnCategory(section.value);
+                  }}
                 >
                   <span className="flex items-center gap-2">
                     {section.label}
-                    <span className="text-[10px] font-normal text-muted-foreground">({list.length})</span>
+                    <span className="text-[10px] font-normal text-muted-foreground">
+                      ({list.length})
+                    </span>
                   </span>
                 </AccordionTrigger>
                 <AccordionContent>
@@ -115,8 +144,16 @@ export function BotRoster({ onSelect }: { onSelect?: (bot: BotConfig) => void })
                         "text-[11px] text-muted-foreground px-2 py-3 rounded-md",
                         dragOverCat === section.value && "bg-primary/10 ring-1 ring-primary/30",
                       )}
-                      onDragOver={(e) => { if (isOwner && dragId) { e.preventDefault(); setDragOverCat(section.value); } }}
-                      onDrop={(e) => { e.preventDefault(); handleDropOnCategory(section.value); }}
+                      onDragOver={(e) => {
+                        if (isOwner && dragId) {
+                          e.preventDefault();
+                          setDragOverCat(section.value);
+                        }
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        handleDropOnCategory(section.value);
+                      }}
                     >
                       No bots in this category.
                     </div>
@@ -127,26 +164,48 @@ export function BotRoster({ onSelect }: { onSelect?: (bot: BotConfig) => void })
                           key={b.id}
                           draggable={isOwner}
                           onDragStart={() => isOwner && setDragId(b.id)}
-                          onDragEnd={() => { setDragId(null); setDragOverId(null); setDragOverCat(null); }}
-                          onDragOver={(e) => { if (isOwner && dragId) { e.preventDefault(); setDragOverId(b.id); } }}
+                          onDragEnd={() => {
+                            setDragId(null);
+                            setDragOverId(null);
+                            setDragOverCat(null);
+                          }}
+                          onDragOver={(e) => {
+                            if (isOwner && dragId) {
+                              e.preventDefault();
+                              setDragOverId(b.id);
+                            }
+                          }}
                           onDragLeave={() => setDragOverId((id) => (id === b.id ? null : id))}
-                          onDrop={(e) => { e.preventDefault(); handleDropOnBot(b); }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            handleDropOnBot(b);
+                          }}
                           className={cn(
                             "group relative flex flex-col items-center text-center gap-2 rounded-lg p-3 cursor-pointer transition-colors border border-transparent min-w-0",
                             activeId === b.id
                               ? "bg-primary/15 border-primary/40"
                               : "bg-secondary/30 hover:bg-secondary/60",
                             dragId === b.id && "opacity-50",
-                            dragOverId === b.id && dragId && dragId !== b.id && "ring-1 ring-primary",
+                            dragOverId === b.id &&
+                              dragId &&
+                              dragId !== b.id &&
+                              "ring-1 ring-primary",
                           )}
-                          onClick={() => { setActiveBotId(b.id); onSelect?.(b); }}
+                          onClick={() => {
+                            setActiveBotId(b.id);
+                            onSelect?.(b);
+                          }}
                         >
                           {isOwner && (
                             <GripVertical className="w-3.5 h-3.5 text-muted-foreground/60 absolute top-1 left-1 cursor-grab" />
                           )}
                           <div className="w-12 h-12 rounded-md bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-border">
                             {b.avatar ? (
-                              <img src={b.avatar} alt={b.name} className="w-full h-full object-cover" />
+                              <img
+                                src={b.avatar}
+                                alt={b.name}
+                                className="w-full h-full object-cover"
+                              />
                             ) : (
                               <User className="w-5 h-5 text-muted-foreground" />
                             )}
@@ -156,12 +215,17 @@ export function BotRoster({ onSelect }: { onSelect?: (bot: BotConfig) => void })
                               {b.title && !immersive && (
                                 <span
                                   className="inline-flex items-center justify-center rounded-[3px] px-1.5 py-[1px] text-[10px] font-black uppercase tracking-wide text-white leading-none shrink-0"
-                                  style={{ backgroundColor: getTitleColor(b.title, b.titleColor) ?? "#dc2626" }}
+                                  style={{
+                                    backgroundColor:
+                                      getTitleColor(b.title, b.titleColor) ?? "#dc2626",
+                                  }}
                                 >
                                   {b.title}
                                 </span>
                               )}
-                              <span className="truncate">{botDisplayIdentity(b, immersive).name}</span>
+                              <span className="truncate">
+                                {botDisplayIdentity(b, immersive).name}
+                              </span>
                             </div>
                             <div className="text-[10px] text-muted-foreground">ELO {b.elo}</div>
                           </div>
@@ -170,7 +234,10 @@ export function BotRoster({ onSelect }: { onSelect?: (bot: BotConfig) => void })
                               variant="ghost"
                               size="icon"
                               className="opacity-0 group-hover:opacity-100 h-6 w-6 absolute top-1 right-1"
-                              onClick={(e) => { e.stopPropagation(); deleteBot(b.id); }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteBot(b.id);
+                              }}
                             >
                               <Trash2 className="w-3 h-3" />
                             </Button>

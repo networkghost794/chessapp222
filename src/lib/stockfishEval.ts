@@ -5,8 +5,7 @@
 let workerRef: Worker | null = null;
 const listeners = new Set<(line: string) => void>();
 
-const STOCKFISH_CDN =
-  "https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js";
+const STOCKFISH_CDN = "https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js";
 export const MODERN_ENGINE_URL = "/engine/stockfish-18-lite-single.js";
 export const ENGINE_VERSION = "Stockfish 18 NNUE (WASM)";
 
@@ -31,8 +30,11 @@ function ensureWorker(): Worker {
     w.onerror = () => {
       // Fallback to the legacy engine if WASM fails to load in this browser.
       console.warn("[stockfish] Stockfish 18 failed to load, falling back to v10");
-      const fb = legacyWorker(); attach(fb); workerRef = fb;
-      fb.postMessage("uci"); fb.postMessage("isready");
+      const fb = legacyWorker();
+      attach(fb);
+      workerRef = fb;
+      fb.postMessage("uci");
+      fb.postMessage("isready");
     };
   } catch {
     w = legacyWorker();
@@ -78,8 +80,14 @@ async function runEval(fen: string, depth = 12): Promise<PositionEval | null> {
       if (line.startsWith("info") && line.includes(" depth ")) {
         const cpm = /score cp (-?\d+)/.exec(line);
         const mm = /score mate (-?\d+)/.exec(line);
-        if (cpm) { cp = Number(cpm[1]); mate = null; }
-        if (mm) { mate = Number(mm[1]); cp = null; }
+        if (cpm) {
+          cp = Number(cpm[1]);
+          mate = null;
+        }
+        if (mm) {
+          mate = Number(mm[1]);
+          cp = null;
+        }
       }
       if (line.startsWith("bestmove")) {
         off();

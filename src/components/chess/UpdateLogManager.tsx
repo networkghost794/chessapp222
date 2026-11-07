@@ -32,11 +32,16 @@ export function UpdateLogManager() {
       .from("app_updates")
       .select("*")
       .order("created_at", { ascending: false });
-    if (err) { setError(err.message); return; }
+    if (err) {
+      setError(err.message);
+      return;
+    }
     setUpdates((data ?? []) as Update[]);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const create = async () => {
     setError(null);
@@ -54,8 +59,14 @@ export function UpdateLogManager() {
       created_by: userData.user?.id ?? null,
     });
     setBusy(false);
-    if (err) { setError(err.message); return; }
-    setVersion(""); setTitle(""); setContent(""); setPublished(true);
+    if (err) {
+      setError(err.message);
+      return;
+    }
+    setVersion("");
+    setTitle("");
+    setContent("");
+    setPublished(true);
     load();
   };
 
@@ -83,24 +94,42 @@ export function UpdateLogManager() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <Label className="text-xs">Version</Label>
-            <Input value={version} onChange={(e) => setVersion(e.target.value)} placeholder="e.g. 1.0.3" />
+            <Input
+              value={version}
+              onChange={(e) => setVersion(e.target.value)}
+              placeholder="e.g. 1.0.3"
+            />
           </div>
           <div>
             <Label className="text-xs">Title (optional)</Label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What changed" />
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="What changed"
+            />
           </div>
         </div>
         <div>
           <Label className="text-xs">Content</Label>
-          <Textarea value={content} onChange={(e) => setContent(e.target.value)}
-            rows={5} placeholder="Owner-written changelog…" className="font-mono text-xs" />
+          <Textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            rows={5}
+            placeholder="Owner-written changelog…"
+            className="font-mono text-xs"
+          />
         </div>
         <div className="flex items-center justify-between">
           <label className="flex items-center gap-2 text-xs">
             <Checkbox checked={published} onCheckedChange={(v) => setPublished(!!v)} />
             Publish immediately
           </label>
-          <Button onClick={create} disabled={busy} size="sm" className="bg-success text-primary-foreground hover:bg-success/90">
+          <Button
+            onClick={create}
+            disabled={busy}
+            size="sm"
+            className="bg-success text-primary-foreground hover:bg-success/90"
+          >
             <Save className="w-3.5 h-3.5 mr-1" /> {busy ? "Saving…" : "Save"}
           </Button>
         </div>
@@ -111,18 +140,25 @@ export function UpdateLogManager() {
         <div className="text-sm font-semibold flex items-center gap-2">
           <Megaphone className="w-4 h-4 text-primary" /> All updates
         </div>
-        {updates.length === 0 && <div className="text-xs text-muted-foreground">No updates yet.</div>}
+        {updates.length === 0 && (
+          <div className="text-xs text-muted-foreground">No updates yet.</div>
+        )}
         {updates.map((u) => (
           <Card key={u.id} className="p-3 bg-background/40">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-semibold">
-                  v{u.version} {u.title && <span className="text-muted-foreground font-normal">· {u.title}</span>}
+                  v{u.version}{" "}
+                  {u.title && (
+                    <span className="text-muted-foreground font-normal">· {u.title}</span>
+                  )}
                 </div>
                 <div className="text-[11px] text-muted-foreground">
                   {new Date(u.created_at).toLocaleString()} · {u.published ? "Published" : "Draft"}
                 </div>
-                <pre className="text-xs whitespace-pre-wrap font-sans mt-1.5 text-muted-foreground">{u.content}</pre>
+                <pre className="text-xs whitespace-pre-wrap font-sans mt-1.5 text-muted-foreground">
+                  {u.content}
+                </pre>
               </div>
               <div className="flex flex-col gap-1 shrink-0">
                 <Button size="sm" variant="secondary" onClick={() => togglePublished(u)}>

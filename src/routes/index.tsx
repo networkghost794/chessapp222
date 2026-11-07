@@ -15,7 +15,10 @@ export const Route = createFileRoute("/")({
           "Modern chess arena to spar against your own AI engines. Drag-and-drop board, move history, and a custom bot bridge.",
       },
       { property: "og:title", content: "BotBoard — Chess vs Custom AI Bots" },
-      { property: "og:description", content: "Spar against your custom chess engines in a polished dark arena." },
+      {
+        property: "og:description",
+        content: "Spar against your custom chess engines in a polished dark arena.",
+      },
     ],
   }),
   component: Index,

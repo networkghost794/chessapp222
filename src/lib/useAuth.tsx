@@ -59,7 +59,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(s);
       setUser(s?.user ?? null);
       if (s?.user) {
-        setTimeout(() => { loadProfile(s.user.id); loadOwner(s.user.id); }, 0);
+        setTimeout(() => {
+          loadProfile(s.user.id);
+          loadOwner(s.user.id);
+        }, 0);
       } else {
         setProfile(null);
         setIsOwner(false);
@@ -69,8 +72,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(data.session);
       setUser(data.session?.user ?? null);
       if (data.session?.user) {
-        Promise.all([loadProfile(data.session.user.id), loadOwner(data.session.user.id)])
-          .finally(() => setLoading(false));
+        Promise.all([loadProfile(data.session.user.id), loadOwner(data.session.user.id)]).finally(
+          () => setLoading(false),
+        );
       } else setLoading(false);
     });
     return () => sub.subscription.unsubscribe();
@@ -84,9 +88,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profile,
         isOwner,
         loading,
-        refreshProfile: async () => { if (user) await loadProfile(user.id); },
-        refreshOwner: async () => { if (user) await loadOwner(user.id); },
-        signOut: async () => { await supabase.auth.signOut(); },
+        refreshProfile: async () => {
+          if (user) await loadProfile(user.id);
+        },
+        refreshOwner: async () => {
+          if (user) await loadOwner(user.id);
+        },
+        signOut: async () => {
+          await supabase.auth.signOut();
+        },
       }}
     >
       {children}

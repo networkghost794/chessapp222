@@ -1,9 +1,7 @@
 import { repertoireMove } from "./repertoire";
 import type { Chess } from "chess.js";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  base64ToBytes, lookupPolyglot, polyglotHash, polyglotMoveToUci,
-} from "./polyglot";
+import { base64ToBytes, lookupPolyglot, polyglotHash, polyglotMoveToUci } from "./polyglot";
 import { analyseTopMoves, type TopMove } from "./stockfishEngine";
 
 // ---------- Lucas Chess–style personality types ----------
@@ -99,10 +97,10 @@ export type PhaseConfig = {
 /** Hard-override error rules — always evaluated first. */
 export type ErrorRules = {
   forceMate: boolean;
-  maxCpLoss: number;            // 0 = disabled
+  maxCpLoss: number; // 0 = disabled
   noBlunderWhenWinning: boolean;
-  winningThresholdCp: number;   // when own eval ≥ this, restrict big losses
-  winningMaxLossCp: number;     // max allowed loss in winning positions
+  winningThresholdCp: number; // when own eval ≥ this, restrict big losses
+  winningMaxLossCp: number; // max allowed loss in winning positions
 };
 export const defaultErrorRules = (): ErrorRules => ({
   forceMate: true,
@@ -115,7 +113,7 @@ export const defaultErrorRules = (): ErrorRules => ({
 /** Opening book settings (Polyglot .bin). */
 export type OpeningConfig = {
   enabled: boolean;
-  bookBin?: string;        // base64 (legacy, small books only)
+  bookBin?: string; // base64 (legacy, small books only)
   bookName?: string;
   /** Public URL of the .bin stored in file storage (preferred). */
   bookUrl?: string;
@@ -184,57 +182,101 @@ export type ThinkingTime = { minMs: number; maxMs: number };
 export const defaultThinkingTime = (): ThinkingTime => ({ minMs: 800, maxMs: 2000 });
 
 /** Engine brain overrides (Studio Expert). 0 / "auto" keeps the Elo-based defaults. */
-export type EngineProfile = "stockfish" | "komodo" | "leela" | "berserk" | "rubichess" | "ethereal" | "igel";
+export type EngineProfile =
+  "stockfish" | "komodo" | "leela" | "berserk" | "rubichess" | "ethereal" | "igel";
 export type EngineConfig = {
-  depth: number;          // 0 = auto by Elo, else 1–30
-  multipv: number;        // 0 = auto, else 1–40
-  eloPool: boolean;       // apply Elo candidate-pool limit
-  eloBlunders: boolean;   // apply Elo-scaled blunder injection
+  depth: number; // 0 = auto by Elo, else 1–30
+  multipv: number; // 0 = auto, else 1–40
+  eloPool: boolean; // apply Elo candidate-pool limit
+  eloBlunders: boolean; // apply Elo-scaled blunder injection
   profile: EngineProfile; // engine thinking flavour (style bias on top of Stockfish 18 eval)
-  pureMode: boolean;      // pure engine: skip strength/mistake layers, play the top move
-  timeoutSec: number;     // hard cap per search (seconds)
+  pureMode: boolean; // pure engine: skip strength/mistake layers, play the top move
+  timeoutSec: number; // hard cap per search (seconds)
 };
 export const defaultEngineConfig = (): EngineConfig => ({
-  depth: 0, multipv: 0, eloPool: true, eloBlunders: true, profile: "stockfish", pureMode: false, timeoutSec: 0,
+  depth: 0,
+  multipv: 0,
+  eloPool: true,
+  eloBlunders: true,
+  profile: "stockfish",
+  pureMode: false,
+  timeoutSec: 0,
 });
 
 /** Engine flavours. All run on Stockfish 18 NNUE; the profile biases which
  *  near-equal move is chosen, the way that engine is known to play. */
-export const ENGINE_PROFILES: { value: EngineProfile; name: string; tag: string; desc: string; bias: Partial<MoveStyle> }[] = [
-  { value: "stockfish", name: "Stockfish 18 NNUE", tag: "Concrete executioner", bias: {},
-    desc: "The world's #1 engine. Pure calculation: plays the objectively best move, cold and precise, punishes every mistake." },
-  { value: "komodo", name: "Komodo Dragon style", tag: "Positional boa constrictor", bias: { positional: 30, kingSafety: 20, capture: -15, check: -15 },
-    desc: "Built with a grandmaster's judgment. Slow squeezes, bishop pair, pawn structure, safe king and flawless endgames. Karpov-like." },
-  { value: "leela", name: "Leela Zero (Lc0) style", tag: "Romantic spatial artist", bias: { pieceDevelopment: 25, pawnAdvance: 20, positional: 15, capture: -10 },
-    desc: "Neural-net intuition. Grabs space, activates every piece and is happy to give material for long-term domination." },
-  { value: "berserk", name: "Berserk style", tag: "Savage king hunter", bias: { check: 30, capture: 20, pawnAdvance: 15, kingSafety: -15 },
-    desc: "Sharp and aggressive. Opens lines toward your king, loves initiative and chaotic tactical fights. Tal-like." },
-  { value: "rubichess", name: "RubiChess style", tag: "Iron fortress", bias: { kingSafety: 35, positional: 10, pawnAdvance: -15, check: -10 },
-    desc: "Rock-solid defender. Keeps its king safe, builds fortresses and counter-punches the moment you overextend." },
-  { value: "ethereal", name: "Ethereal style", tag: "Balanced classical master", bias: { positional: 15, pieceDevelopment: 15 },
-    desc: "Clean, sound classical chess. Controls the centre, keeps tension and grinds small edges without taking risks." },
-  { value: "igel", name: "Igel style", tag: "Counter-attacking hedgehog", bias: { kingSafety: 20, positional: 10, capture: 15, pawnAdvance: -10 },
-    desc: "Coils behind a solid pawn wall, waits, then strikes with sudden breaks and counter-blows when you push." },
+export const ENGINE_PROFILES: {
+  value: EngineProfile;
+  name: string;
+  tag: string;
+  desc: string;
+  bias: Partial<MoveStyle>;
+}[] = [
+  {
+    value: "stockfish",
+    name: "Stockfish 18 NNUE",
+    tag: "Concrete executioner",
+    bias: {},
+    desc: "The world's #1 engine. Pure calculation: plays the objectively best move, cold and precise, punishes every mistake.",
+  },
+  {
+    value: "komodo",
+    name: "Komodo Dragon style",
+    tag: "Positional boa constrictor",
+    bias: { positional: 30, kingSafety: 20, capture: -15, check: -15 },
+    desc: "Built with a grandmaster's judgment. Slow squeezes, bishop pair, pawn structure, safe king and flawless endgames. Karpov-like.",
+  },
+  {
+    value: "leela",
+    name: "Leela Zero (Lc0) style",
+    tag: "Romantic spatial artist",
+    bias: { pieceDevelopment: 25, pawnAdvance: 20, positional: 15, capture: -10 },
+    desc: "Neural-net intuition. Grabs space, activates every piece and is happy to give material for long-term domination.",
+  },
+  {
+    value: "berserk",
+    name: "Berserk style",
+    tag: "Savage king hunter",
+    bias: { check: 30, capture: 20, pawnAdvance: 15, kingSafety: -15 },
+    desc: "Sharp and aggressive. Opens lines toward your king, loves initiative and chaotic tactical fights. Tal-like.",
+  },
+  {
+    value: "rubichess",
+    name: "RubiChess style",
+    tag: "Iron fortress",
+    bias: { kingSafety: 35, positional: 10, pawnAdvance: -15, check: -10 },
+    desc: "Rock-solid defender. Keeps its king safe, builds fortresses and counter-punches the moment you overextend.",
+  },
+  {
+    value: "ethereal",
+    name: "Ethereal style",
+    tag: "Balanced classical master",
+    bias: { positional: 15, pieceDevelopment: 15 },
+    desc: "Clean, sound classical chess. Controls the centre, keeps tension and grinds small edges without taking risks.",
+  },
+  {
+    value: "igel",
+    name: "Igel style",
+    tag: "Counter-attacking hedgehog",
+    bias: { kingSafety: 20, positional: 10, capture: 15, pawnAdvance: -10 },
+    desc: "Coils behind a solid pawn wall, waits, then strikes with sudden breaks and counter-blows when you push.",
+  },
 ];
 
-export function applyEngineProfile(style: MoveStyle, profile: EngineProfile | undefined): MoveStyle {
+export function applyEngineProfile(
+  style: MoveStyle,
+  profile: EngineProfile | undefined,
+): MoveStyle {
   const p = ENGINE_PROFILES.find((x) => x.value === profile);
   if (!p) return style;
   const out = { ...style };
-  for (const k of Object.keys(p.bias) as (keyof MoveStyle)[]) out[k] = Math.max(0, Math.min(100, out[k] + (p.bias[k] ?? 0)));
+  for (const k of Object.keys(p.bias) as (keyof MoveStyle)[])
+    out[k] = Math.max(0, Math.min(100, out[k] + (p.bias[k] ?? 0)));
   return out;
 }
 
-
-
 export type BotCategory =
-  | "Beginner"
-  | "Intermediate"
-  | "Advanced"
-  | "SpecialEvent"
-  | "Creator"
-  | "TopPlayer"
-  | "Master";
+  "Beginner" | "Intermediate" | "Advanced" | "SpecialEvent" | "Creator" | "TopPlayer" | "Master";
 
 export const BOT_CATEGORIES: { value: BotCategory; label: string }[] = [
   { value: "Beginner", label: "Beginner Bots" },
@@ -295,7 +337,9 @@ const emit = () => listeners.forEach((l) => l());
 
 export function subscribeBots(fn: Listener): () => void {
   listeners.add(fn);
-  return () => { listeners.delete(fn); };
+  return () => {
+    listeners.delete(fn);
+  };
 }
 
 export function loadBots(): BotConfig[] {
@@ -318,7 +362,10 @@ function migratePhase(raw: Partial<PhaseConfig> | undefined): PhaseConfig {
   return {
     strength: legalBuckets.includes(s) ? s : "similar",
     style,
-    expected: { ...defaultExpectedMoves(), ...((r as { expected?: Partial<ExpectedMoves> }).expected ?? {}) },
+    expected: {
+      ...defaultExpectedMoves(),
+      ...((r as { expected?: Partial<ExpectedMoves> }).expected ?? {}),
+    },
   };
 }
 
@@ -358,8 +405,13 @@ function rowToBot(r: Record<string, unknown>): BotConfig {
     errorRules: { ...defaultErrorRules(), ...(op.errorRules ?? {}) },
     endgameTrigger: { ...defaultEndgameTrigger(), ...(op.endgameTrigger ?? {}) },
     bucketMap: { ...DEFAULT_BUCKET_MAP, ...(op.bucketMap ?? {}) },
-    humanMistake: { ...defaultHumanMistake(), ...((op as { humanMistake?: Partial<HumanMistake> }).humanMistake ?? {}) },
-    dialogueLines: Array.isArray(r.dialogue_lines) ? (r.dialogue_lines as string[]).filter((x) => typeof x === "string") : [],
+    humanMistake: {
+      ...defaultHumanMistake(),
+      ...((op as { humanMistake?: Partial<HumanMistake> }).humanMistake ?? {}),
+    },
+    dialogueLines: Array.isArray(r.dialogue_lines)
+      ? (r.dialogue_lines as string[]).filter((x) => typeof x === "string")
+      : [],
     createdAt: r.created_at ? new Date(String(r.created_at)).getTime() : Date.now(),
     createdBy: (r.created_by as string) ?? null,
     lifetimeWins: Number(r.lifetime_wins ?? 0),
@@ -368,7 +420,10 @@ function rowToBot(r: Record<string, unknown>): BotConfig {
     titleColor: (r.title_color as string | null) ?? null,
     country: ((op as { country?: string | null }).country as string | null) ?? null,
     thinking: { ...defaultThinkingTime(), ...(op.thinking ?? {}) },
-    engine: { ...defaultEngineConfig(), ...((op as { engine?: Partial<EngineConfig> }).engine ?? {}) },
+    engine: {
+      ...defaultEngineConfig(),
+      ...((op as { engine?: Partial<EngineConfig> }).engine ?? {}),
+    },
   };
 }
 
@@ -399,20 +454,25 @@ export async function updateBotPlacement(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .update({ tier: category, order_index: orderIndex } as any)
     .eq("id", id);
-  if (error) { console.warn("[botStore] placement update failed:", error.message); return; }
+  if (error) {
+    console.warn("[botStore] placement update failed:", error.message);
+    return;
+  }
   await refreshFromCloud();
 }
 
 /** Owner-only: rewrite the full ordering of a category (0..n-1). */
 export async function reorderCategory(category: BotCategory, orderedIds: string[]): Promise<void> {
   // Batch updates in parallel.
-  await Promise.all(orderedIds.map((id, idx) =>
-    supabase
-      .from("custom_bots")
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .update({ tier: category, order_index: idx } as any)
-      .eq("id", id),
-  ));
+  await Promise.all(
+    orderedIds.map((id, idx) =>
+      supabase
+        .from("custom_bots")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .update({ tier: category, order_index: idx } as any)
+        .eq("id", id),
+    ),
+  );
   await refreshFromCloud();
 }
 
@@ -438,12 +498,20 @@ export type BotPublishInput = {
   engine?: EngineConfig;
 };
 
-async function resolveAvatarUrl(uid: string, input: BotPublishInput): Promise<string | null | undefined> {
+async function resolveAvatarUrl(
+  uid: string,
+  input: BotPublishInput,
+): Promise<string | null | undefined> {
   if (input.avatarFile) {
     const ext = input.avatarFile.name.split(".").pop() || "png";
     const path = `${uid}/${Date.now()}.${ext}`;
-    const { error: upErr } = await supabase.storage.from("bot-avatars").upload(path, input.avatarFile, { upsert: false });
-    if (upErr) { console.warn("[botStore] avatar upload failed:", upErr.message); return undefined; }
+    const { error: upErr } = await supabase.storage
+      .from("bot-avatars")
+      .upload(path, input.avatarFile, { upsert: false });
+    if (upErr) {
+      console.warn("[botStore] avatar upload failed:", upErr.message);
+      return undefined;
+    }
     const { data: pub } = supabase.storage.from("bot-avatars").getPublicUrl(path);
     return pub.publicUrl;
   }
@@ -476,7 +544,7 @@ export async function publishBot(input: BotPublishInput): Promise<BotConfig | nu
     profile_pic_url: avatarUrl ?? null,
     quote: input.quote,
     tier: input.category,
-    order_index: (cache.filter((b) => b.category === input.category).length),
+    order_index: cache.filter((b) => b.category === input.category).length,
     middlegame_settings: input.middlegame,
     endgame_settings: input.endgame,
     opening_settings: openingPayload,
@@ -485,8 +553,11 @@ export async function publishBot(input: BotPublishInput): Promise<BotConfig | nu
     title: input.title?.trim() ? input.title.trim() : null,
     title_color: input.titleColor ?? null,
   };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await supabase.from("custom_bots").insert(insertPayload as any).select("*").single();
+  const { data, error } = await supabase
+    .from("custom_bots")
+    .insert(insertPayload as never)
+    .select("*")
+    .single();
   if (error) throw error;
   await refreshFromCloud();
   return data ? rowToBot(data) : null;
@@ -525,8 +596,12 @@ export async function updateBot(id: string, input: BotPublishInput): Promise<Bot
   };
   if (newAvatarUrl !== undefined) updatePayload.profile_pic_url = newAvatarUrl;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await supabase.from("custom_bots").update(updatePayload as any).eq("id", id).select("*").single();
+  const { data, error } = await supabase
+    .from("custom_bots")
+    .update(updatePayload as never)
+    .eq("id", id)
+    .select("*")
+    .single();
   if (error) throw error;
   await refreshFromCloud();
   return data ? rowToBot(data) : null;
@@ -540,7 +615,9 @@ export async function uploadBookFile(bytes: Uint8Array, name: string): Promise<s
   const safe = name.replace(/[^a-z0-9._-]/gi, "_");
   const path = `${uid}/books/${Date.now()}-${safe}`;
   const blob = new Blob([bytes as BlobPart], { type: "application/octet-stream" });
-  const { error } = await supabase.storage.from("bot-avatars").upload(path, blob, { upsert: false, contentType: "application/octet-stream" });
+  const { error } = await supabase.storage
+    .from("bot-avatars")
+    .upload(path, blob, { upsert: false, contentType: "application/octet-stream" });
   if (error) throw new Error(`Book upload failed: ${error.message}`);
   return supabase.storage.from("bot-avatars").getPublicUrl(path).data.publicUrl;
 }
@@ -548,11 +625,25 @@ export async function uploadBookFile(bytes: Uint8Array, name: string): Promise<s
 /** Build a full update input from an existing bot plus overrides. */
 export function botToInput(b: BotConfig, patch: Partial<BotPublishInput> = {}): BotPublishInput {
   return {
-    name: b.name, elo: b.elo, avatarDataUrl: undefined, quote: b.quote, category: b.category,
-    dialogueLines: b.dialogueLines, middlegame: b.middlegame, endgame: b.endgame, opening: b.opening,
-    errorRules: b.errorRules, endgameTrigger: b.endgameTrigger, bucketMap: b.bucketMap,
-    humanMistake: b.humanMistake, title: b.title ?? null, titleColor: b.titleColor ?? null,
-    country: b.country ?? null, thinking: b.thinking, engine: b.engine, ...patch,
+    name: b.name,
+    elo: b.elo,
+    avatarDataUrl: undefined,
+    quote: b.quote,
+    category: b.category,
+    dialogueLines: b.dialogueLines,
+    middlegame: b.middlegame,
+    endgame: b.endgame,
+    opening: b.opening,
+    errorRules: b.errorRules,
+    endgameTrigger: b.endgameTrigger,
+    bucketMap: b.bucketMap,
+    humanMistake: b.humanMistake,
+    title: b.title ?? null,
+    titleColor: b.titleColor ?? null,
+    country: b.country ?? null,
+    thinking: b.thinking,
+    engine: b.engine,
+    ...patch,
   };
 }
 
@@ -620,12 +711,16 @@ function classifyMove(game: Chess, m: VerboseMove): MoveClass {
 
   // king-safety = castling, or moves of king toward corner files
   const isCastle = m.flags.includes("k") || m.flags.includes("q");
-  const isKingSafety = isCastle || (m.piece === "k" && Math.abs(fromFile - (m.to.charCodeAt(0) - 97)) >= 1);
+  const isKingSafety =
+    isCastle || (m.piece === "k" && Math.abs(fromFile - (m.to.charCodeAt(0) - 97)) >= 1);
 
   // probe check
   let isCheck = false;
   const t = game.move(m.san);
-  if (t) { isCheck = game.inCheck(); game.undo(); }
+  if (t) {
+    isCheck = game.inCheck();
+    game.undo();
+  }
 
   const isCapture = !!m.captured;
   // "positional" = quiet, non-development, non-pawn-shove
@@ -669,7 +764,11 @@ function findLegalMove(game: Chess, uci: string): EngineMove | null {
   const to = uci.slice(2, 4);
   const promo = uci.length >= 5 ? uci[4] : undefined;
   const moves = game.moves({ verbose: true }) as VerboseMove[];
-  return moves.find((m) => m.from === from && m.to === to && (promo ? m.promotion === promo : !m.promotion)) ?? null;
+  return (
+    moves.find(
+      (m) => m.from === from && m.to === to && (promo ? m.promotion === promo : !m.promotion),
+    ) ?? null
+  );
 }
 
 /** Legacy export retained for callers/tests; uses style weights only, no engine. */
@@ -681,7 +780,10 @@ export function pickBotMove(game: Chess, bot: BotConfig | null): EngineMove | nu
   const scored = moves.map((m) => ({ m, s: styleScore(classifyMove(game, m), phase.style) }));
   const total = scored.reduce((a, b) => a + b.s, 0);
   let r = Math.random() * total;
-  for (const x of scored) { r -= x.s; if (r <= 0) return x.m; }
+  for (const x of scored) {
+    r -= x.s;
+    if (r <= 0) return x.m;
+  }
   return scored[scored.length - 1].m;
 }
 
@@ -719,7 +821,11 @@ export async function chooseBotMove(
   // preference inside the existing strength → personality → mistake
   // pipeline below. Map: uci → normalised weight share (0..1).
   let bookShares: Map<string, number> | null = null;
-  if (bot?.opening.enabled && (bot.opening.bookBin || bot.opening.bookUrl) && game.history().length < (bot.opening.maxBookDepth ?? 22)) {
+  if (
+    bot?.opening.enabled &&
+    (bot.opening.bookBin || bot.opening.bookUrl) &&
+    game.history().length < (bot.opening.maxBookDepth ?? 22)
+  ) {
     try {
       const book = await getBookBytes(bot);
       if (book) {
@@ -745,8 +851,13 @@ export async function chooseBotMove(
     try {
       const san = repertoireMove(game, bot.id, bot.elo ?? 1500);
       const vm = san ? legal.find((m) => m.san === san) : undefined;
-      if (vm) { bookShares = new Map([[vm.from + vm.to + (vm.promotion ?? ""), 1]]); builtIn = true; }
-    } catch (e) { console.warn("[botStore] repertoire failed:", e); }
+      if (vm) {
+        bookShares = new Map([[vm.from + vm.to + (vm.promotion ?? ""), 1]]);
+        builtIn = true;
+      }
+    } catch (e) {
+      console.warn("[botStore] repertoire failed:", e);
+    }
   }
   const uciOf = (m: VerboseMove) => m.from + m.to + (m.promotion ?? "");
   // Strength-aware book preference: stronger bots sharpen toward
@@ -779,26 +890,44 @@ export async function chooseBotMove(
       // once the candidate filter runs.
       const elo = Math.max(100, Math.min(3200, bot.elo ?? 1500));
       const rawElo = bot.elo ?? 1500;
-      const depth = eng.depth > 0 ? Math.min(30, eng.depth) :
-        eng.pureMode ? 18 :
-        rawElo >= 3000 ? 16 :
-        elo < 400 ? 4 :
-        elo < 800 ? 6 :
-        elo < 1400 ? 8 :
-        elo < 2000 ? 9 :
-        elo < 2500 ? 10 : 11;
+      const depth =
+        eng.depth > 0
+          ? Math.min(30, eng.depth)
+          : eng.pureMode
+            ? 18
+            : rawElo >= 3000
+              ? 16
+              : elo < 400
+                ? 4
+                : elo < 800
+                  ? 6
+                  : elo < 1400
+                    ? 8
+                    : elo < 2000
+                      ? 9
+                      : elo < 2500
+                        ? 10
+                        : 11;
       // NOTE: do NOT pass Elo to UCI_LimitStrength — we control strength via candidate filtering below.
-      const timeoutMs = eng.timeoutSec > 0 ? eng.timeoutSec * 1000 : depth >= 20 ? 30000 : depth >= 15 ? 15000 : 4000;
+      const timeoutMs =
+        eng.timeoutSec > 0
+          ? eng.timeoutSec * 1000
+          : depth >= 20
+            ? 30000
+            : depth >= 15
+              ? 15000
+              : 4000;
       const top = await analyseTopMoves(game.fen(), { multipv, depth, timeoutMs });
       const pStyle = applyEngineProfile(phase.style, eng.profile);
 
       const scored: ScoredMove[] = [];
       for (const tm of top) {
-        const vm = legal.find((m) =>
-          m.from === tm.uci.slice(0, 2) &&
-          m.to === tm.uci.slice(2, 4) &&
-          ((tm.uci.length >= 5 ? tm.uci[4] : undefined) === m.promotion ||
-            (!m.promotion && tm.uci.length < 5)),
+        const vm = legal.find(
+          (m) =>
+            m.from === tm.uci.slice(0, 2) &&
+            m.to === tm.uci.slice(2, 4) &&
+            ((tm.uci.length >= 5 ? tm.uci[4] : undefined) === m.promotion ||
+              (!m.promotion && tm.uci.length < 5)),
         );
         if (vm) {
           const { cp, mate } = topToCp(tm);
@@ -807,7 +936,11 @@ export async function chooseBotMove(
       }
       // Cover any legal moves Stockfish didn't return (rare with multipv=24)
       for (const m of legal) {
-        if (!scored.find((s) => s.vm.from === m.from && s.vm.to === m.to && s.vm.promotion === m.promotion)) {
+        if (
+          !scored.find(
+            (s) => s.vm.from === m.from && s.vm.to === m.to && s.vm.promotion === m.promotion,
+          )
+        ) {
           scored.push({ vm: m, cp: -10000, mate: null });
         }
       }
@@ -828,8 +961,13 @@ export async function chooseBotMove(
         const best = scored[0];
         if (best.mate !== null) return { move: best.vm, source: "engine" };
         const ties = scored.filter((s) => s.mate === null && best.cp - s.cp <= 5);
-        if (ties.length <= 1 || !eng.profile || eng.profile === "stockfish") return { move: best.vm, source: "engine" };
-        ties.sort((a, b) => styleScore(classifyMove(game, b.vm), pStyle) - styleScore(classifyMove(game, a.vm), pStyle));
+        if (ties.length <= 1 || !eng.profile || eng.profile === "stockfish")
+          return { move: best.vm, source: "engine" };
+        ties.sort(
+          (a, b) =>
+            styleScore(classifyMove(game, b.vm), pStyle) -
+            styleScore(classifyMove(game, a.vm), pStyle),
+        );
         return { move: ties[0].vm, source: "engine" };
       }
 
@@ -838,22 +976,35 @@ export async function chooseBotMove(
       //   Build a limited candidate move pool BEFORE personality runs.
       //   Personality can never select a move outside this pool.
       // ============================================================
-      const eloPoolSize = !eng.eloPool ? scored.length :
-        elo < 200  ? Math.min(scored.length, 5) :
-        elo < 600  ? Math.min(scored.length, 7) :
-        elo < 1000 ? Math.min(scored.length, 9) :
-        elo < 1500 ? Math.min(scored.length, 12) :
-        elo < 2000 ? Math.min(scored.length, 16) :
-                     scored.length;
+      const eloPoolSize = !eng.eloPool
+        ? scored.length
+        : elo < 200
+          ? Math.min(scored.length, 5)
+          : elo < 600
+            ? Math.min(scored.length, 7)
+            : elo < 1000
+              ? Math.min(scored.length, 9)
+              : elo < 1500
+                ? Math.min(scored.length, 12)
+                : elo < 2000
+                  ? Math.min(scored.length, 16)
+                  : scored.length;
       let eloPool: ScoredMove[] = scored.slice(0, eloPoolSize);
 
       // Blunder injection — probability inversely proportional to ELO.
-      const blunderProb = !eng.eloBlunders ? 0 :
-        elo < 200  ? 0.35 :
-        elo < 600  ? 0.22 :
-        elo < 1000 ? 0.12 :
-        elo < 1500 ? 0.05 :
-        elo < 2000 ? 0.02 : 0;
+      const blunderProb = !eng.eloBlunders
+        ? 0
+        : elo < 200
+          ? 0.35
+          : elo < 600
+            ? 0.22
+            : elo < 1000
+              ? 0.12
+              : elo < 1500
+                ? 0.05
+                : elo < 2000
+                  ? 0.02
+                  : 0;
       if (blunderProb > 0 && Math.random() < blunderProb && scored.length > eloPoolSize) {
         const span = Math.min(6, scored.length - eloPoolSize);
         const worse = scored[eloPoolSize + Math.floor(Math.random() * span)];
@@ -880,7 +1031,6 @@ export async function chooseBotMove(
         if (pool.length === 0) pool = [eloFiltered[0]];
       }
 
-
       // ---------- 5b) Max centipawn loss cap (within ELO pool) ----------
       if (bot.errorRules.maxCpLoss > 0 && bucket !== "worst") {
         const capped = pool.filter((s) => eloBestCp - s.cp <= bot.errorRules.maxCpLoss);
@@ -888,7 +1038,11 @@ export async function chooseBotMove(
       }
 
       // ---------- 5c) Don't blunder when winning ----------
-      if (bot.errorRules.noBlunderWhenWinning && eloBestCp >= bot.errorRules.winningThresholdCp && bucket !== "worst") {
+      if (
+        bot.errorRules.noBlunderWhenWinning &&
+        eloBestCp >= bot.errorRules.winningThresholdCp &&
+        bucket !== "worst"
+      ) {
         const safe = pool.filter((s) => eloBestCp - s.cp <= bot.errorRules.winningMaxLossCp);
         if (safe.length > 0) pool = safe;
       }
@@ -937,7 +1091,10 @@ export async function chooseBotMove(
         if (inBook.length > 1) {
           const ws = inBook.map((s) => bookFactor(s.vm));
           let r = Math.random() * ws.reduce((x, y) => x + y, 0);
-          for (let i = 0; i < inBook.length; i++) { r -= ws[i]; if (r <= 0) return { move: inBook[i].vm, source: "book" }; }
+          for (let i = 0; i < inBook.length; i++) {
+            r -= ws[i];
+            if (r <= 0) return { move: inBook[i].vm, source: "book" };
+          }
         }
         if (inBook.length === 1) return { move: inBook[0].vm, source: "book" };
         return { move: pool[0].vm, source: "engine" };
@@ -961,9 +1118,10 @@ export async function chooseBotMove(
         if (s.vm.piece === "b") {
           let myBishops = 0;
           const turn = game.turn();
-          for (const row of game.board()) for (const sq of row) {
-            if (sq && sq.type === "b" && sq.color === turn) myBishops++;
-          }
+          for (const row of game.board())
+            for (const sq of row) {
+              if (sq && sq.type === "b" && sq.color === turn) myBishops++;
+            }
           if (myBishops >= 2) bias *= Math.max(0.2, 1 - exp.keepBishopPair / 150);
         }
         // Polyglot book preference (soft, within the filtered pool only).
@@ -986,8 +1144,6 @@ export async function chooseBotMove(
   const pick = pickBotMove(game, bot);
   return pick ? { move: pick, source: "fallback" } : null;
 }
-
-
 
 /** Compute a per-move thinking delay in ms for this bot (min..max, uniform). */
 export function pickThinkingDelayMs(bot: BotConfig | null): number {
@@ -1012,7 +1168,9 @@ export function loadTitleColors(): Record<string, string> {
 
 export function subscribeTitleColors(fn: Listener): () => void {
   titleColorListeners.add(fn);
-  return () => { titleColorListeners.delete(fn); };
+  return () => {
+    titleColorListeners.delete(fn);
+  };
 }
 
 export function getTitleColor(title?: string | null, override?: string | null): string | undefined {
@@ -1041,16 +1199,27 @@ export async function setTitleColor(title: string, color: string): Promise<void>
   if (!t) return;
   const { data: userData } = await supabase.auth.getUser();
   const uid = userData.user?.id;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await supabase.from("title_colors").upsert({
-    title: t, color, updated_by: uid ?? null, updated_at: new Date().toISOString(),
-  } as any, { onConflict: "title" });
-  if (error) { console.warn("[botStore] set title color failed:", error.message); return; }
+  const { error } = await supabase.from("title_colors").upsert(
+    {
+      title: t,
+      color,
+      updated_by: uid ?? null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "title" },
+  );
+  if (error) {
+    console.warn("[botStore] set title color failed:", error.message);
+    return;
+  }
   await refreshTitleColors();
 }
 
 export async function deleteTitleColor(title: string): Promise<void> {
   const { error } = await supabase.from("title_colors").delete().eq("title", title);
-  if (error) { console.warn("[botStore] delete title color failed:", error.message); return; }
+  if (error) {
+    console.warn("[botStore] delete title color failed:", error.message);
+    return;
+  }
   await refreshTitleColors();
 }

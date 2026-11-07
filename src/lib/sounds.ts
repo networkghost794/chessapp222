@@ -9,8 +9,12 @@ function getCtx(): AudioContext | null {
   try {
     if (!ctx) {
       const AC: typeof AudioContext =
-        (window as unknown as { AudioContext: typeof AudioContext; webkitAudioContext?: typeof AudioContext })
-          .AudioContext ||
+        (
+          window as unknown as {
+            AudioContext: typeof AudioContext;
+            webkitAudioContext?: typeof AudioContext;
+          }
+        ).AudioContext ||
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (!AC) return null;
       ctx = new AC();

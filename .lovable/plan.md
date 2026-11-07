@@ -45,6 +45,7 @@ Layout: centered chessboard preview (start position, non-interactive), player in
 ## 4. Live match UI polish (chess.com style)
 
 Keep the existing board component and theme. Reorganize the surrounding panels:
+
 - Top bar: bot avatar + name, "Player vs Bot" line, Elo comparison
 - Right sidebar: real-time PGN-style move list (already partially present — formalize), optional captured-pieces row underneath
 
@@ -55,6 +56,7 @@ No engine or rules changes.
 **Owner Portal — General tab**: new "Bot Dialogue Lines" textarea (one line per row). Saved into `custom_bots` as a new JSONB field `dialogue_lines` (string[]). Migration adds the column with default `'[]'::jsonb`.
 
 **Live match**: new `BotChatBubble.tsx` overlay above the bot info panel. While a match is active:
+
 - Pick a random line every 60–120 seconds
 - Fade in, hold 4s, fade out
 - Cooldown enforced so bubbles never overlap
@@ -67,15 +69,18 @@ Built-in bots fall back to a small default line pool.
 ## Technical details
 
 **Files to edit**
+
 - `src/lib/botStore.ts` — extend `PhaseConfig` with `expected`, extend `CustomBot` with `dialogueLines`, extend `publishBot`, factor `expected` weights into `chooseBotMove`.
 - `src/components/chess/OwnerPortal.tsx` — add expected-moves subsection in Middlegame + Endgame tabs, add dialogue-lines textarea in General tab, add new tier options.
 - `src/components/chess/BotRoster.tsx` — convert to Accordion with six categories, collapsed by default.
 - `src/components/chess/ChessApp.tsx` — match-setup screen state machine, top bar redesign, right sidebar move list + captured pieces, mount `BotChatBubble`.
-- `src/components/chess/BotChatBubble.tsx` *(new)* — fade-in/out speech bubble with cooldown timer.
+- `src/components/chess/BotChatBubble.tsx` _(new)_ — fade-in/out speech bubble with cooldown timer.
 
 **Migration**
+
 - `ALTER TABLE custom_bots ADD COLUMN dialogue_lines jsonb NOT NULL DEFAULT '[]'::jsonb;`
 
 **Non-goals**
+
 - No changes to auth, Elo math, Owner PIN, bathroom break, profile system, or Stockfish engine logic.
 - No restyle of existing tokens, no new colors.

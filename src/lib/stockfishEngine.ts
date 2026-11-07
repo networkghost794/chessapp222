@@ -4,8 +4,7 @@
 let workerRef: Worker | null = null;
 const listeners = new Set<(line: string) => void>();
 
-const STOCKFISH_CDN =
-  "https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js";
+const STOCKFISH_CDN = "https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js";
 export const MODERN_ENGINE_URL = "/engine/stockfish-18-lite-single.js";
 export const ENGINE_VERSION = "Stockfish 18 NNUE (WASM)";
 
@@ -30,8 +29,11 @@ function ensureWorker(): Worker {
     w.onerror = () => {
       // Fallback to the legacy engine if WASM fails to load in this browser.
       console.warn("[stockfish] Stockfish 18 failed to load, falling back to v10");
-      const fb = legacyWorker(); attach(fb); workerRef = fb;
-      fb.postMessage("uci"); fb.postMessage("isready");
+      const fb = legacyWorker();
+      attach(fb);
+      workerRef = fb;
+      fb.postMessage("uci");
+      fb.postMessage("isready");
     };
   } catch {
     w = legacyWorker();
@@ -44,11 +46,15 @@ function ensureWorker(): Worker {
   return w;
 }
 
-function send(cmd: string) { ensureWorker().postMessage(cmd); }
+function send(cmd: string) {
+  ensureWorker().postMessage(cmd);
+}
 
 function onLine(fn: (line: string) => void) {
   listeners.add(fn);
-  return () => { listeners.delete(fn); };
+  return () => {
+    listeners.delete(fn);
+  };
 }
 
 export type TopMove = { uci: string; cp: number | null; mate: number | null };
@@ -59,7 +65,14 @@ export type TopMove = { uci: string; cp: number | null; mate: number | null };
  */
 export function analyseTopMoves(
   fen: string,
-  opts: { multipv: number; depth: number; elo?: number; movetime?: number; skill?: number; timeoutMs?: number },
+  opts: {
+    multipv: number;
+    depth: number;
+    elo?: number;
+    movetime?: number;
+    skill?: number;
+    timeoutMs?: number;
+  },
 ): Promise<TopMove[]> {
   ensureWorker();
   return new Promise((resolve) => {
@@ -76,10 +89,13 @@ export function analyseTopMoves(
       resolve(arr);
     };
     // Hard safety net: never let a search hang the UI.
-    const guard = setTimeout(() => {
-      send("stop");
-      setTimeout(finish, 120);
-    }, (opts.timeoutMs ?? opts.movetime ?? 4000) + 1500);
+    const guard = setTimeout(
+      () => {
+        send("stop");
+        setTimeout(finish, 120);
+      },
+      (opts.timeoutMs ?? opts.movetime ?? 4000) + 1500,
+    );
     const off = onLine((line) => {
       if (line.startsWith("info") && line.includes(" multipv ")) {
         const mpv = Number(/ multipv (\d+)/.exec(line)?.[1] ?? 0);
@@ -132,12 +148,24 @@ export function engineBestMove(fen: string, skill: number, depth: number): Promi
     let done = false;
     const off = onLine((line) => {
       if (line.startsWith("bestmove")) {
-        if (done) return; done = true; off(); clearTimeout(guard);
+        if (done) return;
+        done = true;
+        off();
+        clearTimeout(guard);
         const m = line.split(/\s+/)[1];
         resolve(m && m !== "(none)" ? m : null);
       }
     });
-    const guard = setTimeout(() => { send("stop"); setTimeout(() => { if (!done) { done = true; off(); resolve(null); } }, 200); }, 6000);
+    const guard = setTimeout(() => {
+      send("stop");
+      setTimeout(() => {
+        if (!done) {
+          done = true;
+          off();
+          resolve(null);
+        }
+      }, 200);
+    }, 6000);
     send("setoption name UCI_LimitStrength value false");
     send(`setoption name Skill Level value ${Math.max(0, Math.min(20, skill))}`);
     send("setoption name MultiPV value 1");

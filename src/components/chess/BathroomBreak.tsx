@@ -26,7 +26,10 @@ export function BathroomBreak({ open, onClose }: { open: boolean; onClose: () =>
 
   useEffect(() => {
     if (!open) return;
-    setPhase("break"); setQIdx(0); setSecs(30); setShowAlert(false);
+    setPhase("break");
+    setQIdx(0);
+    setSecs(30);
+    setShowAlert(false);
   }, [open]);
 
   useEffect(() => {
@@ -37,9 +40,14 @@ export function BathroomBreak({ open, onClose }: { open: boolean; onClose: () =>
 
   useEffect(() => {
     if (phase !== "lockout") return;
-    if (secs <= 0) { onClose(); return; }
+    if (secs <= 0) {
+      onClose();
+      return;
+    }
     timerRef.current = window.setTimeout(() => setSecs((s) => s - 1), 1000);
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
   }, [phase, secs, onClose]);
 
   if (!open) return null;
@@ -51,12 +59,19 @@ export function BathroomBreak({ open, onClose }: { open: boolean; onClose: () =>
 
       <div className="fixed inset-0 z-[101] grid place-items-center p-4">
         <div className="w-full max-w-lg rounded-2xl bg-card border border-border/60 shadow-2xl p-8 text-center animate-in zoom-in-95 duration-300">
-          <div className="text-7xl mb-4 drop-shadow-[0_0_25px_rgba(99,179,237,0.55)] animate-pulse">🚽</div>
+          <div className="text-7xl mb-4 drop-shadow-[0_0_25px_rgba(99,179,237,0.55)] animate-pulse">
+            🚽
+          </div>
 
           {phase === "break" && (
             <>
-              <div className="text-xs uppercase tracking-[0.3em] text-primary mb-3">Bathroom Break</div>
-              <p key={qIdx} className="text-base text-foreground/90 italic min-h-[5rem] leading-relaxed animate-in fade-in duration-700">
+              <div className="text-xs uppercase tracking-[0.3em] text-primary mb-3">
+                Bathroom Break
+              </div>
+              <p
+                key={qIdx}
+                className="text-base text-foreground/90 italic min-h-[5rem] leading-relaxed animate-in fade-in duration-700"
+              >
                 {QUOTES[qIdx]}
               </p>
               <Button
@@ -82,7 +97,11 @@ export function BathroomBreak({ open, onClose }: { open: boolean; onClose: () =>
                 <Button
                   variant="destructive"
                   className="font-bold px-8"
-                  onClick={() => { setShowAlert(true); setPhase("lockout"); setSecs(30); }}
+                  onClick={() => {
+                    setShowAlert(true);
+                    setPhase("lockout");
+                    setSecs(30);
+                  }}
                 >
                   No
                 </Button>
@@ -97,9 +116,13 @@ export function BathroomBreak({ open, onClose }: { open: boolean; onClose: () =>
                   Go wash them! Hygiene first!
                 </div>
               )}
-              <div className="text-xs uppercase tracking-[0.3em] text-muted-foreground mb-2">Locked</div>
+              <div className="text-xs uppercase tracking-[0.3em] text-muted-foreground mb-2">
+                Locked
+              </div>
               <div className="text-6xl font-black text-destructive tabular-nums">{secs}s</div>
-              <p className="text-xs text-muted-foreground mt-3">Board stays locked until the timer ends.</p>
+              <p className="text-xs text-muted-foreground mt-3">
+                Board stays locked until the timer ends.
+              </p>
             </>
           )}
         </div>
