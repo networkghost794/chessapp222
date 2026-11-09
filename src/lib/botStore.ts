@@ -816,11 +816,10 @@ export async function chooseBotMove(
   const legal = game.moves({ verbose: true }) as VerboseMove[];
   if (legal.length === 0) return null;
 
-  // ---------- 1) Polyglot opening book (candidate source only) ----------
-  // Book moves are NEVER played directly. They only become a soft
-  // preference inside the existing strength → personality → mistake
-  // pipeline below. Map: uci → normalised weight share (0..1).
-  let bookShares: Map<string, number> | null = null;
+  // ---------- 1) Polyglot opening book (Direct Theoretical Book Play) ----------
+  // When an opening book is configured and contains moves for the current position,
+  // play directly from the book according to its weights. This guarantees the bot
+  // plays its theoretical lines even if Stockfish scores a gambit lower in centipawns.
   if (
     bot?.opening.enabled &&
     (bot.opening.bookBin || bot.opening.bookUrl) &&
@@ -830,21 +829,32 @@ export async function chooseBotMove(
       const book = await getBookBytes(bot);
       if (book) {
         const entries = lookupPolyglot(book, polyglotHash(game));
-        const legalEntries: { uci: string; w: number }[] = [];
+        const legalEntries: { move: VerboseMove; w: number }[] = [];
         for (const e of entries) {
           const uci = polyglotMoveToUci(game, e.move);
-          if (findLegalMove(game, uci)) legalEntries.push({ uci, w: Math.max(1, e.weight) });
+          const vm = findLegalMove(game, uci) as VerboseMove | null;
+          if (vm) legalEntries.push({ move: vm, w: Math.max(1, e.weight) });
         }
         if (legalEntries.length > 0) {
+          // Mode: "best" = highest weight line; default = proportional weighted random
+          if (bot.opening.mode === "best") {
+            legalEntries.sort((a, b) => b.w - a.w);
+            return { move: legalEntries[0].move, source: "book" };
+          }
           const total = legalEntries.reduce((x, y) => x + y.w, 0);
-          bookShares = new Map(legalEntries.map((x) => [x.uci, x.w / total]));
+          let r = Math.random() * total;
+          for (const item of legalEntries) {
+            r -= item.w;
+            if (r <= 0) return { move: item.move, source: "book" };
+          }
+          return { move: legalEntries[0].move, source: "book" };
         }
       }
     } catch (e) {
       console.warn("[botStore] polyglot lookup failed:", e);
-      bookShares = null;
     }
   }
+  let bookShares: Map<string, number> | null = null;
   // Built-in repertoire fallback when no Polyglot book has a move here.
   let builtIn = false;
   if (bot && !bookShares) {
