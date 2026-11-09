@@ -6,6 +6,7 @@ import { PlacementTest } from "@/components/chess/PlacementTest";
 import { Toaster } from "@/components/ui/sonner";
 
 export const Route = createFileRoute("/")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "BotBoard — Play Chess vs Custom AI Bots" },

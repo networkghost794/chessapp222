@@ -117,8 +117,8 @@ export type OpeningConfig = {
   /** Public URL of the .bin stored in file storage (preferred). */
   bookUrl?: string;
   bookSize?: number;
-  /** Selection mode — proportional random by Polyglot weights. */
-  mode: "proportional";
+  /** Selection mode — proportional random by Polyglot weights or best weight. */
+  mode: "proportional" | "best";
   /** 0–100 — how strongly book moves are preferred INSIDE the existing
    *  strength/personality pipeline. Never forces a move. */
   influence: number;
@@ -828,7 +828,7 @@ export async function chooseBotMove(
         const legalEntries: { move: VerboseMove; w: number }[] = [];
         for (const e of entries) {
           const uci = polyglotMoveToUci(game, e.move);
-          const vm = findLegalMove(game, uci);
+          const vm = findLegalMove(game, uci) as VerboseMove | null;
           if (vm) legalEntries.push({ move: vm, w: Math.max(1, e.weight) });
         }
         if (legalEntries.length > 0) {
