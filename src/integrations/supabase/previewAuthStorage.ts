@@ -39,7 +39,9 @@ function readBrokerReply(data: unknown, requestId: string): BrokerReply | null {
  * On a Lovable preview surface, broker the auth session to the editor over
  * postMessage so the project's preview surfaces share one login; else localStorage.
  */
-export function brokeredPreviewStorage(): PreviewAuthStorage | undefined {
+export function brokeredPreviewStorage(
+  _supabaseInstance?: unknown,
+): PreviewAuthStorage | undefined {
   if (typeof window === "undefined") return undefined;
   const host = location.hostname;
   const PREVIEW_ZONES = [
