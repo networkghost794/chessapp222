@@ -32,167 +32,59 @@ type Ctx = {
 
 const AuthCtx = createContext<Ctx | null>(null);
 
-const LOCAL_USER_KEY = "botboard_offline_user";
-const LOCAL_PROFILE_KEY = "botboard_offline_profile";
-
-export function getOfflineUser(): User | null {
-  if (typeof window === "undefined") return null;
-  const raw = localStorage.getItem(LOCAL_USER_KEY);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-export function getOfflineProfile(uid: string): Profile | null {
-  if (typeof window === "undefined") return null;
-  const raw = localStorage.getItem(`${LOCAL_PROFILE_KEY}_${uid}`);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-export function updateOfflineProfile(uid: string, patch: Partial<Profile>): Profile | null {
-  if (typeof window === "undefined") return null;
-  const existing = getOfflineProfile(uid);
-  if (!existing) return null;
-  const updated: Profile = { ...existing, ...patch };
-  localStorage.setItem(`${LOCAL_PROFILE_KEY}_${uid}`, JSON.stringify(updated));
-  window.dispatchEvent(new Event("botboard_auth_changed"));
-  return updated;
-}
-
-export function setOfflineSession(
-  email: string,
-  username?: string,
-  avatarUrl?: string | null,
-): { user: User; profile: Profile } {
-  const normEmail = email.trim().toLowerCase();
-  const uid =
-    "offline_" +
-    btoa(normEmail)
-      .replace(/[^a-zA-Z0-9]/g, "")
-      .slice(0, 16);
-  const uName = username || normEmail.split("@")[0] || "Player";
-  const user: User = {
-    id: uid,
-    email: normEmail,
-    app_metadata: {},
-    user_metadata: { username: uName },
-    aud: "authenticated",
-    created_at: new Date().toISOString(),
-  };
-  const existing = getOfflineProfile(uid);
-  const profile: Profile = existing
-    ? { ...existing, username: uName, avatar_url: avatarUrl ?? existing.avatar_url }
-    : {
-        id: uid,
-        username: uName,
-        avatar_url: avatarUrl ?? null,
-        elo_rating: 1200,
-        wins: 0,
-        losses: 0,
-        draws: 0,
-        placement_done: true,
-        title_badge: "CRTR",
-      };
-  localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(user));
-  localStorage.setItem(`${LOCAL_PROFILE_KEY}_${uid}`, JSON.stringify(profile));
-  window.dispatchEvent(new Event("botboard_auth_changed"));
-  return { user, profile };
-}
-
-export function clearOfflineSession() {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem(LOCAL_USER_KEY);
-  window.dispatchEvent(new Event("botboard_auth_changed"));
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(() => getOfflineUser());
-  const [profile, setProfile] = useState<Profile | null>(() => {
-    const u = getOfflineUser();
-    return u ? getOfflineProfile(u.id) : null;
-  });
-  const [isOwner, setIsOwner] = useState<boolean>(() => !!getOfflineUser());
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [isOwner, setIsOwner] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
 
   const loadProfile = async (uid: string) => {
-    const off = getOfflineProfile(uid);
-    if (off) {
-      setProfile(off);
-      return;
-    }
     try {
-      const { data } = await supabase.from("profiles").select("*").eq("id", uid).maybeSingle();
-      if (data) setProfile(data as Profile);
-      else {
-        const fallback = getOfflineProfile(uid);
-        if (fallback) setProfile(fallback);
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", uid)
+        .maybeSingle();
+      if (error) {
+        console.error("[useAuth] Failed to load profile:", error.message);
+        return;
       }
-    } catch {
-      const fallback = getOfflineProfile(uid);
-      if (fallback) setProfile(fallback);
+      setProfile((data as Profile) ?? null);
+    } catch (err) {
+      console.error("[useAuth] Profile load exception:", err);
+      setProfile(null);
     }
   };
 
   const loadOwner = async (uid: string) => {
-    if (uid.startsWith("offline_")) {
-      setIsOwner(true);
-      return;
-    }
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", uid)
         .eq("role", "owner")
         .maybeSingle();
+      if (error) {
+        setIsOwner(false);
+        return;
+      }
       setIsOwner(!!data);
     } catch {
-      setIsOwner(true);
+      setIsOwner(false);
     }
   };
 
   useEffect(() => {
-    const syncOffline = () => {
-      const offUser = getOfflineUser();
-      if (offUser) {
-        setUser(offUser);
-        const p = getOfflineProfile(offUser.id);
-        setProfile(p);
-        setIsOwner(true);
-        setLoading(false);
-      }
-    };
-
-    window.addEventListener("botboard_auth_changed", syncOffline);
-
-    const offUser = getOfflineUser();
-    if (offUser) {
-      setUser(offUser);
-      setProfile(getOfflineProfile(offUser.id));
-      setIsOwner(true);
-      setLoading(false);
-    }
-
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+      setSession(s);
+      setUser(s?.user ?? null);
       if (s?.user) {
-        setSession(s);
-        setUser(s.user);
         setTimeout(() => {
           loadProfile(s.user.id);
           loadOwner(s.user.id);
         }, 0);
-      } else if (!getOfflineUser()) {
-        setSession(null);
-        setUser(null);
+      } else {
         setProfile(null);
         setIsOwner(false);
       }
@@ -201,24 +93,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth
       .getSession()
       .then(({ data }) => {
+        setSession(data.session);
+        setUser(data.session?.user ?? null);
         if (data.session?.user) {
-          setSession(data.session);
-          setUser(data.session.user);
           Promise.all([loadProfile(data.session.user.id), loadOwner(data.session.user.id)]).finally(
             () => setLoading(false),
           );
-        } else if (!getOfflineUser()) {
+        } else {
           setLoading(false);
         }
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("[useAuth] getSession error:", err);
         setLoading(false);
       });
 
-    return () => {
-      window.removeEventListener("botboard_auth_changed", syncOffline);
-      sub.subscription.unsubscribe();
-    };
+    return () => sub.subscription.unsubscribe();
   }, []);
 
   return (
@@ -236,12 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (user) await loadOwner(user.id);
         },
         signOut: async () => {
-          clearOfflineSession();
-          try {
-            await supabase.auth.signOut();
-          } catch {
-            // ignore offline signOut errors
-          }
+          await supabase.auth.signOut();
           setUser(null);
           setSession(null);
           setProfile(null);
