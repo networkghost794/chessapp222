@@ -15,6 +15,7 @@ export function AuthScreen() {
   const [lEmail, setLEmail] = useState("");
   const [lPass, setLPass] = useState("");
   const [lLoading, setLLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
 
   // signup
   const [sEmail, setSEmail] = useState("");
@@ -27,10 +28,34 @@ export function AuthScreen() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email: lEmail, password: lPass });
+    const normalizedEmail = lEmail.trim().toLowerCase();
+    const { error } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password: lPass,
+    });
     setLLoading(false);
     if (error) toast.error(error.message);
     else toast.success("Welcome back!");
+  };
+
+  const handleForgotPassword = async () => {
+    const email = lEmail.trim().toLowerCase();
+    if (!email) {
+      toast.error("Please enter your email address first");
+      return;
+    }
+    setResetLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin,
+      });
+      if (error) throw error;
+      toast.success("Password reset email sent! Check your inbox.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to send reset email");
+    } finally {
+      setResetLoading(false);
+    }
   };
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -105,6 +130,9 @@ export function AuthScreen() {
                   <Input
                     type="email"
                     required
+                    autoComplete="email"
+                    autoCapitalize="none"
+                    spellCheck={false}
                     value={lEmail}
                     onChange={(e) => setLEmail(e.target.value)}
                   />
@@ -117,6 +145,16 @@ export function AuthScreen() {
                     value={lPass}
                     onChange={(e) => setLPass(e.target.value)}
                   />
+                  <div className="flex justify-end mt-1.5">
+                    <button
+                      type="button"
+                      onClick={handleForgotPassword}
+                      disabled={resetLoading}
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors underline-offset-4 hover:underline disabled:opacity-50"
+                    >
+                      {resetLoading ? "Sending reset email…" : "Forgot Password?"}
+                    </button>
+                  </div>
                 </div>
                 <Button type="submit" className="w-full" disabled={lLoading}>
                   {lLoading && <Loader2 className="w-4 h-4 animate-spin mr-1" />} Log In
