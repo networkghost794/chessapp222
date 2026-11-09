@@ -28,14 +28,36 @@ export function AuthScreen() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLLoading(true);
-    const normalizedEmail = lEmail.trim().toLowerCase();
-    const { error } = await supabase.auth.signInWithPassword({
-      email: normalizedEmail,
-      password: lPass,
-    });
-    setLLoading(false);
-    if (error) toast.error(error.message);
-    else toast.success("Welcome back!");
+    try {
+      const normalizedEmail = lEmail.trim().toLowerCase();
+      // Timeout guard prevents form hanging indefinitely if the auth server is unresponsive
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(
+          () =>
+            reject(
+              new Error("Login request timed out. Please check your connection and try again."),
+            ),
+          15000,
+        ),
+      );
+      const authPromise = supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password: lPass,
+      });
+
+      const { error } = await Promise.race([authPromise, timeoutPromise]);
+      if (error) {
+        console.error("[handleLogin] Supabase auth error:", error);
+        toast.error(error.message);
+      } else {
+        toast.success("Welcome back!");
+      }
+    } catch (err) {
+      console.error("[handleLogin] Authentication exception:", err);
+      toast.error(err instanceof Error ? err.message : "An unexpected error occurred during login");
+    } finally {
+      setLLoading(false);
+    }
   };
 
   const handleForgotPassword = async () => {
