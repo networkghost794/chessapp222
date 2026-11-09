@@ -31,7 +31,20 @@ import {
   type StrengthBucket,
 } from "@/lib/botStore";
 import { Board } from "@/components/chess/Board";
+import { TitleBadge } from "@/components/chess/ChessApp";
 import { cn } from "@/lib/utils";
+
+const OFFICIAL_TITLES = [
+  { code: "GM", name: "Grandmaster" },
+  { code: "IM", name: "International Master" },
+  { code: "FM", name: "FIDE Master" },
+  { code: "CM", name: "Candidate Master" },
+  { code: "NM", name: "National Master" },
+  { code: "WGM", name: "Woman Grandmaster" },
+  { code: "WIM", name: "Woman International Master" },
+  { code: "WFM", name: "Woman FIDE Master" },
+  { code: "WCM", name: "Woman Candidate Master" },
+] as const;
 
 type Draft = Omit<BotConfig, "id" | "createdAt" | "orderIndex"> & {
   id: string | null;
@@ -59,7 +72,12 @@ const blankDraft = (): Draft => ({
   thinking: defaultThinkingTime(),
   engine: defaultEngineConfig(),
 });
-const fromBot = (b: BotConfig): Draft => JSON.parse(JSON.stringify({ ...b, id: b.id }));
+
+const fromBot = (b: BotConfig): Draft => {
+  const d = JSON.parse(JSON.stringify({ ...b, id: b.id }));
+  if (d.titleColor === "#a78bfa") d.titleColor = null;
+  return d;
+};
 
 type Archetype = {
   name: string;
@@ -461,25 +479,44 @@ export function StudioBotEditor({
                 className={inputCls}
                 placeholder="Name"
               />
-              <div className="grid grid-cols-3 gap-2">
-                <input
-                  value={draft.title ?? ""}
-                  onChange={(e) => set("title", e.target.value || null)}
-                  className={inputCls}
-                  placeholder="Title (GM, CRTR)"
-                />
+              <div className="grid grid-cols-2 gap-2">
+                <div className="relative">
+                  <select
+                    value={draft.title ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value || null;
+                      set("title", val);
+                      set("titleColor", null); // always use official red badge color
+                    }}
+                    className={cn(inputCls, draft.title && "pr-14")}
+                  >
+                    <option value="">No Title (None)</option>
+                    <optgroup label="Open Titles">
+                      {OFFICIAL_TITLES.filter((t) => !t.code.startsWith("W")).map((t) => (
+                        <option key={t.code} value={t.code}>
+                          {t.code} — {t.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Women's Titles">
+                      {OFFICIAL_TITLES.filter((t) => t.code.startsWith("W")).map((t) => (
+                        <option key={t.code} value={t.code}>
+                          {t.code} — {t.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
+                  {draft.title && (
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none flex items-center">
+                      <TitleBadge title={draft.title} size="sm" />
+                    </div>
+                  )}
+                </div>
                 <input
                   value={draft.country ?? ""}
                   onChange={(e) => set("country", e.target.value || null)}
                   className={inputCls}
                   placeholder="Flag 🇨🇦"
-                />
-                <input
-                  type="color"
-                  value={draft.titleColor ?? "#e5a93c"}
-                  onChange={(e) => set("titleColor", e.target.value)}
-                  className="h-8 w-full rounded-md bg-background border border-border"
-                  title="Title color"
                 />
               </div>
             </div>
@@ -776,17 +813,11 @@ export function StudioBotEditor({
           </Card>
         )}
         {adv && (
-          <Card title="Opening" impact="Candidate source">
+          <Card title="Opening" impact="Opening book">
             <Toggle
               label="Use Polyglot book"
               value={draft.opening.enabled}
               onChange={(v) => set("opening", { ...draft.opening, enabled: v })}
-            />
-            <Slider
-              label="Book influence"
-              suffix="%"
-              value={draft.opening.influence}
-              onChange={(v) => set("opening", { ...draft.opening, influence: v })}
             />
             <Slider
               label="Max book depth (plies)"
@@ -797,8 +828,8 @@ export function StudioBotEditor({
             />
             <p className="text-[10px] text-muted-foreground">
               {draft.opening.bookName
-                ? `Book: ${draft.opening.bookName}`
-                : "No book uploaded — built-in repertoire is used."}
+                ? `Book: ${draft.opening.bookName} (plays directly from book)`
+                : "No custom book uploaded — calculates moves with engine from move 1."}
             </p>
           </Card>
         )}

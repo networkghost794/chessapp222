@@ -58,7 +58,9 @@ import { MessageCircle } from "lucide-react";
 import { playMoveResultSound } from "@/lib/sounds";
 import { GameModesHub } from "./GameModesHub";
 import { EventDecor } from "./EventDecor";
+import { BoardScaleControl } from "./BoardScaleControl";
 import { initSettingsEffects } from "@/lib/settings";
+import { recordFinishedGame } from "@/lib/gameHistory";
 
 type ColorChoice = "white" | "black" | "random";
 type BotStats = { wins: number; losses: number; draws: number };
@@ -99,7 +101,13 @@ export function TitleBadge({
   if (!title) return null;
   const clean = title.replace(/[^\p{L}\p{N}]/gu, "").toUpperCase() || title;
   const isCreator = clean === "CRTR";
-  const custom = getTitleColor(clean, color) ?? getTitleColor(title, color);
+  const custom = isCreator
+    ? color && color !== "#a78bfa" && color !== "#a7322f"
+      ? color
+      : undefined
+    : getTitleColor(clean, color);
+  const isOfficialRed =
+    !custom || custom === "#a7322f" || custom === "var(--title-red)" || custom === "#a78bfa";
   const px =
     size === "lg"
       ? "px-[0.4em] text-[15px]"
@@ -112,12 +120,13 @@ export function TitleBadge({
       className={cn(
         "inline-flex items-center justify-center rounded-[3px] font-extrabold leading-[1.45] tracking-[0.01em] shrink-0 select-none text-white cursor-default",
         px,
-        !custom &&
-          (isCreator
-            ? "bg-[image:var(--title-creator)] shadow-[0_0_8px_-2px_var(--title-creator-glow)]"
-            : "bg-[color:var(--title-red)]"),
+        isCreator
+          ? "bg-[image:var(--title-creator)] shadow-[0_0_8px_-2px_var(--title-creator-glow)]"
+          : isOfficialRed
+            ? "bg-[color:var(--title-red)]"
+            : "",
       )}
-      style={custom ? { backgroundColor: custom } : undefined}
+      style={!isCreator && !isOfficialRed && custom ? { backgroundColor: custom } : undefined}
     >
       {clean}
     </span>
@@ -171,8 +180,8 @@ function MiniProfileCard({
   };
 }) {
   return (
-    <Card className="bg-card p-3 flex items-center gap-3">
-      <div className="w-10 h-10 rounded-md bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-border">
+    <Card className="bg-card/90 py-1.5 px-3 flex items-center gap-2.5 rounded-lg border border-border/60">
+      <div className="w-8 h-8 rounded-full bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-border">
         {profile.avatar_url ? (
           <img
             src={profile.avatar_url}
@@ -183,7 +192,7 @@ function MiniProfileCard({
           <User className="w-4 h-4 text-muted-foreground" />
         )}
       </div>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 flex items-center gap-2">
         <PlayerIdentity
           username={profile.username}
           elo={profile.elo_rating}
@@ -191,8 +200,8 @@ function MiniProfileCard({
           icon={profile.profile_icon}
           size="sm"
         />
-        <div className="text-[11px] text-muted-foreground mt-0.5">
-          {profile.wins}W · {profile.losses}L · {profile.draws}D
+        <div className="text-[10px] text-muted-foreground/70 hidden sm:inline shrink-0 font-mono">
+          · {profile.wins}W {profile.losses}L {profile.draws}D
         </div>
       </div>
     </Card>
@@ -221,6 +230,9 @@ export function ChessApp() {
 
   const [colorChoice, setColorChoice] = useState<ColorChoice>("white");
   const [playerColor, setPlayerColor] = useState<Color>("w");
+  const [settingsInitialTab, setSettingsInitialTab] = useState<"board" | "gameplay" | "account">(
+    "board",
+  );
   const [botStats, setBotStats] = useState<BotStats>(EMPTY_STATS);
   const [resultModal, setResultModal] = useState<{
     open: boolean;
@@ -503,6 +515,16 @@ export function ChessApp() {
         .then(() => {});
       if (botField === "wins") incrementBotLifetime(activeBot.id, 1, 0);
       else if (botField === "losses") incrementBotLifetime(activeBot.id, 0, 1);
+
+      if (profile) {
+        recordFinishedGame({
+          profile,
+          bot: activeBot,
+          playerColor,
+          userOutcome: userField === "wins" ? "win" : userField === "losses" ? "loss" : "draw",
+          moves: Math.max(1, Math.ceil(history.length / 2)),
+        });
+      }
     }
 
     setResultModal({ open: true, title, detail, reason });
@@ -568,6 +590,7 @@ export function ChessApp() {
       label: label(ui, "nav.settings"),
       icon: Settings,
       onClick: () => {
+        setSettingsInitialTab("board");
         setSidebar("settings");
         setMode("settings");
       },
@@ -664,7 +687,7 @@ export function ChessApp() {
 
       {/* Main content area */}
       <div className="flex-1 min-w-0 flex flex-col">
-        <main className="flex-1 px-4 md:px-8 py-6">
+        <main className="flex-1 px-3 md:px-6 py-3 md:py-4">
           {mode === "home" && profile && (
             <HomeDashboard
               profile={profile}
@@ -673,6 +696,7 @@ export function ChessApp() {
                 setMode("hub");
               }}
               onEditProfile={() => {
+                setSettingsInitialTab("account");
                 setSidebar("settings");
                 setMode("settings");
               }}
@@ -710,7 +734,7 @@ export function ChessApp() {
             />
           )}
           {mode === "profile" && profile && <ProfilePage />}
-          {mode === "settings" && <SettingsPage />}
+          {mode === "settings" && <SettingsPage initialTab={settingsInitialTab} />}
           {mode === "modes" && <GameModesHub />}
         </main>
       </div>
@@ -878,6 +902,9 @@ function HubView({
             )}
             {activeBot?.country && !immersive && <span>{activeBot.country}</span>}
           </span>
+          <div className="ml-auto flex items-center gap-2">
+            <BoardScaleControl />
+          </div>
         </div>
         <Board
           game={idleGame}
@@ -953,18 +980,24 @@ function MatchView({
   onFlip: () => void;
   botStats: BotStats;
 }) {
+  const movesContainerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (movesContainerRef.current) {
+      movesContainerRef.current.scrollTop = movesContainerRef.current.scrollHeight;
+    }
+  }, [moveRows.length]);
+
+  const botInfo = activeBot ? botDisplay(activeBot) : null;
+
   return (
-    <div className="max-w-[1500px] mx-auto grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6 lg:gap-8">
-      <section className="space-y-4 min-w-0">
-        {/* Top: Bot */}
+    <div className="max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] gap-4 lg:gap-6 items-start">
+      {/* Left Column: Board + Opponent & Player bars */}
+      <section className="space-y-1.5 min-w-0">
+        {/* Top: Opponent Bar */}
         {activeBot && (
-          <div className="relative">
-            <BotChatBubble
-              active={matchActive && !game.isGameOver() && !resignedFlag}
-              lines={activeBot.dialogueLines}
-            />
-            <Card className="bg-card p-3 flex items-center gap-3">
-              <div className="w-11 h-11 rounded-full bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-primary/40">
+          <div className="bg-card/90 py-1 px-2.5 flex items-center justify-between rounded-lg border border-border/60">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-7 h-7 rounded bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-border">
                 {activeBot.avatar ? (
                   <img
                     src={activeBot.avatar}
@@ -972,43 +1005,37 @@ function MatchView({
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <User className="w-5 h-5 text-muted-foreground" />
+                  <Bot className="w-4 h-4 text-muted-foreground" />
                 )}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold truncate inline-flex items-center gap-2">
-                  <TitleBadge
-                    title={botDisplay(activeBot).title}
-                    color={botDisplay(activeBot).titleColor}
-                    size="sm"
-                  />
-                  <span className="truncate">{botDisplay(activeBot).name}</span>
-                  <span className="text-muted-foreground/70 font-normal">({activeBot.elo})</span>
-                </div>
-                <div className="text-[11px] text-muted-foreground truncate">
-                  {activeBot.category}
-                </div>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <TitleBadge title={botInfo?.title} color={botInfo?.titleColor} size="sm" />
+                <span className="text-xs font-semibold truncate">{botInfo?.name}</span>
+                <span className="text-[11px] text-muted-foreground font-mono">
+                  ({activeBot.elo})
+                </span>
+                {activeBot.country && <span className="text-xs shrink-0">{activeBot.country}</span>}
               </div>
-              <div className="text-[11px] text-muted-foreground text-right shrink-0">
-                <span className="text-success">{botStats.wins}W</span> ·{" "}
-                <span className="text-destructive">{botStats.losses}L</span> · {botStats.draws}D
-              </div>
-            </Card>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {pending && (
+                <span className="text-[10px] text-primary animate-pulse font-medium">
+                  Thinking…
+                </span>
+              )}
+              <BoardScaleControl />
+            </div>
           </div>
         )}
 
-        {/* Board */}
-        <Card className="p-5 md:p-6 bg-card min-w-0">
-          <div className="flex items-center justify-between mb-4">
-            <div className="text-sm font-medium truncate">{gameStatusText}</div>
-            <div className="flex items-center gap-2 shrink-0">
-              {pending && <div className="text-xs text-muted-foreground">Bot thinking…</div>}
-              <Button variant="ghost" size="sm" onClick={onFlip}>
-                <FlipHorizontal2 className="w-3.5 h-3.5" />
-              </Button>
+        {/* Board Card */}
+        <Card className="p-2 sm:p-3 bg-card min-w-0">
+          <div className="flex items-center justify-between mb-1.5 px-0.5">
+            <div className="text-xs font-medium truncate text-muted-foreground">
+              {gameStatusText}
             </div>
           </div>
-          <div className="mx-auto w-full max-w-[calc(min(65vh,560px)*var(--board-scale,1))]">
+          <div className="mx-auto w-full max-w-[calc(min(74vh,640px)*var(--board-scale,1))]">
             <Board
               game={game}
               flipped={flipped}
@@ -1023,36 +1050,110 @@ function MatchView({
         {profile && <MiniProfileCard profile={profile} />}
       </section>
 
-      {/* Right: Moves + Resign */}
-      <aside className="flex flex-col gap-3">
-        <Card className="bg-card p-3 flex-1 min-h-[260px]">
-          <div className="text-sm font-semibold mb-2 px-1">Moves</div>
-          <div className="max-h-[480px] overflow-auto scroll-thin rounded-md">
-            {moveRows.length === 0 ? (
-              <div className="text-xs text-muted-foreground px-2 py-4">No moves yet.</div>
-            ) : (
-              <table className="w-full text-sm">
-                <tbody>
-                  {moveRows.map((r) => (
-                    <tr key={r.n} className="odd:bg-secondary/30">
-                      <td className="px-2 py-1 text-muted-foreground w-8 text-xs">{r.n}.</td>
-                      <td className="px-2 py-1 font-mono">{r.w}</td>
-                      <td className="px-2 py-1 font-mono text-muted-foreground">{r.b ?? ""}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+      {/* Right Column: Play Bots Sidebar */}
+      <aside className="flex flex-col h-[calc(min(76vh,640px)+80px)] lg:h-[calc(min(80vh,700px))] self-stretch bg-card border border-border/70 rounded-xl p-3 sm:p-4 gap-3 shadow-sm overflow-hidden">
+        {/* Top Header: Play Bots */}
+        <div className="flex items-center justify-between pb-2 border-b border-border/50">
+          <div className="flex items-center gap-2 font-bold text-sm tracking-tight text-foreground">
+            <Bot className="w-4 h-4 text-primary" />
+            <span>Play Bots</span>
           </div>
-        </Card>
-        <Button
-          onClick={onResign}
-          variant="destructive"
-          disabled={game.isGameOver() || resignedFlag || moveRows.length === 0}
-          className="w-full font-bold"
+          {activeBot && (
+            <span className="text-[10px] text-muted-foreground font-mono">
+              <span className="text-success font-semibold">{botStats.wins}W</span> ·{" "}
+              <span className="text-destructive font-semibold">{botStats.losses}L</span> ·{" "}
+              {botStats.draws}D
+            </span>
+          )}
+        </div>
+
+        {/* Bot Dialogue Row: Bot Portrait + Crisp White Bubble matching reference */}
+        {activeBot && (
+          <div className="flex items-center gap-3 py-1">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-secondary overflow-hidden shrink-0 ring-1 ring-border/80 shadow-sm">
+              {activeBot.avatar ? (
+                <img
+                  src={activeBot.avatar}
+                  alt={activeBot.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full grid place-items-center bg-muted">
+                  <Bot className="w-7 h-7 text-muted-foreground" />
+                </div>
+              )}
+            </div>
+            <BotChatBubble
+              active={matchActive && !game.isGameOver() && !resignedFlag}
+              lines={activeBot.dialogueLines}
+              defaultText={activeBot.quote || activeBot.dialogueLines?.[0] || "Let's play chess!"}
+              inline
+            />
+          </div>
+        )}
+
+        {/* Move History / Starting Position Header */}
+        <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t border-border/40">
+          <span className="font-semibold text-foreground/85 text-[11px] uppercase tracking-wide">
+            Move History
+          </span>
+          {moveRows.length > 0 && (
+            <span className="text-[10px] font-mono">
+              {moveRows.length} {moveRows.length === 1 ? "turn" : "turns"}
+            </span>
+          )}
+        </div>
+
+        {/* Move list table with auto-scroll */}
+        <div
+          ref={movesContainerRef}
+          className="flex-1 min-h-[140px] overflow-y-auto scroll-thin rounded-lg border border-border/40 bg-background/50 p-1"
         >
-          <Flag className="w-4 h-4 mr-2" /> Resign
-        </Button>
+          {moveRows.length === 0 ? (
+            <div className="text-xs text-muted-foreground/80 px-3 py-6 text-center italic">
+              Starting Position. Moves will be recorded here.
+            </div>
+          ) : (
+            <table className="w-full text-xs sm:text-sm">
+              <tbody>
+                {moveRows.map((r) => (
+                  <tr
+                    key={r.n}
+                    className="odd:bg-secondary/40 hover:bg-secondary/60 rounded transition-colors"
+                  >
+                    <td className="px-2.5 py-1 text-muted-foreground w-10 text-xs font-mono font-medium">
+                      {r.n}.
+                    </td>
+                    <td className="px-2 py-1 font-mono font-medium">{r.w}</td>
+                    <td className="px-2 py-1 font-mono text-muted-foreground">{r.b ?? ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Bottom Action Bar: Red Resign + Flip Board (strictly NO undo or hint button) */}
+        <div className="pt-2 border-t border-border/50 flex items-center gap-2">
+          <Button
+            onClick={onResign}
+            variant="destructive"
+            disabled={game.isGameOver() || resignedFlag || moveRows.length === 0}
+            className="flex-1 font-bold h-10 text-xs shadow-sm bg-red-600 hover:bg-red-700 text-white"
+          >
+            <Flag className="w-4 h-4 mr-1.5" /> Resign
+          </Button>
+          <Button
+            onClick={onFlip}
+            variant="outline"
+            size="sm"
+            className="h-10 px-3 text-xs shrink-0 font-medium border-border/70 hover:bg-secondary"
+            title="Flip Board"
+            aria-label="Flip Board"
+          >
+            <FlipHorizontal2 className="w-4 h-4 mr-1.5" /> Flip
+          </Button>
+        </div>
       </aside>
     </div>
   );

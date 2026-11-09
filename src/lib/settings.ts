@@ -128,7 +128,7 @@ export function applyAnimations(enabled: boolean) {
 
 export function applyBoardSize(percent: number) {
   if (typeof document === "undefined") return;
-  const clamped = Math.max(60, Math.min(130, percent || 100));
+  const clamped = Math.max(60, Math.min(160, percent || 100));
   document.documentElement.style.setProperty("--board-scale", String(clamped / 100));
 }
 

@@ -1,0 +1,6 @@
+{
+  "summary":  "Implementation plan to ensure bots strictly follow their Polyglot opening books when in-book, and disable the built-in placeholder repertoire for bots without custom books in favor of pure engine calculation from move 1.",
+  "updatedAt":  "2026-11-09T14:04:40.627391630Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

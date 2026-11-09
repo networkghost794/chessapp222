@@ -1,4 +1,3 @@
-import { repertoireMove } from "./repertoire";
 import type { Chess } from "chess.js";
 import { supabase } from "@/integrations/supabase/client";
 import { base64ToBytes, lookupPolyglot, polyglotHash, polyglotMoveToUci } from "./polyglot";
@@ -816,11 +815,7 @@ export async function chooseBotMove(
   const legal = game.moves({ verbose: true }) as VerboseMove[];
   if (legal.length === 0) return null;
 
-  // ---------- 1) Polyglot opening book (candidate source only) ----------
-  // Book moves are NEVER played directly. They only become a soft
-  // preference inside the existing strength → personality → mistake
-  // pipeline below. Map: uci → normalised weight share (0..1).
-  let bookShares: Map<string, number> | null = null;
+  // ---------- 1) Polyglot opening book (strictly plays directly from book) ----------
   if (
     bot?.opening.enabled &&
     (bot.opening.bookBin || bot.opening.bookUrl) &&
@@ -830,48 +825,32 @@ export async function chooseBotMove(
       const book = await getBookBytes(bot);
       if (book) {
         const entries = lookupPolyglot(book, polyglotHash(game));
-        const legalEntries: { uci: string; w: number }[] = [];
+        const legalEntries: { move: VerboseMove; w: number }[] = [];
         for (const e of entries) {
           const uci = polyglotMoveToUci(game, e.move);
-          if (findLegalMove(game, uci)) legalEntries.push({ uci, w: Math.max(1, e.weight) });
+          const vm = findLegalMove(game, uci);
+          if (vm) legalEntries.push({ move: vm, w: Math.max(1, e.weight) });
         }
         if (legalEntries.length > 0) {
+          // Play directly from the opening book without engine or blunder dilution
+          if (bot.opening.mode === "best") {
+            legalEntries.sort((a, b) => b.w - a.w);
+            return { move: legalEntries[0].move, source: "book" };
+          }
+          // Weighted random pick proportional to book weights
           const total = legalEntries.reduce((x, y) => x + y.w, 0);
-          bookShares = new Map(legalEntries.map((x) => [x.uci, x.w / total]));
+          let r = Math.random() * total;
+          for (const item of legalEntries) {
+            r -= item.w;
+            if (r <= 0) return { move: item.move, source: "book" };
+          }
+          return { move: legalEntries[0].move, source: "book" };
         }
       }
     } catch (e) {
       console.warn("[botStore] polyglot lookup failed:", e);
-      bookShares = null;
     }
   }
-  // Built-in repertoire fallback when no Polyglot book has a move here.
-  let builtIn = false;
-  if (bot && !bookShares) {
-    try {
-      const san = repertoireMove(game, bot.id, bot.elo ?? 1500);
-      const vm = san ? legal.find((m) => m.san === san) : undefined;
-      if (vm) {
-        bookShares = new Map([[vm.from + vm.to + (vm.promotion ?? ""), 1]]);
-        builtIn = true;
-      }
-    } catch (e) {
-      console.warn("[botStore] repertoire failed:", e);
-    }
-  }
-  const uciOf = (m: VerboseMove) => m.from + m.to + (m.promotion ?? "");
-  // Strength-aware book preference: stronger bots sharpen toward
-  // high-weight book lines; weaker bots spread over a broader range.
-  const bookFactor = (m: VerboseMove): number => {
-    if (!bookShares || !bot) return 1;
-    const share = bookShares.get(uciOf(m));
-    if (share === undefined) return 1;
-    const elo = Math.max(100, Math.min(3200, bot.elo ?? 1500));
-    const sharp = elo < 1000 ? 0.3 : elo < 1600 ? 0.6 : elo < 2200 ? 1 : 1.4;
-    const infl = builtIn ? 0.8 : Math.max(0, Math.min(100, bot.opening.influence ?? 70)) / 100;
-    // Up to ~13x boost at 100% influence for a dominant line.
-    return 1 + infl * 12 * Math.pow(share, sharp);
-  };
 
   // ---------- 2) Stockfish evaluation of all legal moves ----------
   if (bot) {
@@ -1086,17 +1065,6 @@ export async function chooseBotMove(
       // ---------- 3 + 6) Style-weighted pick over the survivors ----------
       if (pool.length === 1) return { move: pool[0].vm, source: "engine" };
       if (bucket === "best") {
-        // Near-equal (≤5cp) moves: let the book add variety among them.
-        const inBook = bookShares ? pool.filter((s) => bookShares!.has(uciOf(s.vm))) : [];
-        if (inBook.length > 1) {
-          const ws = inBook.map((s) => bookFactor(s.vm));
-          let r = Math.random() * ws.reduce((x, y) => x + y, 0);
-          for (let i = 0; i < inBook.length; i++) {
-            r -= ws[i];
-            if (r <= 0) return { move: inBook[i].vm, source: "book" };
-          }
-        }
-        if (inBook.length === 1) return { move: inBook[0].vm, source: "book" };
         return { move: pool[0].vm, source: "engine" };
       }
 
@@ -1124,8 +1092,6 @@ export async function chooseBotMove(
             }
           if (myBishops >= 2) bias *= Math.max(0.2, 1 - exp.keepBishopPair / 150);
         }
-        // Polyglot book preference (soft, within the filtered pool only).
-        bias *= bookFactor(s.vm);
         return { vm: s.vm, w: sty * closeness * bias };
       });
       const total = weighted.reduce((a, b) => a + b.w, 0);
@@ -1157,7 +1123,7 @@ export function pickThinkingDelayMs(bot: BotConfig | null): number {
 //  Title color store (owner-managed globally)
 // =================================================================
 
-const DEFAULT_TITLE_COLOR = "#a78bfa"; // soft chess-purple fallback for unknown titles
+const DEFAULT_TITLE_COLOR = "#a7322f"; // official Chess.com red for titles (#a7322f / --title-red)
 let titleColorsCache: Record<string, string> = {};
 const titleColorListeners = new Set<Listener>();
 const emitTitleColors = () => titleColorListeners.forEach((l) => l());
@@ -1175,8 +1141,16 @@ export function subscribeTitleColors(fn: Listener): () => void {
 
 export function getTitleColor(title?: string | null, override?: string | null): string | undefined {
   if (!title) return undefined;
-  if (override) return override;
-  return titleColorsCache[title] ?? DEFAULT_TITLE_COLOR;
+  // Ignore stale purple fallback (#a78bfa) so existing bots correctly render in official red
+  if (override && override !== "#a78bfa") return override;
+  const clean = title.replace(/[^\p{L}\p{N}]/gu, "").toUpperCase() || title;
+  if (clean === "CRTR") {
+    const cached = titleColorsCache[clean] ?? titleColorsCache[title];
+    return cached && cached !== "#a78bfa" ? cached : undefined;
+  }
+  const cached = titleColorsCache[clean] ?? titleColorsCache[title];
+  if (cached && cached !== "#a78bfa") return cached;
+  return DEFAULT_TITLE_COLOR;
 }
 
 export async function refreshTitleColors(): Promise<Record<string, string>> {

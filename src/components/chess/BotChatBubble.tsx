@@ -22,15 +22,23 @@ type Props = {
 export function BotChatBubble({
   active,
   lines,
+  defaultText,
   minIntervalMs = 10_000,
   maxIntervalMs = 25_000,
   inline = false,
-}: Props & { inline?: boolean }) {
+}: Props & { inline?: boolean; defaultText?: string }) {
   const [settings] = useSettings();
   const pool = lines && lines.length > 0 ? lines : DEFAULT_LINES;
-  const [text, setText] = useState<string | null>(null);
+  const [text, setText] = useState<string | null>(defaultText ?? null);
   const [visible, setVisible] = useState(false);
-  const [lastText, setLastText] = useState<string | null>(null);
+  const [lastText, setLastText] = useState<string | null>(defaultText ?? null);
+
+  useEffect(() => {
+    if (defaultText) {
+      setLastText(defaultText);
+    }
+  }, [defaultText]);
+
   useEffect(() => {
     if (text) setLastText(text);
   }, [text]);
@@ -76,14 +84,15 @@ export function BotChatBubble({
     };
   }, [active, pool, minIntervalMs, maxIntervalMs]);
 
-  // The dialogue scheduler above keeps running; we only hide the bubble.
+  // Inline mode: Crisp white bubble with dark text matching Chess.com reference
   if (inline) {
     if (!settings.botSpeech) return null;
-    const shown = text ?? lastText ?? pool[0];
+    const shown = text ?? lastText ?? defaultText ?? pool[0];
+    if (!shown) return null;
     return (
-      <div className="relative flex-1 min-w-0 rounded-xl bg-foreground text-background px-4 py-3 text-sm font-medium shadow-lg">
-        <span className="absolute top-1/2 -left-1.5 -translate-y-1/2 w-3 h-3 rotate-45 bg-foreground" />
-        <span className="relative">{shown}</span>
+      <div className="relative flex-1 min-w-0 rounded-xl bg-white text-zinc-900 px-3.5 py-2.5 text-xs md:text-sm font-medium shadow-md border border-zinc-200/90 leading-snug">
+        <span className="absolute top-1/2 -left-1.5 -translate-y-1/2 w-3 h-3 rotate-45 bg-white border-l border-b border-zinc-200/90" />
+        <span className="relative z-10 block select-text">{shown}</span>
       </div>
     );
   }

@@ -13,6 +13,9 @@ import type { MatchResult } from "./BotVsBotMode";
 import { SimulatorLegend } from "./SimulatorLegend";
 import { evaluatePerspective, type MoveVerdict } from "@/lib/perspectiveEval";
 import { botDisplayIdentity, useImmersive } from "@/lib/immersive";
+import { EvaluationBar } from "./EvaluationBar";
+import { evaluatePosition, type PositionEval } from "@/lib/stockfishEval";
+import { BoardScaleControl } from "./BoardScaleControl";
 
 export type PlayerProfileLite = {
   name: string;
@@ -33,6 +36,7 @@ export function HumanVsBotMatch({
   headerExtra,
   onFinished,
   perspectiveRating,
+  showEval,
 }: {
   bot: BotConfig;
   player: PlayerProfileLite;
@@ -41,6 +45,7 @@ export function HumanVsBotMatch({
   onFinished: (r: MatchResult) => void;
   /** When set, shows "Play Through Their Eyes" move indicators for this rating. */
   perspectiveRating?: number;
+  showEval?: boolean;
 }) {
   const gameRef = useRef(new Chess());
   const game = gameRef.current;
@@ -59,6 +64,37 @@ export function HumanVsBotMatch({
   const [, setTick] = useState(0);
   const force = useCallback(() => setTick((t) => t + 1), []);
   const finishedRef = useRef(false);
+
+  // Live evaluation (Stockfish).
+  const [evalData, setEvalData] = useState<PositionEval | null>(null);
+  const [evalLoading, setEvalLoading] = useState(false);
+
+  const isPlayerTurn = game.turn() === playerColor;
+  // If player joins, when it's player's turn the bar turns off automatically;
+  // when it's the bot's turn (or bot vs bot), it turns back on.
+  const showEvalVisible = Boolean(showEval && !isPlayerTurn && !game.isGameOver());
+
+  useEffect(() => {
+    if (!showEval) return;
+    if (game.isGameOver()) return;
+    setEvalLoading(true);
+    let stale = false;
+    evaluatePosition(game.fen()).then((res) => {
+      if (stale) return;
+      if (res) setEvalData(res);
+      setEvalLoading(false);
+    });
+    return () => {
+      stale = true;
+    };
+  }, [showEval, history.length, game]);
+
+  const movesContainerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (movesContainerRef.current) {
+      movesContainerRef.current.scrollTop = movesContainerRef.current.scrollHeight;
+    }
+  }, [history.length]);
 
   const requestBotMove = useCallback(async () => {
     if (game.isGameOver()) {
@@ -202,8 +238,8 @@ export function HumanVsBotMatch({
   }, [history.length, game, botId.name, playerColor, resigned]);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-6">
-      <section className="space-y-3 min-w-0">
+    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-4 lg:gap-6 items-start">
+      <section className="space-y-2 min-w-0">
         {headerExtra}
         <ParticipantHeader
           name={botId.name}
@@ -214,26 +250,59 @@ export function HumanVsBotMatch({
           side={playerColor === "w" ? "Black" : "White"}
         />
 
-        <Card className="p-4 md:p-5 bg-card min-w-0">
-          <div className="flex items-center justify-between mb-3 gap-2">
-            <div className="text-sm font-medium truncate">{statusText}</div>
+        <Card className="p-3 md:p-4 bg-card min-w-0">
+          <div className="flex items-center justify-between mb-2 gap-2">
+            <div className="text-xs md:text-sm font-medium truncate">{statusText}</div>
             <div className="flex items-center gap-2 shrink-0">
-              {pending && <div className="text-xs text-muted-foreground">Bot thinking…</div>}
-              <Button variant="ghost" size="sm" onClick={() => setFlipped((f) => !f)}>
+              {pending && (
+                <div className="text-xs text-muted-foreground animate-pulse">Bot thinking…</div>
+              )}
+              {showEval && isPlayerTurn && !game.isGameOver() && (
+                <span className="text-[10px] text-muted-foreground/80 font-mono hidden sm:inline">
+                  Eval hidden (your turn)
+                </span>
+              )}
+              <BoardScaleControl />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0"
+                onClick={() => setFlipped((f) => !f)}
+                title="Flip board"
+                aria-label="Flip board"
+              >
                 <FlipHorizontal2 className="w-3.5 h-3.5" />
               </Button>
             </div>
           </div>
-          <div className="mx-auto w-full max-w-[calc(min(65vh,560px)*var(--board-scale,1))]">
-            <Board
-              game={game}
-              flipped={flipped}
-              disabled={pending || resigned || game.isGameOver()}
-              lastMove={lastMove}
-              onAttemptMove={handleAttemptMove}
-              indicators={indicators}
-              bestFrom={bestFrom}
-            />
+          <div className="mx-auto w-full max-w-[calc(min(60vh,540px)*var(--board-scale,1))] flex gap-3 items-stretch">
+            {showEval && (
+              <div className="flex items-stretch">
+                {showEvalVisible ? (
+                  <EvaluationBar evalData={evalData} loading={evalLoading} />
+                ) : (
+                  <div
+                    className="w-6 self-stretch rounded-md border border-dashed border-border/40 bg-secondary/15 flex items-center justify-center"
+                    title="Evaluation bar automatically hidden during player's turn"
+                  >
+                    <span className="text-[9px] text-muted-foreground/60 rotate-90 select-none font-mono">
+                      PAUSED
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <Board
+                game={game}
+                flipped={flipped}
+                disabled={pending || resigned || game.isGameOver()}
+                lastMove={lastMove}
+                onAttemptMove={handleAttemptMove}
+                indicators={indicators}
+                bestFrom={bestFrom}
+              />
+            </div>
           </div>
         </Card>
 
@@ -249,10 +318,13 @@ export function HumanVsBotMatch({
         />
       </section>
 
-      <aside className="flex flex-col gap-3">
-        <Card className="bg-card p-3 flex-1 min-h-[220px]">
-          <div className="text-sm font-semibold mb-2 px-1">Moves</div>
-          <div className="max-h-[440px] overflow-auto scroll-thin rounded-md">
+      <aside className="flex flex-col h-full min-h-[360px] max-h-[calc(min(60vh,540px)+80px)] self-stretch gap-3">
+        <Card className="bg-card p-3 flex-1 flex flex-col min-h-[300px] overflow-hidden">
+          <div className="text-xs font-semibold uppercase tracking-wide mb-2 px-1">Moves</div>
+          <div
+            ref={movesContainerRef}
+            className="flex-1 overflow-y-auto scroll-thin rounded-md border border-border/30"
+          >
             {moveRows.length === 0 ? (
               <div className="text-xs text-muted-foreground px-2 py-4">No moves yet.</div>
             ) : (
@@ -260,7 +332,9 @@ export function HumanVsBotMatch({
                 <tbody>
                   {moveRows.map((r) => (
                     <tr key={r.n} className="odd:bg-secondary/30">
-                      <td className="px-2 py-1 text-muted-foreground w-8 text-xs">{r.n}.</td>
+                      <td className="px-2 py-1 text-muted-foreground w-8 text-xs font-mono">
+                        {r.n}.
+                      </td>
                       <td className="px-2 py-1 font-mono">{r.w}</td>
                       <td className="px-2 py-1 font-mono text-muted-foreground">{r.b ?? ""}</td>
                     </tr>
@@ -274,9 +348,9 @@ export function HumanVsBotMatch({
           onClick={() => setResigned(true)}
           variant="destructive"
           disabled={game.isGameOver() || resigned || moveRows.length === 0}
-          className="w-full font-bold"
+          className="w-full font-bold h-9 text-xs"
         >
-          <Flag className="w-4 h-4 mr-2" /> Resign
+          <Flag className="w-3.5 h-3.5 mr-1.5" /> Resign
         </Button>
       </aside>
 
@@ -309,24 +383,31 @@ function ParticipantHeader({
   titleColor?: string | null;
   side: string;
 }) {
+  const isWhite = side === "White";
   return (
-    <Card className={cn("bg-card p-3 flex items-center gap-3")}>
-      <div className="w-11 h-11 rounded-full bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-primary/40">
+    <Card className="bg-card/90 py-1.5 px-3 flex items-center gap-2.5 rounded-lg border border-border/60">
+      <div className="w-8 h-8 rounded-full bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-primary/40">
         {avatar ? (
           <img src={avatar} alt={name} className="w-full h-full object-cover" />
         ) : (
-          <User className="w-5 h-5 text-muted-foreground" />
+          <User className="w-4 h-4 text-muted-foreground" />
         )}
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-semibold truncate inline-flex items-center gap-2">
+      <div className="flex-1 min-w-0 flex items-center gap-2">
+        <div className="text-xs font-bold truncate inline-flex items-center gap-1.5 min-w-0">
           <TitleBadge title={title} color={titleColor} size="sm" />
           <span className="truncate">{name}</span>
-          <span className="text-muted-foreground/70 font-normal">({elo})</span>
         </div>
+        <span className="text-[10px] text-muted-foreground/80 shrink-0 font-mono">({elo})</span>
       </div>
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">
-        {side}
+      <div className="flex items-center gap-1.5 shrink-0 px-2 py-0.5 rounded-md bg-secondary/60">
+        <span
+          className={cn(
+            "w-2.5 h-2.5 rounded-full ring-1 ring-border/80",
+            isWhite ? "bg-white" : "bg-zinc-900",
+          )}
+        />
+        <span className="text-[10px] font-semibold uppercase tracking-wider">{side}</span>
       </div>
     </Card>
   );

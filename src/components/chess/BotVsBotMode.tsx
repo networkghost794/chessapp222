@@ -41,6 +41,7 @@ import { EvaluationBar } from "./EvaluationBar";
 import { evaluatePosition, type PositionEval } from "@/lib/stockfishEval";
 import { PositionEditor } from "./PositionEditor";
 import { Switch } from "@/components/ui/switch";
+import { BoardScaleControl } from "./BoardScaleControl";
 
 /* ───────── Speed control ───────── */
 
@@ -664,15 +665,22 @@ export function BotVsBotMatch({
   const clampIdx = (i: number) => Math.max(0, Math.min(history.length - 1, i));
   const goTo = (i: number) => setReplayIndex(clampIdx(i));
 
+  const movesContainerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (replayIndex === null && movesContainerRef.current) {
+      movesContainerRef.current.scrollTop = movesContainerRef.current.scrollHeight;
+    }
+  }, [history.length, replayIndex]);
+
   return (
-    <div className="max-w-[1500px] mx-auto grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6 lg:gap-8">
-      <section className="space-y-4 min-w-0">
+    <div className="max-w-[1500px] mx-auto grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-4 lg:gap-6 items-start">
+      <section className="space-y-2 min-w-0">
         {headerExtra}
         <BotHeaderCard bot={flipped ? white : black} sideLabel={flipped ? "White" : "Black"} />
 
-        <Card className="evt-card p-5 md:p-6 bg-card min-w-0">
-          <div className="flex items-center justify-between mb-4 gap-2">
-            <div className="text-sm font-semibold truncate">
+        <Card className="evt-card p-3 md:p-4 bg-card min-w-0">
+          <div className="flex items-center justify-between mb-2 gap-2">
+            <div className="text-xs md:text-sm font-semibold truncate">
               {gameOver
                 ? replayIndex === null
                   ? statusText
@@ -683,12 +691,20 @@ export function BotVsBotMatch({
               {thinking && !gameOver && (
                 <div className="text-xs text-muted-foreground">Thinking…</div>
               )}
-              <Button variant="ghost" size="sm" onClick={() => setFlipped((f) => !f)}>
+              <BoardScaleControl />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0"
+                onClick={() => setFlipped((f) => !f)}
+                title="Flip board"
+                aria-label="Flip board"
+              >
                 <FlipHorizontal2 className="w-3.5 h-3.5" />
               </Button>
             </div>
           </div>
-          <div className="mx-auto w-full max-w-[calc(min(65vh,560px)*var(--board-scale,1))] flex gap-3 items-stretch">
+          <div className="mx-auto w-full max-w-[calc(min(60vh,540px)*var(--board-scale,1))] flex gap-3 items-stretch">
             {showEval && (
               <div className="flex items-stretch">
                 <EvaluationBar evalData={evalData} loading={evalLoading} />
@@ -706,7 +722,7 @@ export function BotVsBotMatch({
           </div>
 
           {canReplay && (
-            <div className="flex items-center justify-center gap-2 mt-4">
+            <div className="flex items-center justify-center gap-1.5 mt-2.5">
               <Button
                 variant="secondary"
                 size="sm"
@@ -723,7 +739,7 @@ export function BotVsBotMatch({
               >
                 <ChevronLeft className="w-4 h-4" />
               </Button>
-              <div className="text-xs text-muted-foreground min-w-[80px] text-center">
+              <div className="text-xs text-muted-foreground min-w-[80px] text-center font-mono">
                 {replayIndex === null
                   ? `${history.length}/${history.length}`
                   : `${replayIndex + 1}/${history.length}`}
@@ -759,9 +775,9 @@ export function BotVsBotMatch({
         <BotHeaderCard bot={flipped ? black : white} sideLabel={flipped ? "Black" : "White"} />
       </section>
 
-      <aside className="flex flex-col gap-4">
-        <Card className="evt-card bg-card p-4 flex-1 min-h-[260px]">
-          <div className="flex items-center justify-between px-1 mb-3">
+      <aside className="flex flex-col h-full min-h-[360px] max-h-[calc(min(60vh,540px)+80px)] self-stretch">
+        <Card className="evt-card bg-card p-3.5 flex flex-col h-full min-h-[360px] overflow-hidden">
+          <div className="flex items-center justify-between px-1 mb-2.5 shrink-0">
             <div className="text-xs font-semibold uppercase tracking-wide">Moves</div>
             {gameOver && (
               <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
@@ -769,7 +785,10 @@ export function BotVsBotMatch({
               </div>
             )}
           </div>
-          <div className="max-h-[480px] overflow-auto scroll-thin rounded-lg">
+          <div
+            ref={movesContainerRef}
+            className="flex-1 overflow-y-auto scroll-thin rounded-lg border border-border/30"
+          >
             {moveRows.length === 0 ? (
               <div className="text-xs text-muted-foreground px-3 py-6 text-center">
                 No moves yet.
@@ -870,33 +889,34 @@ function MoveCell({
 export function BotHeaderCard({ bot, sideLabel }: { bot: BotConfig; sideLabel: string }) {
   const isWhite = sideLabel === "White";
   return (
-    <Card className="evt-card bg-card p-4 flex items-center gap-4">
-      <div className="w-12 h-12 rounded-full bg-secondary grid place-items-center overflow-hidden shrink-0 ring-2 ring-primary/40">
+    <Card className="evt-card bg-card/90 py-1.5 px-3 flex items-center gap-2.5 rounded-lg border border-border/60">
+      <div className="w-8 h-8 rounded-full bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-primary/40">
         {bot.avatar ? (
           <img src={bot.avatar} alt={bot.name} className="w-full h-full object-cover" />
         ) : (
-          <User className="w-6 h-6 text-muted-foreground" />
+          <User className="w-4 h-4 text-muted-foreground" />
         )}
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-bold truncate inline-flex items-center gap-2">
+      <div className="flex-1 min-w-0 flex items-center gap-2">
+        <div className="text-xs font-bold truncate inline-flex items-center gap-1.5 min-w-0">
           {!isImmersiveEnabled() && (
             <TitleBadge title={bot.title} color={bot.titleColor} size="sm" />
           )}
           <span className="truncate">{botDisplayIdentity(bot, isImmersiveEnabled()).name}</span>
         </div>
-        <div className="text-[11px] text-muted-foreground truncate mt-0.5">
-          {bot.category} · ELO {bot.elo}
-        </div>
+        <span className="text-[10px] text-muted-foreground/80 shrink-0 font-mono">({bot.elo})</span>
+        <span className="text-[10px] text-muted-foreground/60 hidden sm:inline shrink-0">
+          · {bot.category}
+        </span>
       </div>
-      <div className="flex items-center gap-2 shrink-0 px-3 py-1.5 rounded-full bg-secondary/50">
+      <div className="flex items-center gap-1.5 shrink-0 px-2 py-0.5 rounded-md bg-secondary/60">
         <span
           className={cn(
-            "w-3 h-3 rounded-full ring-1 ring-border",
+            "w-2.5 h-2.5 rounded-full ring-1 ring-border/80",
             isWhite ? "bg-white" : "bg-zinc-900",
           )}
         />
-        <span className="text-[11px] font-semibold uppercase tracking-wider">{sideLabel}</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wider">{sideLabel}</span>
       </div>
     </Card>
   );

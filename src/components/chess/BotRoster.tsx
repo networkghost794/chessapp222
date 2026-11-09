@@ -11,6 +11,7 @@ import { Trash2, User, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/useAuth";
 import { botDisplayIdentity, useImmersive } from "@/lib/immersive";
+import { TitleBadge } from "./ChessApp";
 import {
   loadBots,
   subscribeBots,
@@ -213,15 +214,7 @@ export function BotRoster({ onSelect }: { onSelect?: (bot: BotConfig) => void })
                           <div className="w-full min-w-0">
                             <div className="text-xs font-semibold truncate inline-flex items-center gap-1 max-w-full">
                               {b.title && !immersive && (
-                                <span
-                                  className="inline-flex items-center justify-center rounded-[3px] px-1.5 py-[1px] text-[10px] font-black uppercase tracking-wide text-white leading-none shrink-0"
-                                  style={{
-                                    backgroundColor:
-                                      getTitleColor(b.title, b.titleColor) ?? "#dc2626",
-                                  }}
-                                >
-                                  {b.title}
-                                </span>
+                                <TitleBadge title={b.title} color={b.titleColor} size="sm" />
                               )}
                               <span className="truncate">
                                 {botDisplayIdentity(b, immersive).name}

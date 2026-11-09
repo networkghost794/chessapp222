@@ -3,10 +3,29 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth, type Profile } from "@/lib/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BadgeCheck, Bot, Crown, Pencil, Swords, Trophy, User, Target, Flag } from "lucide-react";
+import {
+  BadgeCheck,
+  Bot,
+  Crown,
+  Pencil,
+  Swords,
+  Trophy,
+  User,
+  Target,
+  Flag,
+  Clock,
+  Heart,
+  ChevronRight,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TitleBadge } from "./ChessApp";
 import { EventHat } from "./EventDecor";
+import {
+  getInitialOrSeedHistory,
+  toggleGameBookmark,
+  clearGameHistory,
+  type GameHistoryEntry,
+} from "@/lib/gameHistory";
 
 type BotRow = {
   bot_id: string;
@@ -41,6 +60,8 @@ export function HomeDashboard({
 }) {
   const { refreshProfile, isOwner } = useAuth();
   const [rows, setRows] = useState<BotRow[]>([]);
+  const [games, setGames] = useState<GameHistoryEntry[]>([]);
+  const [showAll, setShowAll] = useState(false);
   const [editing, setEditing] = useState(false);
   const [status, setStatus] = useState(profile.status_text ?? "");
 
@@ -51,7 +72,19 @@ export function HomeDashboard({
       .eq("user_id", profile.id)
       .order("updated_at", { ascending: false })
       .then(({ data }) => setRows((data as BotRow[]) ?? []));
-  }, [profile.id]);
+
+    setGames(getInitialOrSeedHistory(profile));
+  }, [profile]);
+
+  const handleToggleBookmark = (gameId: string) => {
+    const updated = toggleGameBookmark(profile.id, gameId);
+    setGames(updated);
+  };
+
+  const handleClearHistory = () => {
+    clearGameHistory(profile.id);
+    setGames([]);
+  };
 
   const saveStatus = async () => {
     await supabase
@@ -71,7 +104,8 @@ export function HomeDashboard({
 
   const total = profile.wins + profile.losses + profile.draws;
   const winRate = total ? Math.round((profile.wins / total) * 100) : 0;
-  const beaten = rows.filter((r) => r.wins > 0).length;
+  // r.losses represents the times the bot lost to the user (i.e. user's wins)
+  const beaten = rows.filter((r) => r.losses > 0).length;
   const joined = profile.created_at
     ? new Date(profile.created_at).toLocaleDateString(undefined, {
         month: "short",
@@ -212,48 +246,258 @@ export function HomeDashboard({
             </Button>
           </section>
 
-          {/* Bot history */}
-          <section className="rounded-lg bg-card border border-border/60 overflow-hidden">
-            <div className="px-5 py-4 font-bold border-b border-border/60">
-              Bot History{" "}
-              <span className="text-muted-foreground font-semibold">({rows.length})</span>
+          {/* Game History matching reference screenshot */}
+          <section className="rounded-lg bg-card border border-border/60 overflow-hidden shadow-xs">
+            <div className="px-5 py-3.5 font-bold border-b border-border/60 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-base font-extrabold tracking-tight">Game History</span>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <span className="text-xs text-muted-foreground font-medium">
+                  {games.length} {games.length === 1 ? "game" : "games"} recorded
+                </span>
+                {games.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearHistory}
+                    className="text-[11px] text-muted-foreground hover:text-destructive transition-colors font-medium underline"
+                  >
+                    Clear History
+                  </button>
+                )}
+              </div>
             </div>
-            {rows.length === 0 ? (
+
+            {games.length === 0 ? (
               <div className="px-5 py-8 text-sm text-muted-foreground text-center">
-                No games yet — your record against each bot will show here.
+                No games yet — completed matches against bots will appear here.
               </div>
             ) : (
-              <table className="w-full text-sm">
-                <thead className="bg-secondary/40 text-xs text-muted-foreground">
-                  <tr>
-                    <th className="text-left font-semibold px-5 py-2">Bot</th>
-                    <th className="font-semibold px-2 py-2">W</th>
-                    <th className="font-semibold px-2 py-2">L</th>
-                    <th className="font-semibold px-2 py-2">D</th>
-                    <th className="text-right font-semibold px-5 py-2 hidden sm:table-cell">
-                      Last played
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.slice(0, 12).map((r) => (
-                    <tr key={r.bot_id} className="border-t border-border/40">
-                      <td className="px-5 py-2.5 font-medium truncate max-w-[200px]">
-                        {r.bot_name}
-                      </td>
-                      <td className="text-center text-success font-semibold">{r.wins}</td>
-                      <td className="text-center text-destructive font-semibold">{r.losses}</td>
-                      <td className="text-center text-muted-foreground">{r.draws}</td>
-                      <td className="text-right px-5 text-muted-foreground hidden sm:table-cell">
-                        {new Date(r.updated_at).toLocaleDateString(undefined, {
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-secondary/40 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
+                    <tr>
+                      <th className="text-left py-2 pl-4 md:pl-5">Players</th>
+                      <th className="text-center py-2 px-3">Result</th>
+                      <th className="text-center py-2 px-3">Moves</th>
+                      <th className="text-right py-2 px-3">Date</th>
+                      <th className="py-2 pr-4 md:pr-5 w-8"></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-border/40">
+                    {(showAll ? games : games.slice(0, 10)).map((g) => (
+                      <tr key={g.id} className="hover:bg-secondary/25 transition-colors group">
+                        {/* Players Column */}
+                        <td className="py-2.5 pl-4 md:pl-5 min-w-[240px]">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-md bg-secondary flex flex-col items-center justify-center shrink-0 ring-1 ring-border/50 text-muted-foreground">
+                              {g.gameType === "bot" ? (
+                                <Bot className="w-4 h-4 text-primary" />
+                              ) : (
+                                <>
+                                  <Clock className="w-3.5 h-3.5 text-emerald-500" />
+                                  <span className="text-[9px] font-mono leading-none mt-0.5">
+                                    {g.timeControl ?? "15+10"}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+
+                            <div className="space-y-1 min-w-0 flex-1">
+                              {/* White Player */}
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <div className="w-5 h-5 rounded-sm bg-secondary overflow-hidden shrink-0 ring-1 ring-border grid place-items-center">
+                                  {g.white.avatar ? (
+                                    <img
+                                      src={g.white.avatar}
+                                      alt=""
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    <User className="w-3 h-3 text-muted-foreground" />
+                                  )}
+                                </div>
+                                <span
+                                  className="w-2.5 h-2.5 rounded-[2px] bg-white border border-zinc-400 shrink-0 shadow-xs"
+                                  title="White"
+                                />
+                                {g.white.title && (
+                                  <TitleBadge
+                                    title={g.white.title}
+                                    color={g.white.titleColor}
+                                    size="sm"
+                                  />
+                                )}
+                                <span
+                                  className={cn(
+                                    "text-xs truncate font-medium",
+                                    g.white.isUser
+                                      ? "font-bold text-foreground"
+                                      : "text-muted-foreground",
+                                  )}
+                                >
+                                  {g.white.name}
+                                </span>
+                                <span className="text-[11px] text-muted-foreground/80 font-mono shrink-0">
+                                  ({g.white.elo})
+                                </span>
+                                {g.white.country && (
+                                  <span className="text-xs shrink-0">
+                                    {COUNTRIES[g.white.country] ?? g.white.country}
+                                  </span>
+                                )}
+                                {g.white.isUser && (
+                                  <span className="text-xs shrink-0 text-amber-400">👑</span>
+                                )}
+                              </div>
+
+                              {/* Black Player */}
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <div className="w-5 h-5 rounded-sm bg-secondary overflow-hidden shrink-0 ring-1 ring-border grid place-items-center">
+                                  {g.black.avatar ? (
+                                    <img
+                                      src={g.black.avatar}
+                                      alt=""
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    <User className="w-3 h-3 text-muted-foreground" />
+                                  )}
+                                </div>
+                                <span
+                                  className="w-2.5 h-2.5 rounded-[2px] bg-zinc-800 border border-zinc-600 shrink-0 shadow-xs"
+                                  title="Black"
+                                />
+                                {g.black.title && (
+                                  <TitleBadge
+                                    title={g.black.title}
+                                    color={g.black.titleColor}
+                                    size="sm"
+                                  />
+                                )}
+                                <span
+                                  className={cn(
+                                    "text-xs truncate font-medium",
+                                    g.black.isUser
+                                      ? "font-bold text-foreground"
+                                      : "text-muted-foreground",
+                                  )}
+                                >
+                                  {g.black.name}
+                                </span>
+                                <span className="text-[11px] text-muted-foreground/80 font-mono shrink-0">
+                                  ({g.black.elo})
+                                </span>
+                                {g.black.country && (
+                                  <span className="text-xs shrink-0">
+                                    {COUNTRIES[g.black.country] ?? g.black.country}
+                                  </span>
+                                )}
+                                {!g.black.isUser && (
+                                  <span className="text-[10px] text-muted-foreground shrink-0">
+                                    ♟️
+                                  </span>
+                                )}
+                                {g.black.isUser && (
+                                  <span className="text-xs shrink-0 text-amber-400">👑</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Result Column */}
+                        <td className="py-2.5 px-3 text-center font-mono">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <div className="flex flex-col items-center leading-tight font-bold text-xs">
+                              <span
+                                className={
+                                  g.scoreWhite === "1" ? "text-foreground" : "text-muted-foreground"
+                                }
+                              >
+                                {g.scoreWhite}
+                              </span>
+                              <span
+                                className={
+                                  g.scoreBlack === "1" ? "text-foreground" : "text-muted-foreground"
+                                }
+                              >
+                                {g.scoreBlack}
+                              </span>
+                            </div>
+                            {g.userOutcome === "win" ? (
+                              <span
+                                className="w-4 h-4 rounded-[3px] bg-emerald-600 text-white font-bold text-[10px] grid place-items-center shadow-xs"
+                                title="Victory"
+                              >
+                                +
+                              </span>
+                            ) : g.userOutcome === "loss" ? (
+                              <span
+                                className="w-4 h-4 rounded-[3px] bg-rose-600 text-white font-bold text-[10px] grid place-items-center shadow-xs"
+                                title="Defeat"
+                              >
+                                −
+                              </span>
+                            ) : (
+                              <span
+                                className="w-4 h-4 rounded-[3px] bg-zinc-600 text-white font-bold text-[10px] grid place-items-center shadow-xs"
+                                title="Draw"
+                              >
+                                =
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Moves Column */}
+                        <td className="py-2.5 px-3 text-center font-mono text-xs text-muted-foreground">
+                          {g.moves}
+                        </td>
+
+                        {/* Date Column */}
+                        <td className="py-2.5 px-3 text-right font-medium text-xs text-muted-foreground whitespace-nowrap">
+                          {g.date}
+                        </td>
+
+                        {/* Bookmark Heart Column */}
+                        <td className="py-2.5 pr-4 md:pr-5 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleBookmark(g.id)}
+                            className="p-1 rounded text-muted-foreground hover:text-rose-500 transition-colors"
+                            title={g.bookmarked ? "Bookmarked" : "Bookmark game"}
+                          >
+                            <Heart
+                              className={cn(
+                                "w-4 h-4 transition-transform",
+                                g.bookmarked
+                                  ? "fill-rose-500 text-rose-500"
+                                  : "hover:scale-110 opacity-60 hover:opacity-100",
+                              )}
+                            />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {games.length > 5 && (
+              <div className="p-2.5 bg-secondary/20 border-t border-border/40 text-center">
+                <button
+                  type="button"
+                  onClick={() => setShowAll((prev) => !prev)}
+                  className="text-xs text-muted-foreground hover:text-foreground font-semibold inline-flex items-center gap-1 transition-colors"
+                >
+                  {showAll ? "Show Recent Games" : "View All Games"}{" "}
+                  <ChevronRight
+                    className={cn("w-3.5 h-3.5 transition-transform", showAll && "rotate-90")}
+                  />
+                </button>
+              </div>
             )}
           </section>
         </div>
