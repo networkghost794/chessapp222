@@ -3,16 +3,32 @@ import { createClient } from "@supabase/supabase-js";
 import type { Database } from "./types";
 import { brokeredPreviewStorage } from "./previewAuthStorage";
 
-const supabaseUrl = "https://amecrpsnglmcwrsebsiz.supabase.co";
-const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
+function createSupabaseClient() {
+  const SUPABASE_URL =
+    import.meta.env.VITE_SUPABASE_URL ||
+    (typeof process !== "undefined" ? process.env?.SUPABASE_URL : undefined) ||
+    "https://amecrpsnglmcwrsebsiz.supabase.co";
+  const SUPABASE_PUBLISHABLE_KEY =
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    (typeof process !== "undefined" ? process.env?.SUPABASE_PUBLISHABLE_KEY : undefined) ||
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFtZWNycHNuZ2xtY3dyc2Vic2l6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxNDg5MDksImV4cCI6MjA5NDcyNDkwOX0.jzYWSdJDpqUUiXcBH4x-ugE6GnDeJsp3pOXdejcq2kk";
+
+  return createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+    auth: {
+      storage: brokeredPreviewStorage(),
+      persistSession: true,
+      autoRefreshToken: true,
+    },
+  });
+}
+
+let _supabase: ReturnType<typeof createSupabaseClient> | undefined;
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
-
-export const supabase = createClient<Database>(supabaseUrl, anonKey, {
-  auth: {
-    storage: brokeredPreviewStorage(),
-    persistSession: true,
-    autoRefreshToken: true,
+export const supabase = new Proxy({} as ReturnType<typeof createSupabaseClient>, {
+  get(_, prop, receiver) {
+    if (!_supabase) _supabase = createSupabaseClient();
+    return Reflect.get(_supabase, prop, receiver);
   },
 });
