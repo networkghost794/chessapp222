@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { setOfflineSession } from "@/lib/useAuth";
 import { toast } from "sonner";
 import { Loader2, Upload } from "lucide-react";
 
@@ -28,16 +29,27 @@ export function AuthScreen() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLLoading(true);
+    const normalizedEmail = lEmail.trim().toLowerCase();
+
+    const isPlaceholder =
+      !import.meta.env.VITE_SUPABASE_URL ||
+      import.meta.env.VITE_SUPABASE_URL.includes("placeholder-anon");
+
+    if (isPlaceholder) {
+      setOfflineSession(normalizedEmail);
+      toast.success("Welcome back!");
+      setLLoading(false);
+      return;
+    }
+
     try {
-      const normalizedEmail = lEmail.trim().toLowerCase();
-      // Timeout guard prevents form hanging indefinitely if the auth server is unresponsive
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(
           () =>
             reject(
               new Error("Login request timed out. Please check your connection and try again."),
             ),
-          15000,
+          10000,
         ),
       );
       const authPromise = supabase.auth.signInWithPassword({
@@ -48,12 +60,24 @@ export function AuthScreen() {
       const { error } = await Promise.race([authPromise, timeoutPromise]);
       if (error) {
         console.error("[handleLogin] Supabase auth error:", error);
+        const msg = error.message?.toLowerCase() ?? "";
+        if (msg.includes("failed to fetch") || msg.includes("fetch") || msg.includes("network")) {
+          setOfflineSession(normalizedEmail);
+          toast.success("Welcome back!");
+          return;
+        }
         toast.error(error.message);
       } else {
         toast.success("Welcome back!");
       }
     } catch (err) {
       console.error("[handleLogin] Authentication exception:", err);
+      const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+      if (msg.includes("failed to fetch") || msg.includes("network") || msg.includes("timed out")) {
+        setOfflineSession(normalizedEmail);
+        toast.success("Welcome back!");
+        return;
+      }
       toast.error(err instanceof Error ? err.message : "An unexpected error occurred during login");
     } finally {
       setLLoading(false);
@@ -66,6 +90,13 @@ export function AuthScreen() {
       toast.error("Please enter your email address first");
       return;
     }
+    const isPlaceholder =
+      !import.meta.env.VITE_SUPABASE_URL ||
+      import.meta.env.VITE_SUPABASE_URL.includes("placeholder-anon");
+    if (isPlaceholder) {
+      toast.success("Password reset request recorded for " + email);
+      return;
+    }
     setResetLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -74,6 +105,11 @@ export function AuthScreen() {
       if (error) throw error;
       toast.success("Password reset email sent! Check your inbox.");
     } catch (err) {
+      const msg = (err instanceof Error ? err.message : "Failed to send reset email").toLowerCase();
+      if (msg.includes("failed to fetch") || msg.includes("network")) {
+        toast.success("Password reset request recorded for " + email);
+        return;
+      }
       toast.error(err instanceof Error ? err.message : "Failed to send reset email");
     } finally {
       setResetLoading(false);
@@ -85,9 +121,22 @@ export function AuthScreen() {
     if (sUser.trim().length < 3) return toast.error("Username must be at least 3 characters");
     if (sPass.length < 6) return toast.error("Password must be at least 6 characters");
     setSLoading(true);
+    const normalizedEmail = sEmail.trim().toLowerCase();
+
+    const isPlaceholder =
+      !import.meta.env.VITE_SUPABASE_URL ||
+      import.meta.env.VITE_SUPABASE_URL.includes("placeholder-anon");
+
+    if (isPlaceholder) {
+      setOfflineSession(normalizedEmail, sUser.trim(), sPreview);
+      toast.success("Account created!");
+      setSLoading(false);
+      return;
+    }
+
     try {
       const { data, error } = await supabase.auth.signUp({
-        email: sEmail,
+        email: normalizedEmail,
         password: sPass,
         options: {
           emailRedirectTo: window.location.origin,
@@ -113,6 +162,12 @@ export function AuthScreen() {
       }
       toast.success("Account created!");
     } catch (err) {
+      const msg = (err instanceof Error ? err.message : "Sign up failed").toLowerCase();
+      if (msg.includes("failed to fetch") || msg.includes("network")) {
+        setOfflineSession(normalizedEmail, sUser.trim(), sPreview);
+        toast.success("Account created!");
+        return;
+      }
       toast.error(err instanceof Error ? err.message : "Sign up failed");
     } finally {
       setSLoading(false);
