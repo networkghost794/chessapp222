@@ -1,40 +1,74 @@
-# Implementation Plan: Strict Opening Book Following & Removal of Placeholder Repertoire
+# Personal Bots Column & Creator Privacy Management
 
-## User Request Summary
-- **Strict Opening Book Execution**: Ensure bots with an opening book (`bookUrl` or `bookBin`) play directly from the book when the position is in-book (weighted by book move frequency/weight). The opening book moves will no longer be diluted, filtered out by centipawn tolerance, or overridden by blunders/human mistake layers.
-- **Disable Built-in Placeholder Openings**: For bots without a custom uploaded opening book, remove the built-in placeholder openings (`repertoire.ts`). Bots will calculate opening moves directly with the engine according to their configured Elo, personality, and style from move 1.
+Ensure the **Personal Bots** section is immediately accessible and visible to platform owners and bot creators in Studio mode and the Play Bots picker, with clear lock badges and private assignment controls.
 
----
+## User Review & Critical Decisions
 
-## Detailed Findings from Research
-1. **Soft Influence Issue**: In `src/lib/botStore.ts` (lines 819–823), opening books were previously treated as a "candidate source only" (`bookFactor`). Book moves were never guaranteed; instead, Stockfish evaluated all legal moves, and if a book move differed by more than 5 centipawns or fell outside the candidate pool, it was discarded. Additionally, the human mistake and blunder injection layers could override book moves with random moves on move 1 or 2.
-2. **Placeholder Repertoire Fallback**: When no custom book was uploaded, `repertoireMove()` in `src/lib/repertoire.ts` picked one of 25 hardcoded openings based on a hash of the bot's ID. This made bots play arbitrary fixed opening sequences (like Catalan, English, or London) instead of calculating moves organically.
+> [!IMPORTANT]
+> Based on your feedback, Personal Bots are designed specifically for owners and studio creators:
+> - **Studio Private Column**: In Studio Mode, a dedicated "Personal Bots" filter and management column allows owners/creators to mark, assign, and edit private bots.
+> - **Play Bots Tier**: In the Bot Picker, the **🔒 Personal Bots (Private)** category is visible to owners/creators, featuring a lock badge and an inline "Create Personal Bot" shortcut when empty.
 
----
-
-## Proposed Changes
-
-### 1. Update `src/lib/botStore.ts`
-- **Direct Book Execution in `chooseBotMove`**:
-  - In section 1 of `chooseBotMove`: if `bot.opening.enabled` is true, a book is present (`bookBin` or `bookUrl`), and `game.history().length < maxBookDepth`:
-    - Lookup the current position using `lookupPolyglot(book, polyglotHash(game))`.
-    - If valid legal entries are found, select a move directly from the book weighted by each entry's weight (or the top entry if mode is best).
-    - Convert to a `VerboseMove` and return immediately with `{ move, source: "book" }`.
-  - Skip engine calculation, centipawn filtering, and blunder injection while in book, guaranteeing 100% adherence to the user's opening book.
-- **Remove Built-in Repertoire Fallback**:
-  - Remove lines 848–861 that fell back to `repertoireMove()`.
-  - If a bot does not have an uploaded book (or when it leaves book theory), execution seamlessly transitions directly to the Stockfish engine pipeline.
-
-### 2. Update `src/components/chess/StudioBotEditor.tsx`
-- Update the Opening card description:
-  - Replace `"No book uploaded — built-in repertoire is used."` with `"No custom book uploaded — calculates moves with engine from move 1."`
-  - When a book is loaded, indicate that book moves are followed directly.
+- **Confirmed Choice 1**: Personal Bots section is visible in Studio and the Bot Picker strictly for platform owners and bot creators.
+- **Confirmed Choice 2**: Personal bots carry a lock badge (`🔒`) to distinguish private training bots from public roster bots.
 
 ---
 
-## Verification Plan
-1. **Compilation & Linting**: Run `compile_applet` and `lint_applet` together to verify 0 errors.
-2. **Move Generation Verification**:
-   - Verify that when a bot has an opening book, `chooseBotMove` returns `{ move, source: "book" }` immediately for in-book positions.
-   - Verify that when a bot does not have a book, it calculates moves directly via Stockfish with `{ move, source: "engine" }` without playing hardcoded placeholder lines.
-3. **Runtime & Dev Server**: Confirm dev server returns HTTP 200.
+## 1. Overview & Core Concept
+
+- **What It Does**: Provides a dedicated, private "Personal Bots" tier and Studio column where users with creator/owner privileges can build, test, and play against non-public custom bots.
+- **Target Audience**: Platform owners and studio creators designing personalized training opponents.
+- **Key Value**: Guarantees privacy for work-in-progress or personal test bots while making the category obvious and actionable in the UI.
+
+---
+
+## 2. User Experience & Visual Design
+
+- **Studio Mode**:
+  - Add a **Category Filter** in the Studio roster sidebar (All / Standard Tiers / 🔒 Personal Bots).
+  - Add a visual **🔒 Personal Bot** badge in the identity card with a toggle to switch a bot between public and private Personal status.
+- **Play Bots Panel**:
+  - Always render the **🔒 Personal Bots (Private)** accordion tier for logged-in owners and creators.
+  - When the tier has 0 personal bots, display an inviting empty state card: *"No personal bots created yet. Open Studio to create your first private bot!"* with a direct link to `/studio`.
+  - Display a clean lock icon badge (`🔒`) over personal bot avatars in the bot selection grid.
+
+---
+
+## 3. Key Product Decisions & Trade-Offs
+
+- **Visibility Model**:
+  - *Chosen Approach*: Show the Personal tier in the Bot Picker to any logged-in user who is an owner or has created a bot, rendering an informative empty state if they haven't created one yet.
+  - *Why*: Solves the issue where a user couldn't see the category because 0 personal bots had been instantiated under their user ID.
+- **Data Security**:
+  - *Chosen Approach*: Filter queries and local store lists so non-creator public users never see personal bots belonging to others.
+
+---
+
+## 4. Technical Architecture & Data Strategy
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Studio / Roster                      │
+│   Category Filter: [ All | Standard | 🔒 Personal ]     │
+│   Bot Settings: [x] Private Personal Bot (Owner Only)   │
+└────────────────────────────┬────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────┐
+│                  botStore.ts (State)                    │
+│   - category: "Personal"                                │
+│   - createdBy: user.id                                  │
+└────────────────────────────┬────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────┐
+│               PlayBotsPanel.tsx (Picker)                │
+│   - Section: 🔒 Personal Bots (Private)                 │
+│   - If empty & authorized: Show "Create in Studio" card │
+│   - Lock Badge on Bot Grid Tiles                        │
+└─────────────────────────────────────────────────────────┘
+```
+
+- **Component Updates**:
+  - `PlayBotsPanel.tsx`: Update `tiers.map` so `"Personal"` is visible to `user` (or `isOwner`), displaying an inline call-to-action when 0 personal bots exist.
+  - `StudioBotEditor.tsx`: Add a dedicated "🔒 Personal Bots" filter tab in the left roster sidebar and a prominent "🔒 Private Personal Bot" toggle in the Identity card.

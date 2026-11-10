@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Crown, Play, User, Bot as BotIcon, Trash2 } from "lucide-react";
+import { Crown, Play, User, Bot as BotIcon, Trash2, Lock } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/useAuth";
 import { cn } from "@/lib/utils";
@@ -115,9 +116,29 @@ export function PlayBotsPanel({
       {/* Tiers */}
       <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-2">
         {tiers.map((section) => {
+          // Hide Personal category from public visitors
+          if (section.value === "Personal") {
+            const hasAccess =
+              user &&
+              (isOwner || bots.some((b) => b.category === "Personal" && b.createdBy === user.id));
+            if (!hasAccess) return null;
+          }
+
           const list = bots
-            .filter((b) => b.category === section.value)
+            .filter((b) => {
+              if (b.category !== section.value) return false;
+              if (section.value === "Personal") {
+                return isOwner || b.createdBy === user?.id;
+              }
+              return true;
+            })
             .sort((a, b) => a.orderIndex - b.orderIndex);
+
+          // If it's the Personal tier and no bots exist yet, only show if owner
+          if (section.value === "Personal" && list.length === 0 && !isOwner) {
+            return null;
+          }
+
           const isOpen = open === section.value;
           const cover = list[0]?.avatar;
           return (
@@ -134,7 +155,10 @@ export function PlayBotsPanel({
                     ) : null}
                   </span>
                 )}
-                <span className="font-bold flex-1">{section.label}</span>
+                <span className="font-bold flex-1 flex items-center gap-1.5">
+                  {section.value === "Personal" && <Lock className="w-3.5 h-3.5 text-warning" />}
+                  {section.label}
+                </span>
                 <span className="text-xs text-muted-foreground">{list.length} bots</span>
               </button>
               {isOpen && (
@@ -143,8 +167,19 @@ export function PlayBotsPanel({
                   style={{ gridTemplateColumns: `repeat(${ui.gridColumns}, minmax(0, 1fr))` }}
                 >
                   {list.length === 0 && (
-                    <div className="col-span-full text-xs text-muted-foreground py-2">
-                      No bots yet.
+                    <div className="col-span-full p-3 rounded-lg border border-dashed border-border/70 bg-background/40 text-center space-y-1.5">
+                      <div className="text-xs text-muted-foreground flex items-center justify-center gap-1.5 font-medium">
+                        <Lock className="w-3.5 h-3.5 text-warning" />
+                        No personal bots created yet.
+                      </div>
+                      {isOwner && (
+                        <Link
+                          to="/studio"
+                          className="inline-flex items-center gap-1 text-xs font-bold text-warning hover:underline"
+                        >
+                          Create Personal Bot in Studio →
+                        </Link>
+                      )}
                     </div>
                   )}
                   {list.map((b) => {
@@ -168,6 +203,11 @@ export function PlayBotsPanel({
                           <img src={b.avatar} alt={b.name} className="h-full w-full object-cover" />
                         ) : (
                           <User className="w-1/2 h-1/2 m-auto mt-[25%] text-muted-foreground" />
+                        )}
+                        {b.category === "Personal" && (
+                          <span className="absolute top-1 left-1 h-4 w-4 rounded bg-background/80 text-warning grid place-items-center shadow-sm">
+                            <Lock className="w-2.5 h-2.5" />
+                          </span>
                         )}
                         {beaten.has(b.id) && (
                           <Crown className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-4 h-4 text-[color:var(--sim-ok)] fill-current drop-shadow" />

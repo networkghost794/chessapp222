@@ -42,6 +42,8 @@ import {
   pickThinkingDelayMs,
   type BotConfig,
 } from "@/lib/botStore";
+import { generateThoughtBreakdown } from "@/lib/thoughtExplainer";
+import { generateCoachExplanation } from "@/lib/coachExplainer";
 import { useAuth } from "@/lib/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { BathroomBreak } from "./BathroomBreak";
@@ -225,6 +227,8 @@ export function ChessApp() {
   const [pending, setPending] = useState(false);
   const [promotion, setPromotion] = useState<{ from: Square; to: Square } | null>(null);
   const [activeBot, setActiveBotState] = useState<BotConfig | null>(null);
+  const [liveThought, setLiveThought] = useState<string | null>(null);
+  const [coachSpeech, setCoachSpeech] = useState<string | null>(null);
   const [immersive] = useImmersive();
   const activeBotName = activeBot ? botDisplayIdentity(activeBot, immersive).name : null;
 
@@ -308,11 +312,38 @@ export function ChessApp() {
         setPending(false);
         return;
       }
-      const { move: pick } = result;
-      // Per-bot thinking delay (min..max ms). Cosmetic pacing only.
-      const targetMs = pickThinkingDelayMs(activeBot);
-      const elapsed = Date.now() - startedAt;
-      if (elapsed < targetMs) await new Promise((r) => setTimeout(r, targetMs - elapsed));
+      const { move: pick, topMoves } = result;
+
+      // Coach Mode Explanation
+      if (activeBot?.coachMode) {
+        const explanation = generateCoachExplanation(
+          game,
+          pick as { from: string; to: string; san?: string; piece?: string; captured?: string },
+        );
+        setCoachSpeech(explanation);
+      }
+
+      if (activeBot?.thoughtExplainer) {
+        const thought = generateThoughtBreakdown(
+          game,
+          pick as { from: string; to: string; san?: string },
+          topMoves,
+        );
+        setLiveThought(`🔍 ${thought.scan}`);
+        await new Promise((r) => setTimeout(r, 600));
+        const candSummary = thought.candidates
+          .map((c) => `${c.moveSan} (${c.evalStr})`)
+          .join(" vs ");
+        setLiveThought(`⚖️ Candidate Search: ${candSummary}`);
+        await new Promise((r) => setTimeout(r, 900));
+        setLiveThought(`🎯 ${thought.decision}`);
+        await new Promise((r) => setTimeout(r, 700));
+      } else {
+        const targetMs = pickThinkingDelayMs(activeBot);
+        const elapsed = Date.now() - startedAt;
+        if (elapsed < targetMs) await new Promise((r) => setTimeout(r, targetMs - elapsed));
+      }
+
       const m = game.move({
         from: pick.from as Square,
         to: pick.to as Square,
@@ -327,6 +358,7 @@ export function ChessApp() {
     } catch {
       /* swallow */
     } finally {
+      setLiveThought(null);
       setPending(false);
     }
   }, [game, force, activeBot]);
@@ -343,6 +375,8 @@ export function ChessApp() {
     setPromotion(null);
     recordedRef.current = false;
     setResignedFlag(false);
+    setLiveThought(null);
+    setCoachSpeech(null);
 
     let color: Color = "w";
     if (colorChoice === "white") color = "w";
@@ -731,6 +765,8 @@ export function ChessApp() {
               onResign={resignMatch}
               onFlip={() => setFlipped((f) => !f)}
               botStats={botStats}
+              liveThought={liveThought}
+              coachSpeech={coachSpeech}
             />
           )}
           {mode === "profile" && profile && <ProfilePage />}
@@ -963,6 +999,8 @@ function MatchView({
   onResign,
   onFlip,
   botStats,
+  liveThought,
+  coachSpeech,
 }: {
   profile: ReturnType<typeof useAuth>["profile"];
   activeBot: BotConfig | null;
@@ -979,6 +1017,8 @@ function MatchView({
   onResign: () => void;
   onFlip: () => void;
   botStats: BotStats;
+  liveThought: string | null;
+  coachSpeech: string | null;
 }) {
   const movesContainerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -1085,10 +1125,22 @@ function MatchView({
             </div>
             <BotChatBubble
               active={matchActive && !game.isGameOver() && !resignedFlag}
-              lines={activeBot.dialogueLines}
-              defaultText={activeBot.quote || activeBot.dialogueLines?.[0] || "Let's play chess!"}
+              lines={activeBot.coachMode && coachSpeech ? [coachSpeech] : activeBot.dialogueLines}
+              defaultText={
+                activeBot.coachMode && coachSpeech
+                  ? coachSpeech
+                  : activeBot.quote || activeBot.dialogueLines?.[0] || "Let's play chess!"
+              }
               inline
             />
+          </div>
+        )}
+
+        {/* Thought Stream HUD */}
+        {liveThought && (
+          <div className="bg-primary/10 border border-primary/30 rounded-lg p-2.5 text-xs text-primary font-mono flex items-center gap-2 animate-in fade-in duration-150 shadow-inner">
+            <div className="w-2 h-2 rounded-full bg-primary animate-ping shrink-0" />
+            <span className="leading-snug flex-1">{liveThought}</span>
           </div>
         )}
 

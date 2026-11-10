@@ -276,9 +276,17 @@ export function applyEngineProfile(
 }
 
 export type BotCategory =
-  "Beginner" | "Intermediate" | "Advanced" | "SpecialEvent" | "Creator" | "TopPlayer" | "Master";
+  | "Personal"
+  | "Beginner"
+  | "Intermediate"
+  | "Advanced"
+  | "SpecialEvent"
+  | "Creator"
+  | "TopPlayer"
+  | "Master";
 
 export const BOT_CATEGORIES: { value: BotCategory; label: string }[] = [
+  { value: "Personal", label: "🔒 Personal Bots (Private)" },
   { value: "Beginner", label: "Beginner Bots" },
   { value: "Intermediate", label: "Intermediate Bots" },
   { value: "Advanced", label: "Advanced Bots" },
@@ -320,6 +328,7 @@ export type BotConfig = {
   /** Per-bot thinking delay range (ms). */
   thinking: ThinkingTime;
   engine: EngineConfig;
+  coachMode?: boolean;
 };
 
 export const defaultPhase = (): PhaseConfig => ({
@@ -424,6 +433,7 @@ function rowToBot(r: Record<string, unknown>): BotConfig {
       ...defaultEngineConfig(),
       ...((op as { engine?: Partial<EngineConfig> }).engine ?? {}),
     },
+    coachMode: Boolean((op as { coachMode?: boolean }).coachMode),
   };
 }
 
@@ -496,6 +506,7 @@ export type BotPublishInput = {
   country?: string | null;
   thinking?: ThinkingTime;
   engine?: EngineConfig;
+  coachMode?: boolean;
 };
 
 async function resolveAvatarUrl(
@@ -536,6 +547,7 @@ export async function publishBot(input: BotPublishInput): Promise<BotConfig | nu
     thinking: input.thinking ?? defaultThinkingTime(),
     country: input.country ?? null,
     engine: input.engine ?? defaultEngineConfig(),
+    coachMode: input.coachMode ?? false,
   };
 
   const insertPayload = {
@@ -580,6 +592,7 @@ export async function updateBot(id: string, input: BotPublishInput): Promise<Bot
     thinking: input.thinking ?? defaultThinkingTime(),
     country: input.country ?? null,
     engine: input.engine ?? defaultEngineConfig(),
+    coachMode: input.coachMode ?? false,
   };
 
   const updatePayload: Record<string, unknown> = {

@@ -51,6 +51,10 @@ const emit = () => subs.forEach((f) => f());
 function normalize(v: Partial<UiSettings> | null | undefined): UiSettings {
   const all = BOT_CATEGORIES.map((c) => c.value);
   const order = (v?.tierOrder ?? []).filter((c) => all.includes(c));
+  // Keep Personal at the top if not already present
+  if (!order.includes("Personal")) {
+    order.unshift("Personal");
+  }
   for (const c of all) if (!order.includes(c)) order.push(c);
   return {
     tierLabels: v?.tierLabels ?? {},

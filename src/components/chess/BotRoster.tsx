@@ -31,7 +31,7 @@ import {
 
 export function BotRoster({ onSelect }: { onSelect?: (bot: BotConfig) => void }) {
   const [immersive] = useImmersive();
-  const { isOwner } = useAuth();
+  const { isOwner, user } = useAuth();
   const [bots, setBots] = useState<BotConfig[]>([]);
   const [activeId, setActive] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -109,8 +109,21 @@ export function BotRoster({ onSelect }: { onSelect?: (bot: BotConfig) => void })
       ) : (
         <Accordion type="multiple" className="w-full">
           {BOT_CATEGORIES.map((section) => {
+            if (section.value === "Personal") {
+              const hasAccess =
+                user &&
+                (isOwner || bots.some((b) => b.category === "Personal" && b.createdBy === user.id));
+              if (!hasAccess) return null;
+            }
+
             const list = bots
-              .filter((b) => b.category === section.value)
+              .filter((b) => {
+                if (b.category !== section.value) return false;
+                if (section.value === "Personal") {
+                  return isOwner || b.createdBy === user?.id;
+                }
+                return true;
+              })
               .sort((a, b) => a.orderIndex - b.orderIndex);
             return (
               <AccordionItem key={section.value} value={section.value} className="border-border/60">

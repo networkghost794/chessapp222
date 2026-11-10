@@ -1,7 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { Chess, type Square } from "chess.js";
 import { toast } from "sonner";
-import { Copy, Plus, Save, Trash2, Play, RotateCcw, Search, FlaskConical } from "lucide-react";
+import {
+  Copy,
+  Plus,
+  Save,
+  Trash2,
+  Play,
+  RotateCcw,
+  Search,
+  FlaskConical,
+  Lock,
+} from "lucide-react";
 import {
   BOT_CATEGORIES,
   DEFAULT_BUCKET_MAP,
@@ -49,6 +59,8 @@ const OFFICIAL_TITLES = [
 type Draft = Omit<BotConfig, "id" | "createdAt" | "orderIndex"> & {
   id: string | null;
   avatarFile?: File | null;
+  thoughtExplainer?: boolean;
+  coachMode?: boolean;
 };
 
 const blankDraft = (): Draft => ({
@@ -71,6 +83,8 @@ const blankDraft = (): Draft => ({
   country: null,
   thinking: defaultThinkingTime(),
   engine: defaultEngineConfig(),
+  thoughtExplainer: false,
+  coachMode: false,
 });
 
 const fromBot = (b: BotConfig): Draft => {
@@ -288,6 +302,7 @@ export function StudioBotEditor({
   const [draft, setDraft] = useState<Draft>(blankDraft());
   const [phaseTab, setPhaseTab] = useState<"middlegame" | "endgame">("middlegame");
   const [mode, setMode] = useState<"basic" | "advanced" | "expert">("advanced");
+  const [catFilter, setCatFilter] = useState<"all" | "standard" | "personal">("all");
   const [q, setQ] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -355,6 +370,8 @@ export function StudioBotEditor({
         country: draft.country,
         thinking: draft.thinking,
         engine: draft.engine,
+        thoughtExplainer: draft.thoughtExplainer,
+        coachMode: draft.coachMode,
         avatarFile: draft.avatarFile ?? null,
       };
       if (!draft.id && draft.avatar && !draft.avatarFile) input.avatarDataUrl = draft.avatar;
@@ -376,7 +393,13 @@ export function StudioBotEditor({
     toast.success("Bot deleted");
   }
 
-  const filtered = bots.filter((b) => b.name.toLowerCase().includes(q.toLowerCase()));
+  const filtered = bots.filter((b) => {
+    const matchQ = b.name.toLowerCase().includes(q.toLowerCase());
+    if (!matchQ) return false;
+    if (catFilter === "personal") return b.category === "Personal";
+    if (catFilter === "standard") return b.category !== "Personal";
+    return true;
+  });
   const adv = mode !== "basic";
   const exp = mode === "expert";
 
@@ -413,6 +436,41 @@ export function StudioBotEditor({
             className={cn(inputCls, "pl-7")}
           />
         </div>
+        <div className="flex gap-1">
+          <button
+            onClick={() => setCatFilter("all")}
+            className={cn(
+              "flex-1 py-1 text-[10px] font-semibold rounded border transition-colors",
+              catFilter === "all"
+                ? "bg-warning/20 border-warning text-warning"
+                : "border-border text-muted-foreground hover:bg-muted",
+            )}
+          >
+            All
+          </button>
+          <button
+            onClick={() => setCatFilter("standard")}
+            className={cn(
+              "flex-1 py-1 text-[10px] font-semibold rounded border transition-colors",
+              catFilter === "standard"
+                ? "bg-warning/20 border-warning text-warning"
+                : "border-border text-muted-foreground hover:bg-muted",
+            )}
+          >
+            Public
+          </button>
+          <button
+            onClick={() => setCatFilter("personal")}
+            className={cn(
+              "flex-1 py-1 text-[10px] font-semibold rounded border flex items-center justify-center gap-0.5 transition-colors",
+              catFilter === "personal"
+                ? "bg-warning/20 border-warning text-warning"
+                : "border-border text-muted-foreground hover:bg-muted",
+            )}
+          >
+            <Lock className="w-2.5 h-2.5" /> Personal
+          </button>
+        </div>
         <div className="max-h-[70vh] overflow-y-auto space-y-0.5">
           {filtered.map((b) => (
             <button
@@ -428,7 +486,10 @@ export function StudioBotEditor({
               ) : (
                 <div className="w-6 h-6 rounded bg-muted" />
               )}
-              <span className="flex-1 truncate">{b.name}</span>
+              <span className="flex-1 truncate flex items-center gap-1">
+                {b.category === "Personal" && <Lock className="w-3 h-3 text-warning shrink-0" />}
+                {b.name}
+              </span>
               <span className="font-mono text-muted-foreground">{b.elo}</span>
             </button>
           ))}
@@ -561,6 +622,22 @@ export function StudioBotEditor({
               placeholder="In-game chat lines (one per line)"
             />
           )}
+          <label className="flex items-center justify-between p-2.5 rounded-lg bg-secondary/40 border border-border mt-3 cursor-pointer">
+            <div>
+              <div className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+                <span>🎓 Chess Coach Mode</span>
+              </div>
+              <div className="text-[10px] text-muted-foreground">
+                Bot speaks like a real Grandmaster coach, explaining why it played each move.
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              checked={!!draft.coachMode}
+              onChange={(e) => set("coachMode", e.target.checked)}
+              className="h-4 w-4 rounded border-border"
+            />
+          </label>
         </Card>
         <Card title="Archetype presets" impact="Personality">
           <div className="grid grid-cols-2 gap-2">
@@ -745,6 +822,11 @@ export function StudioBotEditor({
             <p className="text-[10px] text-muted-foreground">
               {ENGINE_PROFILES.find((p) => p.value === (draft.engine.profile ?? "stockfish"))?.desc}
             </p>
+            <Toggle
+              label="🧠 Grandmaster Thought Stream (Explain calculations live)"
+              value={!!draft.thoughtExplainer}
+              onChange={(v) => set("thoughtExplainer", v)}
+            />
             <Toggle
               label="Pure engine mode (no strength limits or mistakes)"
               value={!!draft.engine.pureMode}
