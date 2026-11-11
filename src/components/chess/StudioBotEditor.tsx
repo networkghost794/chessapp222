@@ -878,6 +878,17 @@ export function StudioBotEditor({
               value={!!draft.engine.pureMode}
               onChange={(v) => set("engine", { ...draft.engine, pureMode: v })}
             />
+            <Toggle
+              label="🔥 Win at All Costs (Refuse Draws & Repetitions)"
+              value={!!draft.engine.winAtAllCosts}
+              onChange={(v) => set("engine", { ...draft.engine, winAtAllCosts: v })}
+            />
+            {draft.engine.winAtAllCosts && (
+              <p className="text-[10px] text-amber-400 font-medium -mt-2">
+                Active: Engine will refuse 3-fold repetitions and peace offers if any winning or
+                playable alternatives exist.
+              </p>
+            )}
             <Slider
               label="Search depth (0 = auto by rating)"
               value={draft.engine.depth}

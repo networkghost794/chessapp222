@@ -194,6 +194,7 @@ export type EngineConfig = {
   pureMode: boolean; // pure engine: skip strength/mistake layers, play the top move
   timeoutSec: number; // hard cap per search (seconds)
   useCloudEngine?: boolean; // 3800+ Elo Cloud Supercomputer mode
+  winAtAllCosts?: boolean; // 🔥 Never accept/trigger draws if winning alternatives exist
 };
 export const defaultEngineConfig = (): EngineConfig => ({
   depth: 0,
@@ -204,6 +205,7 @@ export const defaultEngineConfig = (): EngineConfig => ({
   pureMode: false,
   timeoutSec: 0,
   useCloudEngine: false,
+  winAtAllCosts: false,
 });
 
 /** Engine flavours. All run on Stockfish 18 NNUE; the profile biases which
@@ -927,17 +929,36 @@ export async function chooseBotMove(
                   (!m.promotion && cloudResult.uci.length < 5)),
             );
             if (match) {
-              return {
-                move: match,
-                source: "engine",
-                topMoves: [
-                  {
-                    uci: cloudResult.uci,
-                    cp: cloudResult.cp,
-                    mate: cloudResult.mate,
-                  },
-                ],
-              };
+              let isCloudDraw = false;
+              if (eng.winAtAllCosts || (eng.pureMode && (bot.elo ?? 1500) >= 3000)) {
+                try {
+                  const executed = game.move({
+                    from: match.from,
+                    to: match.to,
+                    promotion: match.promotion,
+                  });
+                  if (executed) {
+                    isCloudDraw = game.isThreefoldRepetition() || game.isDraw();
+                    game.undo();
+                  }
+                } catch {
+                  // ignore
+                }
+              }
+
+              if (!isCloudDraw) {
+                return {
+                  move: match,
+                  source: "engine",
+                  topMoves: [
+                    {
+                      uci: cloudResult.uci,
+                      cp: cloudResult.cp,
+                      mate: cloudResult.mate,
+                    },
+                  ],
+                };
+              }
             }
           }
         } catch {
@@ -986,7 +1007,7 @@ export async function chooseBotMove(
       const top = await analyseTopMoves(game.fen(), { multipv, depth, timeoutMs });
       const pStyle = applyEngineProfile(phase.style, eng.profile);
 
-      const scored: ScoredMove[] = [];
+      let scored: ScoredMove[] = [];
       for (const tm of top) {
         const vm = legal.find(
           (m) =>
@@ -1015,6 +1036,61 @@ export async function chooseBotMove(
       // Sort by cp desc (side-to-move perspective)
       scored.sort((a, b) => b.cp - a.cp);
       // (engine truth — reference only; personality uses eloBestCp below)
+
+      // ---------- Anti-Draw / Win-at-All-Costs Contempt Filter ----------
+      // Prevent 3500-3800+ engines from playing 3-fold repetition or settling for a draw
+      // against lower-rated opponents when alternative winning/viable moves exist.
+      const shouldAvoidDraw = eng.winAtAllCosts || (eng.pureMode && (bot.elo ?? 1500) >= 3000);
+
+      if (shouldAvoidDraw && scored.length > 1) {
+        const topCp = scored[0].cp;
+        // Only avoid draws if the bot isn't dead lost (e.g. eval > -200 cp)
+        if (topCp > -200) {
+          const nonDrawingMoves: ScoredMove[] = [];
+          for (const s of scored) {
+            try {
+              let isRepetition = false;
+              let isDraw = false;
+              const executed = game.move({
+                from: s.vm.from,
+                to: s.vm.to,
+                promotion: s.vm.promotion,
+              });
+              if (executed) {
+                isRepetition = game.isThreefoldRepetition();
+                isDraw = game.isDraw();
+                game.undo();
+              } else {
+                const testGame = new Chess(game.fen());
+                testGame.move({
+                  from: s.vm.from,
+                  to: s.vm.to,
+                  promotion: s.vm.promotion,
+                });
+                isRepetition = testGame.isThreefoldRepetition();
+                isDraw = testGame.isDraw();
+              }
+
+              if (!isRepetition && !isDraw) {
+                nonDrawingMoves.push(s);
+              }
+            } catch {
+              nonDrawingMoves.push(s);
+            }
+          }
+
+          // If we found safe moves that don't repeat or draw, keep the game alive!
+          // We allow alternatives that are within a reasonable tolerance of the best move
+          if (nonDrawingMoves.length > 0) {
+            const bestNonDraw = nonDrawingMoves[0];
+            // If the best non-drawing move is still playable (within 120 cp of the drawing line),
+            // replace scored moves with the non-drawing candidates.
+            if (topCp - bestNonDraw.cp <= 120 || bestNonDraw.cp > 0) {
+              scored = nonDrawingMoves;
+            }
+          }
+        }
+      }
 
       // ---------- 5a) Hard override: forced mate (engine truth, before any filtering) ----------
       if (bot.errorRules.forceMate) {
