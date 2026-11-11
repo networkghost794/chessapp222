@@ -33,6 +33,7 @@ import {
   type SpeedSetting,
 } from "./BotVsBotMode";
 import { HumanVsBotMatch, type PlayerProfileLite } from "./HumanVsBotMatch";
+import { useUiSettings } from "@/lib/appSettings";
 import { SandboxBoard } from "./SandboxBoard";
 import { TitleBadge } from "./ChessApp";
 import { botDisplayIdentity, isImmersiveEnabled } from "@/lib/immersive";
@@ -1351,6 +1352,24 @@ function MultiBotPicker({
   onToggle: (id: string) => void;
   max?: number;
 }) {
+  const ui = useUiSettings();
+  const allSections = useMemo(() => {
+    const list: { value: string; label: string }[] = [...BOT_CATEGORIES];
+    const existing = new Set(list.map((c) => c.value));
+    for (const ct of ui.customTiers ?? []) {
+      if (!existing.has(ct.id)) {
+        list.push({ value: ct.id, label: ct.name });
+        existing.add(ct.id);
+      }
+    }
+    for (const b of bots) {
+      if (b.category && !existing.has(b.category)) {
+        list.push({ value: b.category, label: b.category });
+        existing.add(b.category);
+      }
+    }
+    return list;
+  }, [ui.customTiers, bots]);
   const atMax = max != null && selectedIds.length >= max;
   return (
     <Card className="evt-card bg-card p-4">
@@ -1361,7 +1380,7 @@ function MultiBotPicker({
         {max && <div className="text-[10px] text-muted-foreground">Max {max}</div>}
       </div>
       <Accordion type="multiple" className="w-full">
-        {BOT_CATEGORIES.map((section) => {
+        {allSections.map((section) => {
           const list = bots
             .filter((b) => b.category === section.value)
             .sort((a, b) => a.orderIndex - b.orderIndex);

@@ -40,6 +40,7 @@ import {
   type PhaseConfig,
   type StrengthBucket,
 } from "@/lib/botStore";
+import { useUiSettings, saveUiSettings, type CustomTier } from "@/lib/appSettings";
 import { Board } from "@/components/chess/Board";
 import { TitleBadge } from "@/components/chess/ChessApp";
 import { cn } from "@/lib/utils";
@@ -90,6 +91,8 @@ const blankDraft = (): Draft => ({
 const fromBot = (b: BotConfig): Draft => {
   const d = JSON.parse(JSON.stringify({ ...b, id: b.id }));
   if (d.titleColor === "#a78bfa") d.titleColor = null;
+  d.thoughtExplainer = Boolean(b.thoughtExplainer);
+  d.coachMode = Boolean(b.coachMode);
   return d;
 };
 
@@ -305,6 +308,8 @@ export function StudioBotEditor({
   const [catFilter, setCatFilter] = useState<"all" | "standard" | "personal">("all");
   const [q, setQ] = useState("");
   const [saving, setSaving] = useState(false);
+  const uiSettings = useUiSettings();
+  const customTiers = uiSettings.customTiers ?? [];
 
   useEffect(() => {
     const u = subscribeBots(() => setBots(loadBots()));
@@ -596,14 +601,44 @@ export function StudioBotEditor({
               Category
               <select
                 value={draft.category}
-                onChange={(e) => set("category", e.target.value as BotCategory)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === "__new__") {
+                    const name = prompt(
+                      "Enter new category name (e.g. Special Events, Streamers):",
+                    );
+                    if (name && name.trim()) {
+                      const trimmed = name.trim();
+                      const slug = trimmed.replace(/\s+/g, "");
+                      const newTier: CustomTier = { id: slug, name: trimmed };
+                      const updated = [...customTiers.filter((t) => t.id !== slug), newTier];
+                      saveUiSettings({ ...uiSettings, customTiers: updated });
+                      set("category", slug as BotCategory);
+                      toast.success(`Created category "${trimmed}"`);
+                    }
+                    return;
+                  }
+                  set("category", val as BotCategory);
+                }}
                 className={inputCls}
               >
-                {BOT_CATEGORIES.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
+                <optgroup label="Standard Categories">
+                  {BOT_CATEGORIES.map((c) => (
+                    <option key={c.value} value={c.value}>
+                      {c.label}
+                    </option>
+                  ))}
+                </optgroup>
+                {customTiers.length > 0 && (
+                  <optgroup label="Custom Categories">
+                    {customTiers.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                <option value="__new__">+ New Custom Category...</option>
               </select>
             </label>
           </div>
@@ -827,6 +862,17 @@ export function StudioBotEditor({
               value={!!draft.thoughtExplainer}
               onChange={(v) => set("thoughtExplainer", v)}
             />
+            <Toggle
+              label="⚡ 3800+ Elo Cloud Supercomputer (Lichess Master Cloud)"
+              value={!!draft.engine.useCloudEngine}
+              onChange={(v) => set("engine", { ...draft.engine, useCloudEngine: v })}
+            />
+            {draft.engine.useCloudEngine && (
+              <p className="text-[10px] text-amber-500 font-medium">
+                ⚡ Queries Lichess Stockfish 16/17 server cluster (Depth 40–60+, 3800+ Elo). Falls
+                back smoothly to local Stockfish WASM if offline or out of book/cache.
+              </p>
+            )}
             <Toggle
               label="Pure engine mode (no strength limits or mistakes)"
               value={!!draft.engine.pureMode}

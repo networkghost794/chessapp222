@@ -3,6 +3,7 @@ import type { Chess } from "chess.js";
 import { supabase } from "@/integrations/supabase/client";
 import { base64ToBytes, lookupPolyglot, polyglotHash, polyglotMoveToUci } from "./polyglot";
 import { analyseTopMoves, type TopMove } from "./stockfishEngine";
+import { queryCloudEngine } from "./cloudEngine";
 
 // ---------- Lucas Chess–style personality types ----------
 
@@ -192,6 +193,7 @@ export type EngineConfig = {
   profile: EngineProfile; // engine thinking flavour (style bias on top of Stockfish 18 eval)
   pureMode: boolean; // pure engine: skip strength/mistake layers, play the top move
   timeoutSec: number; // hard cap per search (seconds)
+  useCloudEngine?: boolean; // 3800+ Elo Cloud Supercomputer mode
 };
 export const defaultEngineConfig = (): EngineConfig => ({
   depth: 0,
@@ -201,6 +203,7 @@ export const defaultEngineConfig = (): EngineConfig => ({
   profile: "stockfish",
   pureMode: false,
   timeoutSec: 0,
+  useCloudEngine: false,
 });
 
 /** Engine flavours. All run on Stockfish 18 NNUE; the profile biases which
@@ -283,7 +286,8 @@ export type BotCategory =
   | "SpecialEvent"
   | "Creator"
   | "TopPlayer"
-  | "Master";
+  | "Master"
+  | (string & {});
 
 export const BOT_CATEGORIES: { value: BotCategory; label: string }[] = [
   { value: "Personal", label: "🔒 Personal Bots (Private)" },
@@ -295,8 +299,6 @@ export const BOT_CATEGORIES: { value: BotCategory; label: string }[] = [
   { value: "TopPlayer", label: "Top Player Bots" },
   { value: "Master", label: "Master Bots" },
 ];
-
-const VALID_CATEGORIES = new Set<BotCategory>(BOT_CATEGORIES.map((c) => c.value));
 
 export type BotConfig = {
   id: string;
@@ -329,6 +331,7 @@ export type BotConfig = {
   thinking: ThinkingTime;
   engine: EngineConfig;
   coachMode?: boolean;
+  thoughtExplainer?: boolean;
 };
 
 export const defaultPhase = (): PhaseConfig => ({
@@ -387,8 +390,8 @@ function rowToBot(r: Record<string, unknown>): BotConfig {
     bucketMap?: Partial<BucketMap>;
     thinking?: Partial<ThinkingTime>;
   };
-  const rawTier = String(r.tier ?? "Intermediate") as BotCategory;
-  const category: BotCategory = VALID_CATEGORIES.has(rawTier) ? rawTier : "Intermediate";
+  const rawTier = String(r.tier ?? "Intermediate").trim() as BotCategory;
+  const category: BotCategory = rawTier || "Intermediate";
   return {
     id: String(r.id),
     name: String(r.name ?? "Bot"),
@@ -434,6 +437,7 @@ function rowToBot(r: Record<string, unknown>): BotConfig {
       ...((op as { engine?: Partial<EngineConfig> }).engine ?? {}),
     },
     coachMode: Boolean((op as { coachMode?: boolean }).coachMode),
+    thoughtExplainer: Boolean((op as { thoughtExplainer?: boolean }).thoughtExplainer),
   };
 }
 
@@ -507,6 +511,7 @@ export type BotPublishInput = {
   thinking?: ThinkingTime;
   engine?: EngineConfig;
   coachMode?: boolean;
+  thoughtExplainer?: boolean;
 };
 
 async function resolveAvatarUrl(
@@ -548,6 +553,7 @@ export async function publishBot(input: BotPublishInput): Promise<BotConfig | nu
     country: input.country ?? null,
     engine: input.engine ?? defaultEngineConfig(),
     coachMode: input.coachMode ?? false,
+    thoughtExplainer: input.thoughtExplainer ?? false,
   };
 
   const insertPayload = {
@@ -593,6 +599,7 @@ export async function updateBot(id: string, input: BotPublishInput): Promise<Bot
     country: input.country ?? null,
     engine: input.engine ?? defaultEngineConfig(),
     coachMode: input.coachMode ?? false,
+    thoughtExplainer: input.thoughtExplainer ?? false,
   };
 
   const updatePayload: Record<string, unknown> = {
@@ -691,7 +698,7 @@ export async function incrementBotLifetime(botId: string, wins: number, losses: 
 //  Lucas Chess–style move-selection pipeline
 // =================================================================
 
-type VerboseMove = {
+export type VerboseMove = {
   from: string;
   to: string;
   promotion?: string;
@@ -699,6 +706,7 @@ type VerboseMove = {
   piece: string;
   captured?: string;
   flags: string;
+  color?: string;
 };
 
 export type MoveClass = {
@@ -825,7 +833,11 @@ export async function chooseBotMove(
   game: Chess,
   bot: BotConfig | null,
   _opts?: { openingLine?: string[] | null },
-): Promise<{ move: EngineMove; source: "book" | "engine" | "fallback" } | null> {
+): Promise<{
+  move: EngineMove;
+  source: "book" | "engine" | "fallback";
+  topMoves?: TopMove[];
+} | null> {
   const legal = game.moves({ verbose: true }) as VerboseMove[];
   if (legal.length === 0) return null;
 
@@ -852,15 +864,15 @@ export async function chooseBotMove(
           // Mode: "best" = highest weight line; default = proportional weighted random
           if (bot.opening.mode === "best") {
             legalEntries.sort((a, b) => b.w - a.w);
-            return { move: legalEntries[0].move, source: "book" };
+            return { move: legalEntries[0].move, source: "book", topMoves: [] };
           }
           const total = legalEntries.reduce((x, y) => x + y.w, 0);
           let r = Math.random() * total;
           for (const item of legalEntries) {
             r -= item.w;
-            if (r <= 0) return { move: item.move, source: "book" };
+            if (r <= 0) return { move: item.move, source: "book", topMoves: [] };
           }
-          return { move: legalEntries[0].move, source: "book" };
+          return { move: legalEntries[0].move, source: "book", topMoves: [] };
         }
       }
     } catch (e) {
@@ -901,6 +913,37 @@ export async function chooseBotMove(
     try {
       const phase = isEndgame(game, bot.endgameTrigger) ? bot.endgame : bot.middlegame;
       const eng = bot.engine ?? defaultEngineConfig();
+
+      // If Cloud Engine (3800+ Elo) is enabled, query the supercomputer cloud first
+      if (eng.useCloudEngine || (eng.pureMode && bot?.elo && bot.elo >= 3500)) {
+        try {
+          const cloudResult = await queryCloudEngine(game.fen());
+          if (cloudResult) {
+            const match = legal.find(
+              (m) =>
+                m.from === cloudResult.uci.slice(0, 2) &&
+                m.to === cloudResult.uci.slice(2, 4) &&
+                ((cloudResult.uci.length >= 5 ? cloudResult.uci[4] : undefined) === m.promotion ||
+                  (!m.promotion && cloudResult.uci.length < 5)),
+            );
+            if (match) {
+              return {
+                move: match,
+                source: "engine",
+                topMoves: [
+                  {
+                    uci: cloudResult.uci,
+                    cp: cloudResult.cp,
+                    mate: cloudResult.mate,
+                  },
+                ],
+              };
+            }
+          }
+        } catch {
+          // Fall through to local Stockfish calculation
+        }
+      }
       const autoPv = eng.pureMode ? 3 : (bot.elo ?? 1500) >= 3000 ? 4 : 24;
       const multipv = Math.min(legal.length, eng.multipv > 0 ? eng.multipv : autoPv);
       // Depth cap by ELO — weaker bots search shallower.
@@ -976,22 +1019,22 @@ export async function chooseBotMove(
       // ---------- 5a) Hard override: forced mate (engine truth, before any filtering) ----------
       if (bot.errorRules.forceMate) {
         const mateNow = scored.find((s) => s.mate !== null && s.mate > 0);
-        if (mateNow) return { move: mateNow.vm, source: "engine" };
+        if (mateNow) return { move: mateNow.vm, source: "engine", topMoves: top };
       }
 
       // ---------- Pure engine mode: top move, profile breaks ≤5cp ties ----------
       if (eng.pureMode) {
         const best = scored[0];
-        if (best.mate !== null) return { move: best.vm, source: "engine" };
+        if (best.mate !== null) return { move: best.vm, source: "engine", topMoves: top };
         const ties = scored.filter((s) => s.mate === null && best.cp - s.cp <= 5);
         if (ties.length <= 1 || !eng.profile || eng.profile === "stockfish")
-          return { move: best.vm, source: "engine" };
+          return { move: best.vm, source: "engine", topMoves: top };
         ties.sort(
           (a, b) =>
             styleScore(classifyMove(game, b.vm), pStyle) -
             styleScore(classifyMove(game, a.vm), pStyle),
         );
-        return { move: ties[0].vm, source: "engine" };
+        return { move: ties[0].vm, source: "engine", topMoves: top };
       }
 
       // ============================================================
@@ -1080,7 +1123,7 @@ export async function chooseBotMove(
       // 3a) Random move injection — pick any legal move regardless of eval.
       if (hm.randomMoveChance > 0 && Math.random() * 100 < hm.randomMoveChance) {
         const r = legal[Math.floor(Math.random() * legal.length)];
-        return { move: r, source: "engine" };
+        return { move: r, source: "engine", topMoves: top };
       }
       // 3b) Missed capture — if pool contains captures, drop them sometimes.
       if (hm.missedCaptureChance > 0 && Math.random() * 100 < hm.missedCaptureChance) {
@@ -1094,7 +1137,7 @@ export async function chooseBotMove(
         const slice = beyond.slice(0, 5);
         if (slice.length > 0) {
           const pick = slice[Math.floor(Math.random() * slice.length)];
-          return { move: pick.vm, source: "engine" };
+          return { move: pick.vm, source: "engine", topMoves: top };
         }
       }
       // 3d) Blunder — clearly bad move drawn from the bottom half of evals.
@@ -1102,12 +1145,12 @@ export async function chooseBotMove(
         const tail = scored.slice(Math.max(3, Math.floor(scored.length * 0.5)));
         if (tail.length > 0) {
           const pick = tail[Math.floor(Math.random() * tail.length)];
-          return { move: pick.vm, source: "engine" };
+          return { move: pick.vm, source: "engine", topMoves: top };
         }
       }
 
       // ---------- 3 + 6) Style-weighted pick over the survivors ----------
-      if (pool.length === 1) return { move: pool[0].vm, source: "engine" };
+      if (pool.length === 1) return { move: pool[0].vm, source: "engine", topMoves: top };
       if (bucket === "best") {
         // Near-equal (≤5cp) moves: let the book add variety among them.
         const inBook = bookShares ? pool.filter((s) => bookShares!.has(uciOf(s.vm))) : [];
@@ -1116,11 +1159,11 @@ export async function chooseBotMove(
           let r = Math.random() * ws.reduce((x, y) => x + y, 0);
           for (let i = 0; i < inBook.length; i++) {
             r -= ws[i];
-            if (r <= 0) return { move: inBook[i].vm, source: "book" };
+            if (r <= 0) return { move: inBook[i].vm, source: "book", topMoves: top };
           }
         }
-        if (inBook.length === 1) return { move: inBook[0].vm, source: "book" };
-        return { move: pool[0].vm, source: "engine" };
+        if (inBook.length === 1) return { move: inBook[0].vm, source: "book", topMoves: top };
+        return { move: pool[0].vm, source: "engine", topMoves: top };
       }
 
       const weighted = pool.map((s) => {
@@ -1155,9 +1198,9 @@ export async function chooseBotMove(
       let r = Math.random() * total;
       for (const x of weighted) {
         r -= x.w;
-        if (r <= 0) return { move: x.vm, source: "engine" };
+        if (r <= 0) return { move: x.vm, source: "engine", topMoves: top };
       }
-      return { move: weighted[weighted.length - 1].vm, source: "engine" };
+      return { move: weighted[weighted.length - 1].vm, source: "engine", topMoves: top };
     } catch (e) {
       console.warn("[botStore] stockfish unavailable:", e);
     }
@@ -1165,7 +1208,7 @@ export async function chooseBotMove(
 
   // ---------- Fallback: style-only heuristic ----------
   const pick = pickBotMove(game, bot);
-  return pick ? { move: pick, source: "fallback" } : null;
+  return pick ? { move: pick, source: "fallback", topMoves: [] } : null;
 }
 
 /** Compute a per-move thinking delay in ms for this bot (min..max, uniform). */

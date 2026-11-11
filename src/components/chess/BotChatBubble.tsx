@@ -35,7 +35,9 @@ export function BotChatBubble({
 
   useEffect(() => {
     if (defaultText) {
+      setText(defaultText);
       setLastText(defaultText);
+      setVisible(true);
     }
   }, [defaultText]);
 

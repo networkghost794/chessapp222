@@ -42,6 +42,7 @@ import { evaluatePosition, type PositionEval } from "@/lib/stockfishEval";
 import { PositionEditor } from "./PositionEditor";
 import { Switch } from "@/components/ui/switch";
 import { BoardScaleControl } from "./BoardScaleControl";
+import { useUiSettings } from "@/lib/appSettings";
 
 /* ───────── Speed control ───────── */
 
@@ -103,6 +104,25 @@ type Stage = "select" | "vs" | "match";
 
 export function BotVsBotMode({ onBack }: { onBack?: () => void }) {
   const [bots, setBots] = useState<BotConfig[]>([]);
+  const ui = useUiSettings();
+  const allSections = useMemo(() => {
+    const list: { value: string; label: string }[] = [...BOT_CATEGORIES];
+    const existing = new Set(list.map((c) => c.value));
+    for (const ct of ui.customTiers ?? []) {
+      if (!existing.has(ct.id)) {
+        list.push({ value: ct.id, label: ct.name });
+        existing.add(ct.id);
+      }
+    }
+    for (const b of bots) {
+      if (b.category && !existing.has(b.category)) {
+        list.push({ value: b.category, label: b.category });
+        existing.add(b.category);
+      }
+    }
+    return list;
+  }, [ui.customTiers, bots]);
+
   useEffect(() => {
     setBots(loadBots());
     return subscribeBots(() => setBots(loadBots()));
@@ -375,7 +395,7 @@ export function SidePicker({
       )}
 
       <Accordion type="multiple" className="w-full mt-2">
-        {BOT_CATEGORIES.map((section) => {
+        {allSections.map((section) => {
           const list = bots
             .filter((b) => b.category === section.value)
             .sort((a, b) => a.orderIndex - b.orderIndex);

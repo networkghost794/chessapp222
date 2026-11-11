@@ -229,6 +229,7 @@ export function ChessApp() {
   const [activeBot, setActiveBotState] = useState<BotConfig | null>(null);
   const [liveThought, setLiveThought] = useState<string | null>(null);
   const [coachSpeech, setCoachSpeech] = useState<string | null>(null);
+  const [pendingBotMove, setPendingBotMove] = useState<(() => void) | null>(null);
   const [immersive] = useImmersive();
   const activeBotName = activeBot ? botDisplayIdentity(activeBot, immersive).name : null;
 
@@ -329,36 +330,46 @@ export function ChessApp() {
           pick as { from: string; to: string; san?: string },
           topMoves,
         );
-        setLiveThought(`🔍 ${thought.scan}`);
-        await new Promise((r) => setTimeout(r, 600));
         const candSummary = thought.candidates
           .map((c) => `${c.moveSan} (${c.evalStr})`)
           .join(" vs ");
-        setLiveThought(`⚖️ Candidate Search: ${candSummary}`);
-        await new Promise((r) => setTimeout(r, 900));
-        setLiveThought(`🎯 ${thought.decision}`);
-        await new Promise((r) => setTimeout(r, 700));
+
+        // Combine the 4 Grandmaster steps into one structured view
+        setLiveThought(
+          `1️⃣ Opponent Scan: ${thought.scan}\n` +
+            `2️⃣ C-C-T Tactics: ${thought.tactics}\n` +
+            `3️⃣ Candidates: ${candSummary}\n` +
+            `4️⃣ Decision: ${thought.decision}`,
+        );
+      }
+
+      const executeMove = () => {
+        const m = game.move({
+          from: pick.from as Square,
+          to: pick.to as Square,
+          promotion: pick.promotion as "q" | "r" | "b" | "n" | undefined,
+        });
+        if (!m) throw new Error(`Illegal engine move ${pick.from}${pick.to}`);
+        playMoveResultSound(m);
+        setHistory((h) => [...h, m.san]);
+        setUciHistory((h) => [...h, pick.from + pick.to + (pick.promotion ?? "")]);
+        setLastMove({ from: pick.from as Square, to: pick.to as Square });
+        force();
+        setPendingBotMove(null);
+      };
+
+      // If coachMode or thoughtExplainer is on, pause and let the player click Next
+      if (activeBot?.coachMode || activeBot?.thoughtExplainer) {
+        setPendingBotMove(() => executeMove);
       } else {
         const targetMs = pickThinkingDelayMs(activeBot);
         const elapsed = Date.now() - startedAt;
         if (elapsed < targetMs) await new Promise((r) => setTimeout(r, targetMs - elapsed));
+        executeMove();
       }
-
-      const m = game.move({
-        from: pick.from as Square,
-        to: pick.to as Square,
-        promotion: pick.promotion as "q" | "r" | "b" | "n" | undefined,
-      });
-      if (!m) throw new Error(`Illegal engine move ${pick.from}${pick.to}`);
-      playMoveResultSound(m);
-      setHistory((h) => [...h, m.san]);
-      setUciHistory((h) => [...h, pick.from + pick.to + (pick.promotion ?? "")]);
-      setLastMove({ from: pick.from as Square, to: pick.to as Square });
-      force();
     } catch {
       /* swallow */
     } finally {
-      setLiveThought(null);
       setPending(false);
     }
   }, [game, force, activeBot]);
@@ -377,6 +388,7 @@ export function ChessApp() {
     setResignedFlag(false);
     setLiveThought(null);
     setCoachSpeech(null);
+    setPendingBotMove(null);
 
     let color: Color = "w";
     if (colorChoice === "white") color = "w";
@@ -437,7 +449,7 @@ export function ChessApp() {
 
   const handleAttemptMove = useCallback(
     (from: Square, to: Square) => {
-      if (pending) return false;
+      if (pending || pendingBotMove) return false;
       if (game.turn() !== playerColor) return false;
       const piece = game.get(from);
       if (!piece || piece.color !== playerColor) return false;
@@ -448,13 +460,15 @@ export function ChessApp() {
         (m) => m.to === to,
       );
       if (!legal) return false;
+      setLiveThought(null);
+      setCoachSpeech(null);
       if (isPromotion) {
         setPromotion({ from, to });
         return true;
       }
       return finishMove(from, to);
     },
-    [game, pending, finishMove, playerColor],
+    [game, pending, pendingBotMove, finishMove, playerColor],
   );
 
   const gameStatusText = useMemo(() => {
@@ -767,6 +781,8 @@ export function ChessApp() {
               botStats={botStats}
               liveThought={liveThought}
               coachSpeech={coachSpeech}
+              pendingBotMove={pendingBotMove}
+              onExecutePendingBotMove={() => pendingBotMove?.()}
             />
           )}
           {mode === "profile" && profile && <ProfilePage />}
@@ -1001,6 +1017,8 @@ function MatchView({
   botStats,
   liveThought,
   coachSpeech,
+  pendingBotMove,
+  onExecutePendingBotMove,
 }: {
   profile: ReturnType<typeof useAuth>["profile"];
   activeBot: BotConfig | null;
@@ -1019,6 +1037,8 @@ function MatchView({
   botStats: BotStats;
   liveThought: string | null;
   coachSpeech: string | null;
+  pendingBotMove: (() => void) | null;
+  onExecutePendingBotMove: () => void;
 }) {
   const movesContainerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -1079,7 +1099,9 @@ function MatchView({
             <Board
               game={game}
               flipped={flipped}
-              disabled={pending || game.isGameOver() || bathroomOpen || resignedFlag}
+              disabled={
+                pending || !!pendingBotMove || game.isGameOver() || bathroomOpen || resignedFlag
+              }
               lastMove={lastMove}
               onAttemptMove={handleAttemptMove}
             />
@@ -1136,11 +1158,27 @@ function MatchView({
           </div>
         )}
 
-        {/* Thought Stream HUD */}
+        {/* Thought Stream HUD with Next Button */}
         {liveThought && (
-          <div className="bg-primary/10 border border-primary/30 rounded-lg p-2.5 text-xs text-primary font-mono flex items-center gap-2 animate-in fade-in duration-150 shadow-inner">
-            <div className="w-2 h-2 rounded-full bg-primary animate-ping shrink-0" />
-            <span className="leading-snug flex-1">{liveThought}</span>
+          <div className="bg-primary/10 border border-primary/30 rounded-lg p-3 text-xs text-primary font-mono space-y-2 shadow-inner">
+            <div className="flex items-center gap-2 font-semibold">
+              <div className="w-2 h-2 rounded-full bg-primary animate-ping shrink-0" />
+              <span>Grandmaster Thought Breakdown:</span>
+            </div>
+            <div className="leading-relaxed whitespace-pre-line text-foreground/90 font-sans text-xs">
+              {liveThought}
+            </div>
+            {pendingBotMove && (
+              <div className="pt-1 flex justify-end">
+                <button
+                  type="button"
+                  onClick={onExecutePendingBotMove}
+                  className="px-3 py-1.5 rounded-md bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 transition-colors shadow flex items-center gap-1.5"
+                >
+                  <span>Play Move & Continue</span> →
+                </button>
+              </div>
+            )}
           </div>
         )}
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +11,7 @@ import { Trash2, User, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/useAuth";
 import { botDisplayIdentity, useImmersive } from "@/lib/immersive";
+import { useUiSettings } from "@/lib/appSettings";
 import { TitleBadge } from "./ChessApp";
 import {
   loadBots,
@@ -39,6 +40,24 @@ export function BotRoster({ onSelect }: { onSelect?: (bot: BotConfig) => void })
   const [dragOverCat, setDragOverCat] = useState<BotCategory | null>(null);
 
   const [, setColorTick] = useState(0);
+  const ui = useUiSettings();
+  const allSections = useMemo(() => {
+    const list: { value: string; label: string }[] = [...BOT_CATEGORIES];
+    const existing = new Set(list.map((c) => c.value));
+    for (const ct of ui.customTiers ?? []) {
+      if (!existing.has(ct.id)) {
+        list.push({ value: ct.id, label: ct.name });
+        existing.add(ct.id);
+      }
+    }
+    for (const b of bots) {
+      if (b.category && !existing.has(b.category)) {
+        list.push({ value: b.category, label: b.category });
+        existing.add(b.category);
+      }
+    }
+    return list;
+  }, [ui.customTiers, bots]);
 
   useEffect(() => {
     const refresh = () => {
@@ -108,7 +127,7 @@ export function BotRoster({ onSelect }: { onSelect?: (bot: BotConfig) => void })
         </div>
       ) : (
         <Accordion type="multiple" className="w-full">
-          {BOT_CATEGORIES.map((section) => {
+          {allSections.map((section) => {
             if (section.value === "Personal") {
               const hasAccess =
                 user &&

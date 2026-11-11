@@ -2,14 +2,20 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { BOT_CATEGORIES, type BotCategory } from "@/lib/botStore";
 
+export type CustomTier = {
+  id: string;
+  name: string;
+};
+
 /** Owner-editable UI customization, stored in app_settings under key "ui". */
 export type UiSettings = {
-  tierLabels: Partial<Record<BotCategory, string>>;
-  tierOrder: BotCategory[];
-  hiddenTiers: BotCategory[];
+  tierLabels: Record<string, string>;
+  tierOrder: string[];
+  hiddenTiers: string[];
   gridColumns: number;
   labels: Record<string, string>;
   eventTheme: EventTheme;
+  customTiers?: CustomTier[];
 };
 
 export type EventTheme = "none" | "halloween" | "christmas" | "stpatricks" | "valentines" | "gold";
@@ -41,6 +47,7 @@ const DEFAULTS: UiSettings = {
   gridColumns: 5,
   labels: {},
   eventTheme: "none",
+  customTiers: [],
 };
 
 let cache: UiSettings = DEFAULTS;
@@ -49,7 +56,9 @@ const subs = new Set<() => void>();
 const emit = () => subs.forEach((f) => f());
 
 function normalize(v: Partial<UiSettings> | null | undefined): UiSettings {
-  const all = BOT_CATEGORIES.map((c) => c.value);
+  const customTiers = (v?.customTiers ?? []).filter((t) => t && t.id && t.name);
+  const customIds = customTiers.map((t) => t.id);
+  const all = [...BOT_CATEGORIES.map((c) => c.value), ...customIds];
   const order = (v?.tierOrder ?? []).filter((c) => all.includes(c));
   // Keep Personal at the top if not already present
   if (!order.includes("Personal")) {
@@ -63,6 +72,7 @@ function normalize(v: Partial<UiSettings> | null | undefined): UiSettings {
     gridColumns: Math.min(8, Math.max(3, Number(v?.gridColumns ?? 5))),
     labels: v?.labels ?? {},
     eventTheme: EVENT_THEMES.some((t) => t.value === v?.eventTheme) ? v!.eventTheme! : "none",
+    customTiers,
   };
 }
 
@@ -105,11 +115,16 @@ export function useUiSettings(): UiSettings {
 
 /** Ordered, visible tiers with their (possibly renamed) labels. */
 export function visibleTiers(s: UiSettings) {
+  const customMap = new Map((s.customTiers ?? []).map((t) => [t.id, t.name]));
   return s.tierOrder
     .filter((c) => !s.hiddenTiers.includes(c))
     .map((c) => ({
       value: c,
-      label: s.tierLabels[c]?.trim() || BOT_CATEGORIES.find((x) => x.value === c)!.label,
+      label:
+        s.tierLabels[c]?.trim() ||
+        customMap.get(c) ||
+        BOT_CATEGORIES.find((x) => x.value === c)?.label ||
+        c,
     }));
 }
 

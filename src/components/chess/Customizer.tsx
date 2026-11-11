@@ -26,7 +26,10 @@ import {
   type UiSettings,
 } from "@/lib/appSettings";
 
-const defLabel = (c: BotCategory) => BOT_CATEGORIES.find((x) => x.value === c)!.label;
+const defLabel = (c: string, customTiers?: { id: string; name: string }[]) =>
+  BOT_CATEGORIES.find((x) => x.value === c)?.label ??
+  customTiers?.find((t) => t.id === c)?.name ??
+  c;
 
 /** Owner-only: rename/reorder tiers, set grid columns, edit labels, move & reorder bots. */
 export function Customizer() {
@@ -46,7 +49,7 @@ export function Customizer() {
     [o[i], o[j]] = [o[j], o[i]];
     setDraft({ ...draft, tierOrder: o });
   };
-  const toggleHidden = (c: BotCategory) =>
+  const toggleHidden = (c: string) =>
     setDraft({
       ...draft,
       hiddenTiers: draft.hiddenTiers.includes(c)
@@ -112,7 +115,7 @@ export function Customizer() {
           <div key={c} className="flex items-center gap-2">
             <Input
               value={draft.tierLabels[c] ?? ""}
-              placeholder={defLabel(c)}
+              placeholder={defLabel(c, draft.customTiers)}
               onChange={(e) =>
                 setDraft({ ...draft, tierLabels: { ...draft.tierLabels, [c]: e.target.value } })
               }
@@ -188,7 +191,7 @@ export function Customizer() {
           return (
             <div key={c} className="space-y-1">
               <div className="text-xs font-semibold text-muted-foreground">
-                {draft.tierLabels[c]?.trim() || defLabel(c)}
+                {draft.tierLabels[c]?.trim() || defLabel(c, draft.customTiers)}
               </div>
               {list.map((b, i) => (
                 <div
@@ -223,7 +226,7 @@ export function Customizer() {
                     <SelectContent>
                       {draft.tierOrder.map((t) => (
                         <SelectItem key={t} value={t}>
-                          {draft.tierLabels[t]?.trim() || defLabel(t)}
+                          {draft.tierLabels[t]?.trim() || defLabel(t, draft.customTiers)}
                         </SelectItem>
                       ))}
                     </SelectContent>
