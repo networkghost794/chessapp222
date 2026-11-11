@@ -56,10 +56,7 @@ export function PlacementTest({ open }: { open: boolean }) {
     if (!user) return;
     const elo = next.reduce((a, b) => a + b, 0);
     setSaving(true);
-    const { error } = await supabase
-      .from("profiles")
-      .update({ elo_rating: elo, placement_done: true })
-      .eq("id", user.id);
+    const { error } = await supabase.rpc("complete_placement_test", { _elo: elo });
     setSaving(false);
     if (error) toast.error(error.message);
     else {

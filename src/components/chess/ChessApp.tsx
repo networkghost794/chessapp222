@@ -527,20 +527,10 @@ export function ChessApp() {
       detail = "Stalemate — no legal moves.";
     }
 
-    const profUpdate = {
-      wins: profile.wins,
-      losses: profile.losses,
-      draws: profile.draws,
-      elo_rating: profile.elo_rating,
-    };
-    profUpdate[userField] = profUpdate[userField] + 1;
-    supabase
-      .from("profiles")
-      .update(profUpdate)
-      .eq("id", user.id)
-      .then(({ error }) => {
-        if (!error) refreshProfile();
-      });
+    const matchRes = userField === "wins" ? "win" : userField === "losses" ? "loss" : "draw";
+    supabase.rpc("record_user_match_result", { _result: matchRes }).then(({ error }) => {
+      if (!error) refreshProfile();
+    });
 
     if (activeBot) {
       const next: BotStats = {
