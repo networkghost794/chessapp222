@@ -104,24 +104,6 @@ type Stage = "select" | "vs" | "match";
 
 export function BotVsBotMode({ onBack }: { onBack?: () => void }) {
   const [bots, setBots] = useState<BotConfig[]>([]);
-  const ui = useUiSettings();
-  const allSections = useMemo(() => {
-    const list: { value: string; label: string }[] = [...BOT_CATEGORIES];
-    const existing = new Set(list.map((c) => c.value));
-    for (const ct of ui.customTiers ?? []) {
-      if (!existing.has(ct.id)) {
-        list.push({ value: ct.id, label: ct.name });
-        existing.add(ct.id);
-      }
-    }
-    for (const b of bots) {
-      if (b.category && !existing.has(b.category)) {
-        list.push({ value: b.category, label: b.category });
-        existing.add(b.category);
-      }
-    }
-    return list;
-  }, [ui.customTiers, bots]);
 
   useEffect(() => {
     setBots(loadBots());
@@ -349,6 +331,24 @@ export function SidePicker({
   bots: BotConfig[];
   otherId: string | null;
 }) {
+  const ui = useUiSettings();
+  const allSections = useMemo(() => {
+    const list: { value: string; label: string }[] = [...BOT_CATEGORIES];
+    const existing = new Set(list.map((c) => c.value));
+    for (const ct of ui.customTiers ?? []) {
+      if (!existing.has(ct.id)) {
+        list.push({ value: ct.id, label: ct.name });
+        existing.add(ct.id);
+      }
+    }
+    for (const b of bots) {
+      if (b.category && !existing.has(b.category)) {
+        list.push({ value: b.category, label: b.category });
+        existing.add(b.category);
+      }
+    }
+    return list;
+  }, [ui.customTiers, bots]);
   return (
     <Card className="evt-card bg-card p-4 min-w-0">
       <div className="flex items-center justify-between px-1 mb-3">
