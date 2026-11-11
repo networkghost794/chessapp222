@@ -7,6 +7,8 @@ export type CustomTier = {
   name: string;
 };
 
+export type CardStyle = "classic" | "glass" | "gold" | "cyber" | "minimal";
+
 /** Owner-editable UI customization, stored in app_settings under key "ui". */
 export type UiSettings = {
   tierLabels: Record<string, string>;
@@ -16,16 +18,38 @@ export type UiSettings = {
   labels: Record<string, string>;
   eventTheme: EventTheme;
   customTiers?: CustomTier[];
+
+  // Customization controls
+  cardStyle?: CardStyle;
+  showElo?: boolean;
+  showTitles?: boolean;
+  showCrowns?: boolean;
+  showQuotes?: boolean;
+  showFlags?: boolean;
+  accentGlow?: boolean;
 };
 
-export type EventTheme = "none" | "halloween" | "christmas" | "stpatricks" | "valentines" | "gold";
+export type EventTheme =
+  | "none"
+  | "halloween"
+  | "christmas"
+  | "stpatricks"
+  | "valentines"
+  | "gold"
+  | "cyberpunk"
+  | "emerald"
+  | "sunset";
+
 export const EVENT_THEMES: { value: EventTheme; label: string }[] = [
-  { value: "none", label: "Default" },
-  { value: "halloween", label: "Halloween" },
-  { value: "christmas", label: "Christmas" },
-  { value: "stpatricks", label: "St. Patrick's Day" },
-  { value: "valentines", label: "Valentine's Day" },
-  { value: "gold", label: "Gold Classic" },
+  { value: "none", label: "Default Dark" },
+  { value: "halloween", label: "Halloween Spooky" },
+  { value: "christmas", label: "Festive Christmas" },
+  { value: "stpatricks", label: "St. Patrick's Shamrock" },
+  { value: "valentines", label: "Valentine Heart" },
+  { value: "gold", label: "Gold Grandmaster" },
+  { value: "cyberpunk", label: "Cyberpunk Neon" },
+  { value: "emerald", label: "Emerald Forest" },
+  { value: "sunset", label: "Sunset Crimson" },
 ];
 
 /** Editable text labels: key -> default text. */
@@ -48,6 +72,13 @@ const DEFAULTS: UiSettings = {
   labels: {},
   eventTheme: "none",
   customTiers: [],
+  cardStyle: "classic",
+  showElo: true,
+  showTitles: true,
+  showCrowns: true,
+  showQuotes: true,
+  showFlags: true,
+  accentGlow: false,
 };
 
 let cache: UiSettings = DEFAULTS;
@@ -73,6 +104,13 @@ function normalize(v: Partial<UiSettings> | null | undefined): UiSettings {
     labels: v?.labels ?? {},
     eventTheme: EVENT_THEMES.some((t) => t.value === v?.eventTheme) ? v!.eventTheme! : "none",
     customTiers,
+    cardStyle: v?.cardStyle ?? "classic",
+    showElo: v?.showElo ?? true,
+    showTitles: v?.showTitles ?? true,
+    showCrowns: v?.showCrowns ?? true,
+    showQuotes: v?.showQuotes ?? true,
+    showFlags: v?.showFlags ?? true,
+    accentGlow: v?.accentGlow ?? false,
   };
 }
 

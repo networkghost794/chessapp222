@@ -95,14 +95,14 @@ export function PlayBotsPanel({
             <div className="mt-2 flex items-center gap-2 flex-wrap">
               <span className="font-bold text-lg">{ident?.name}</span>
               <span className="text-muted-foreground">{active.elo}</span>
-              {active.country && !immersive && (
+              {active.country && !immersive && ui.showFlags !== false && (
                 <span className="text-lg leading-none">{active.country}</span>
               )}
-              {beaten.has(active.id) && (
+              {beaten.has(active.id) && ui.showCrowns !== false && (
                 <Crown className="w-4 h-4 text-[color:var(--sim-ok)] fill-current" />
               )}
             </div>
-            {active.quote && (
+            {active.quote && ui.showQuotes !== false && (
               <p className="text-xs text-muted-foreground mt-1 line-clamp-2">“{active.quote}”</p>
             )}
           </>
@@ -141,6 +141,15 @@ export function PlayBotsPanel({
 
           const isOpen = open === section.value;
           const cover = list[0]?.avatar;
+
+          const cardStyleClass = {
+            classic: "bg-background/40 border border-border/40",
+            glass: "bg-white/5 backdrop-blur-md border border-white/10 shadow-lg",
+            gold: "bg-gradient-to-b from-amber-500/10 via-background/40 to-background/60 border border-amber-500/40",
+            cyber: "bg-slate-900 border border-cyan-500/50 shadow-[0_0_8px_rgba(6,182,212,0.2)]",
+            minimal: "bg-muted/20 border border-border/60",
+          }[ui.cardStyle ?? "classic"];
+
           return (
             <div key={section.value} className="rounded-md bg-secondary/40">
               <button
@@ -195,8 +204,10 @@ export function PlayBotsPanel({
                         }}
                         title={`${botDisplayIdentity(b, immersive).name} (${b.elo})`}
                         className={cn(
-                          "group relative aspect-square rounded-md bg-background/40 overflow-hidden ring-2 transition",
+                          "group relative aspect-square rounded-md overflow-hidden ring-2 transition",
+                          cardStyleClass,
                           sel ? "ring-success" : "ring-transparent hover:ring-border",
+                          ui.accentGlow && "shadow-[0_0_12px_rgba(234,179,8,0.25)]",
                         )}
                       >
                         {b.avatar ? (
@@ -209,7 +220,12 @@ export function PlayBotsPanel({
                             <Lock className="w-2.5 h-2.5" />
                           </span>
                         )}
-                        {beaten.has(b.id) && (
+                        {ui.showElo !== false && (
+                          <span className="absolute bottom-1 right-1 text-[9px] font-mono px-1 rounded bg-background/80 text-muted-foreground font-semibold">
+                            {b.elo}
+                          </span>
+                        )}
+                        {beaten.has(b.id) && ui.showCrowns !== false && (
                           <Crown className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-4 h-4 text-[color:var(--sim-ok)] fill-current drop-shadow" />
                         )}
                         {isOwner && (
