@@ -121,3 +121,100 @@ export function repertoireMove(game: Chess, botId: string, elo: number): string 
       : [...rep, ...OPENINGS.filter((o) => o.side === side)].find(matches);
   return line ? line.moves[hist.length] : null;
 }
+
+/**
+ * 3800+ Master Aggressive Tactical Repertoire.
+ * Ultra-sharp, decisive Grandmaster attack lines that seize the initiative,
+ * attack the enemy king, and force tactical complications where engines thrive.
+ */
+export const AGGRESSIVE_TACTICAL_OPENINGS: Opening[] = [
+  // White sharp attack repertoires
+  L("evans", "Evans Gambit Sharp", "w", "e4 e5 Nf3 Nc6 Bc4 Bc5 b4 Bxb4 c3 Ba5 d4 exd4 O-O d6 Qb3"),
+  L(
+    "kingsgambit",
+    "King's Gambit Accepted",
+    "w",
+    "e4 e5 f4 exf4 Nf3 g5 h4 g4 Ne5 Nf6 d4 d6 Nd3 Nxe4 Bxf4",
+  ),
+  L(
+    "sicilian_english",
+    "Open Sicilian English Attack",
+    "w",
+    "e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 a6 Be3 e5 Nb3 Be6 f3 Be7 Qd2 O-O O-O-O",
+  ),
+  L(
+    "sicilian_yugoslav",
+    "Sicilian Dragon Yugoslav Attack",
+    "w",
+    "e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 g6 Be3 Bg7 f3 O-O Qd2 Nc6 Bc4 Bd7 O-O-O Rc8 Bb3",
+  ),
+  L(
+    "french_winawer",
+    "French Winawer Poisoned Pawn",
+    "w",
+    "e4 e6 d4 d5 Nc3 Bb4 e5 c5 a3 Bxc3+ bxc3 Ne7 Qg4 Qc7 Qxg7 Rg8 Qxh7",
+  ),
+  L(
+    "caro_tal",
+    "Caro-Kann Tal Attack",
+    "w",
+    "e4 c6 d4 d5 e5 Bf5 h4 h5 c4 e6 Nc3 Nd7 Nge2 dxc4 Ng3",
+  ),
+  L(
+    "scotch_gambit",
+    "Scotch Gambit Mieses",
+    "w",
+    "e4 e5 Nf3 Nc6 d4 exd4 Bc4 Nf6 e5 d5 Bb5 Ne4 Nxd4 Bd7 Bxc6 bxc6 O-O Bc5",
+  ),
+  L(
+    "semi_slav_botvinnik",
+    "Semi-Slav Botvinnik Variation",
+    "w",
+    "d4 d5 c4 c6 Nf3 Nf6 Nc3 e6 Bg5 dxc4 e4 b5 e5 h6 Bh4 g5 Nxg5 hxg5 Bxg5 Nbd7",
+  ),
+  // Black counter-attacking repertoires
+  L(
+    "najdorf_sharp",
+    "Sicilian Najdorf Poisoned Pawn",
+    "b",
+    "e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 a6 Bg5 e6 f4 Qb6 Qd2 Qxb2",
+  ),
+  L(
+    "dragon_sharp",
+    "Sicilian Dragon Chinese Variation",
+    "b",
+    "e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 g6 Be3 Bg7 f3 O-O Qd2 Nc6 Bc4 Bd7 O-O-O Rc8 Bb3 Ne5 h4 h5",
+  ),
+  L(
+    "kid_mar_del_plata",
+    "King's Indian Mar del Plata",
+    "b",
+    "d4 Nf6 c4 g6 Nc3 Bg7 e4 d6 Nf3 O-O Be2 e5 O-O Nc6 d5 Ne7 Ne1 Nd7 Be3 f5 f3 f4 Bf2 g5",
+  ),
+  L(
+    "grunfeld_exchange",
+    "Grunfeld Exchange Attack",
+    "b",
+    "d4 Nf6 c4 g6 Nc3 d5 cxd5 Nxd5 e4 Nxc3 bxc3 Bg7 Bc4 c5 Ne2 O-O O-O Nc6 Be3 Bg4 f3 Na5",
+  ),
+  L(
+    "two_knights_counter",
+    "Two Knights Fried Liver Counter",
+    "b",
+    "e4 e5 Nf3 Nc6 Bc4 Nf6 Ng5 d5 exd5 Na5 Bb5+ c6 dxc6 bxc6 Bd3 Nd5 Nf3 Bd6",
+  ),
+];
+
+export function aggressiveTacticalMove(game: Chess): string | null {
+  const hist = game.history();
+  if (hist.length >= 24) return null;
+  const side = game.turn();
+  const prefix = hist.join(" ");
+  const match = AGGRESSIVE_TACTICAL_OPENINGS.find(
+    (o) =>
+      o.side === side &&
+      o.moves.length > hist.length &&
+      o.moves.slice(0, hist.length).join(" ") === prefix,
+  );
+  return match ? match.moves[hist.length] : null;
+}

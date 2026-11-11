@@ -2,6 +2,7 @@
 // Loads Stockfish 18 NNUE (WebAssembly) from /engine; falls back to v10 asm.js.
 
 let workerRef: Worker | null = null;
+let configuredHashMb = 0;
 const listeners = new Set<(line: string) => void>();
 
 const STOCKFISH_CDN = "https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js";
@@ -115,11 +116,12 @@ export function analyseTopMoves(
         finish();
       }
     });
-
     // Configure skill from Elo (Stockfish "UCI_LimitStrength" + "UCI_Elo")
-    send("ucinewgame");
     const hashMb = opts.depth >= 20 || (opts.elo ?? 0) >= 3000 ? 128 : 32;
-    send(`setoption name Hash value ${hashMb}`);
+    if (configuredHashMb !== hashMb) {
+      send(`setoption name Hash value ${hashMb}`);
+      configuredHashMb = hashMb;
+    }
     if (opts.elo && opts.elo > 0) {
       send("setoption name UCI_LimitStrength value true");
       send(`setoption name UCI_Elo value ${Math.max(1320, Math.min(3190, opts.elo))}`);
@@ -134,11 +136,16 @@ export function analyseTopMoves(
   });
 }
 
+export function resetEngineGame() {
+  send("ucinewgame");
+}
+
 export function quitEngine() {
   if (workerRef) {
     workerRef.postMessage("quit");
     workerRef.terminate();
     workerRef = null;
+    configuredHashMb = 0;
   }
 }
 

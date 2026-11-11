@@ -71,7 +71,7 @@ CREATE POLICY "Bot avatars are publicly accessible"
 CREATE POLICY "Authenticated can upload bot avatars"
   ON storage.objects FOR INSERT
   TO authenticated
-  WITH CHECK (bucket_id = 'bot-avatars');
+  WITH CHECK (bucket_id = 'bot-avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
 
 -- Profile customization fields
 ALTER TABLE public.profiles

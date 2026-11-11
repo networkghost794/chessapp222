@@ -18,7 +18,7 @@ alter table public.profiles enable row level security;
 create policy "Profiles are viewable by authenticated users"
   on public.profiles for select
   to authenticated
-  using (true);
+  using (auth.uid() = id);
 
 create policy "Users can insert own profile"
   on public.profiles for insert

@@ -1,4 +1,4 @@
-import { repertoireMove } from "./repertoire";
+import { repertoireMove, aggressiveTacticalMove } from "./repertoire";
 import type { Chess } from "chess.js";
 import { supabase } from "@/integrations/supabase/client";
 import { base64ToBytes, lookupPolyglot, polyglotHash, polyglotMoveToUci } from "./polyglot";
@@ -195,6 +195,8 @@ export type EngineConfig = {
   timeoutSec: number; // hard cap per search (seconds)
   useCloudEngine?: boolean; // 3800+ Elo Cloud Supercomputer mode
   winAtAllCosts?: boolean; // 🔥 Never accept/trigger draws if winning alternatives exist
+  godMode?: boolean; // ⚡ 3800+ Unbeatable Supercomputer Mode
+  aggressiveRepertoire?: boolean; // Sharp tactical Grandmaster lines
 };
 export const defaultEngineConfig = (): EngineConfig => ({
   depth: 0,
@@ -206,6 +208,8 @@ export const defaultEngineConfig = (): EngineConfig => ({
   timeoutSec: 0,
   useCloudEngine: false,
   winAtAllCosts: false,
+  godMode: false,
+  aggressiveRepertoire: false,
 });
 
 /** Engine flavours. All run on Stockfish 18 NNUE; the profile biases which
@@ -884,6 +888,21 @@ export async function chooseBotMove(
   let bookShares: Map<string, number> | null = null;
   // Built-in repertoire fallback when no Polyglot book has a move here.
   let builtIn = false;
+  if (bot && (bot.engine?.godMode || bot.engine?.aggressiveRepertoire)) {
+    try {
+      const aggSan = aggressiveTacticalMove(game);
+      const vm = aggSan ? legal.find((m) => m.san === aggSan) : undefined;
+      if (vm) {
+        return {
+          move: vm,
+          source: "repertoire",
+          topMoves: [{ uci: uciOf(vm), cp: 50, mate: null }],
+        };
+      }
+    } catch (e) {
+      console.warn("[botStore] aggressive repertoire failed:", e);
+    }
+  }
   if (bot && !bookShares) {
     try {
       const san = repertoireMove(game, bot.id, bot.elo ?? 1500);
@@ -914,10 +933,16 @@ export async function chooseBotMove(
   if (bot) {
     try {
       const phase = isEndgame(game, bot.endgameTrigger) ? bot.endgame : bot.middlegame;
-      const eng = bot.engine ?? defaultEngineConfig();
+      const eng = { ...defaultEngineConfig(), ...(bot.engine ?? {}) };
+      if (eng.godMode) {
+        eng.useCloudEngine = true;
+        eng.pureMode = true;
+        eng.winAtAllCosts = true;
+        eng.aggressiveRepertoire = true;
+      }
 
       // 0. Syzygy 7-Piece Endgame Tablebase (100% mathematically solved endgame play)
-      if (eng.useCloudEngine || eng.pureMode || (bot?.elo && bot.elo >= 2800)) {
+      if (eng.godMode || eng.useCloudEngine || eng.pureMode || (bot?.elo && bot.elo >= 2800)) {
         try {
           const tbMoveUci = await queryTablebase(game.fen());
           if (tbMoveUci) {
@@ -990,7 +1015,11 @@ export async function chooseBotMove(
           // Fall through to local Stockfish calculation
         }
       }
-      const autoPv = eng.pureMode ? 3 : (bot.elo ?? 1500) >= 3000 ? 4 : 24;
+      const rawElo = bot.elo ?? 1500;
+      const isGodMode = Boolean(
+        eng.godMode || eng.pureMode || rawElo >= 3000 || eng.useCloudEngine,
+      );
+      const autoPv = isGodMode ? 1 : 24;
       const multipv = Math.min(legal.length, eng.multipv > 0 ? eng.multipv : autoPv);
       // Depth cap by ELO — weaker bots search shallower.
       // NOTE: strength is controlled by the candidate-filter pipeline below,
@@ -1000,26 +1029,23 @@ export async function chooseBotMove(
       // (see requestBotMove in ChessApp). Higher depths were making Master
       // bots take 15+ seconds per move while adding nothing to move quality
       // once the candidate filter runs.
-      const elo = Math.max(100, Math.min(3200, bot.elo ?? 1500));
-      const rawElo = bot.elo ?? 1500;
+      const elo = Math.max(100, Math.min(3200, rawElo));
       const depth =
         eng.depth > 0
           ? Math.min(30, eng.depth)
-          : eng.pureMode
-            ? 18
-            : rawElo >= 3000
-              ? 16
-              : elo < 400
-                ? 4
-                : elo < 800
-                  ? 6
-                  : elo < 1400
-                    ? 8
-                    : elo < 2000
-                      ? 9
-                      : elo < 2500
-                        ? 10
-                        : 11;
+          : isGodMode
+            ? 26
+            : elo < 400
+              ? 4
+              : elo < 800
+                ? 6
+                : elo < 1400
+                  ? 8
+                  : elo < 2000
+                    ? 9
+                    : elo < 2500
+                      ? 10
+                      : 11;
       // NOTE: do NOT pass Elo to UCI_LimitStrength — we control strength via candidate filtering below.
       const timeoutMs =
         eng.timeoutSec > 0
@@ -1105,12 +1131,10 @@ export async function chooseBotMove(
           }
 
           // If we found safe moves that don't repeat or draw, keep the game alive!
-          // We allow alternatives that are within a reasonable tolerance of the best move
+          // Tight tolerance (≤ 10 cp zero bleed): never bleed more than 10 cp to avoid Chess.com inaccuracies.
           if (nonDrawingMoves.length > 0) {
             const bestNonDraw = nonDrawingMoves[0];
-            // If the best non-drawing move is still playable (within 120 cp of the drawing line),
-            // replace scored moves with the non-drawing candidates.
-            if (topCp - bestNonDraw.cp <= 120 || bestNonDraw.cp > 0) {
+            if (topCp - bestNonDraw.cp <= 10) {
               scored = nonDrawingMoves;
             }
           }
