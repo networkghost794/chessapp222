@@ -118,7 +118,8 @@ export function analyseTopMoves(
 
     // Configure skill from Elo (Stockfish "UCI_LimitStrength" + "UCI_Elo")
     send("ucinewgame");
-    send("setoption name Hash value 32");
+    const hashMb = opts.depth >= 20 || (opts.elo ?? 0) >= 3000 ? 128 : 32;
+    send(`setoption name Hash value ${hashMb}`);
     if (opts.elo && opts.elo > 0) {
       send("setoption name UCI_LimitStrength value true");
       send(`setoption name UCI_Elo value ${Math.max(1320, Math.min(3190, opts.elo))}`);

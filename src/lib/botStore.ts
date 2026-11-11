@@ -3,7 +3,7 @@ import type { Chess } from "chess.js";
 import { supabase } from "@/integrations/supabase/client";
 import { base64ToBytes, lookupPolyglot, polyglotHash, polyglotMoveToUci } from "./polyglot";
 import { analyseTopMoves, type TopMove } from "./stockfishEngine";
-import { queryCloudEngine } from "./cloudEngine";
+import { queryCloudEngine, queryTablebase } from "./cloudEngine";
 
 // ---------- Lucas Chess–style personality types ----------
 
@@ -915,6 +915,31 @@ export async function chooseBotMove(
     try {
       const phase = isEndgame(game, bot.endgameTrigger) ? bot.endgame : bot.middlegame;
       const eng = bot.engine ?? defaultEngineConfig();
+
+      // 0. Syzygy 7-Piece Endgame Tablebase (100% mathematically solved endgame play)
+      if (eng.useCloudEngine || eng.pureMode || (bot?.elo && bot.elo >= 2800)) {
+        try {
+          const tbMoveUci = await queryTablebase(game.fen());
+          if (tbMoveUci) {
+            const match = legal.find(
+              (m) =>
+                m.from === tbMoveUci.slice(0, 2) &&
+                m.to === tbMoveUci.slice(2, 4) &&
+                ((tbMoveUci.length >= 5 ? tbMoveUci[4] : undefined) === m.promotion ||
+                  (!m.promotion && tbMoveUci.length < 5)),
+            );
+            if (match) {
+              return {
+                move: match,
+                source: "engine",
+                topMoves: [{ uci: tbMoveUci, cp: 10000, mate: null }],
+              };
+            }
+          }
+        } catch {
+          // Fall through
+        }
+      }
 
       // If Cloud Engine (3800+ Elo) is enabled, query the supercomputer cloud first
       if (eng.useCloudEngine || (eng.pureMode && bot?.elo && bot.elo >= 3500)) {
