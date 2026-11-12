@@ -195,7 +195,6 @@ export type EngineConfig = {
   timeoutSec: number; // hard cap per search (seconds)
   useCloudEngine?: boolean; // 3800+ Elo Cloud Supercomputer mode
   winAtAllCosts?: boolean; // 🔥 Never accept/trigger draws if winning alternatives exist
-  godMode?: boolean; // ⚡ 3800+ Unbeatable Supercomputer Mode
   aggressiveRepertoire?: boolean; // Sharp tactical Grandmaster lines
 };
 export const defaultEngineConfig = (): EngineConfig => ({
@@ -208,7 +207,6 @@ export const defaultEngineConfig = (): EngineConfig => ({
   timeoutSec: 0,
   useCloudEngine: false,
   winAtAllCosts: false,
-  godMode: false,
   aggressiveRepertoire: false,
 });
 
@@ -909,7 +907,7 @@ export async function chooseBotMove(
   let bookShares: Map<string, number> | null = null;
   // Built-in repertoire fallback when no Polyglot book has a move here.
   let builtIn = false;
-  if (bot && (bot.engine?.godMode || bot.engine?.aggressiveRepertoire)) {
+  if (bot && bot.engine?.aggressiveRepertoire) {
     try {
       const aggSan = aggressiveTacticalMove(game);
       const vm = aggSan ? legal.find((m) => m.san === aggSan) : undefined;
@@ -955,15 +953,9 @@ export async function chooseBotMove(
     try {
       const phase = isEndgame(game, bot.endgameTrigger) ? bot.endgame : bot.middlegame;
       const eng = { ...defaultEngineConfig(), ...(bot.engine ?? {}) };
-      if (eng.godMode) {
-        eng.useCloudEngine = true;
-        eng.pureMode = true;
-        eng.winAtAllCosts = true;
-        eng.aggressiveRepertoire = true;
-      }
 
       // 0. Syzygy 7-Piece Endgame Tablebase (100% mathematically solved endgame play)
-      if (eng.godMode || eng.useCloudEngine || eng.pureMode || (bot?.elo && bot.elo >= 2800)) {
+      if (eng.useCloudEngine || eng.pureMode || (bot?.elo && bot.elo >= 2800)) {
         try {
           const tbMoveUci = await queryTablebase(game.fen());
           if (tbMoveUci) {
@@ -1037,10 +1029,8 @@ export async function chooseBotMove(
         }
       }
       const rawElo = bot.elo ?? 1500;
-      const isGodMode = Boolean(
-        eng.godMode || eng.pureMode || rawElo >= 3000 || eng.useCloudEngine,
-      );
-      const autoPv = isGodMode ? 1 : 24;
+      const isDeepSearch = Boolean(eng.pureMode || rawElo >= 3000 || eng.useCloudEngine);
+      const autoPv = isDeepSearch ? 1 : 24;
       const multipv = Math.min(legal.length, eng.multipv > 0 ? eng.multipv : autoPv);
       // Depth cap by ELO — weaker bots search shallower.
       // NOTE: strength is controlled by the candidate-filter pipeline below,
@@ -1054,7 +1044,7 @@ export async function chooseBotMove(
       const depth =
         eng.depth > 0
           ? Math.min(30, eng.depth)
-          : isGodMode
+          : isDeepSearch
             ? 26
             : elo < 400
               ? 4
