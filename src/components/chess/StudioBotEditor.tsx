@@ -89,7 +89,21 @@ const blankDraft = (): Draft => ({
 });
 
 const fromBot = (b: BotConfig): Draft => {
-  const d = JSON.parse(JSON.stringify({ ...b, id: b.id }));
+  const blank = blankDraft();
+  const d: Draft = {
+    ...blank,
+    ...JSON.parse(JSON.stringify({ ...b, id: b.id })),
+    middlegame: { ...blank.middlegame, ...(b.middlegame ?? {}) },
+    endgame: { ...blank.endgame, ...(b.endgame ?? {}) },
+    opening: { ...blank.opening, ...(b.opening ?? {}) },
+    errorRules: { ...blank.errorRules, ...(b.errorRules ?? {}) },
+    endgameTrigger: { ...blank.endgameTrigger, ...(b.endgameTrigger ?? {}) },
+    humanMistake: { ...blank.humanMistake, ...(b.humanMistake ?? {}) },
+    thinking: { ...blank.thinking, ...(b.thinking ?? {}) },
+    engine: { ...blank.engine, ...(b.engine ?? {}) },
+    bucketMap: { ...blank.bucketMap, ...(b.bucketMap ?? {}) },
+    dialogueLines: Array.isArray(b.dialogueLines) ? b.dialogueLines : [],
+  };
   if (d.titleColor === "#a78bfa") d.titleColor = null;
   d.thoughtExplainer = Boolean(b.thoughtExplainer);
   d.coachMode = Boolean(b.coachMode);

@@ -66,9 +66,13 @@ const getColumns = (
   {
     id: "mgStrength",
     label: "Middlegame strength",
-    get: (b) => strengthLabel(b.middlegame.strength),
+    get: (b) => strengthLabel(b.middlegame?.strength ?? ""),
   },
-  { id: "egStrength", label: "Endgame strength", get: (b) => strengthLabel(b.endgame.strength) },
+  {
+    id: "egStrength",
+    label: "Endgame strength",
+    get: (b) => strengthLabel(b.endgame?.strength ?? ""),
+  },
   {
     id: "mistakes",
     label: "Mistake total %",
@@ -78,19 +82,22 @@ const getColumns = (
   {
     id: "maxLoss",
     label: "Max cp loss",
-    get: (b) => b.errorRules.maxCpLoss || "off",
-    sort: (b) => b.errorRules.maxCpLoss,
+    get: (b) => b.errorRules?.maxCpLoss || "off",
+    sort: (b) => b.errorRules?.maxCpLoss ?? 0,
   },
   {
     id: "thinking",
     label: "Think time",
-    get: (b) => `${(b.thinking.minMs / 1000).toFixed(1)}–${(b.thinking.maxMs / 1000).toFixed(1)}s`,
-    sort: (b) => b.thinking.maxMs,
+    get: (b) =>
+      b.thinking
+        ? `${((b.thinking.minMs ?? 0) / 1000).toFixed(1)}–${((b.thinking.maxMs ?? 0) / 1000).toFixed(1)}s`
+        : "—",
+    sort: (b) => b.thinking?.maxMs ?? 0,
   },
   {
     id: "opening",
     label: "Opening book",
-    get: (b) => (b.opening.enabled && b.opening.bookName ? b.opening.bookName : "Repertoire"),
+    get: (b) => (b.opening?.enabled && b.opening?.bookName ? b.opening.bookName : "Repertoire"),
   },
   {
     id: "record",
@@ -101,8 +108,8 @@ const getColumns = (
   {
     id: "dialogue",
     label: "Dialogue lines",
-    get: (b) => b.dialogueLines.length,
-    sort: (b) => b.dialogueLines.length,
+    get: (b) => b.dialogueLines?.length ?? 0,
+    sort: (b) => b.dialogueLines?.length ?? 0,
   },
 ];
 
@@ -300,7 +307,8 @@ export function BotWorkshop({ onEdit }: { onEdit: (id: string) => void }) {
                 Show, hide and reorder columns. Saved automatically.
               </div>
               {prefs.order.map((id, i) => {
-                const c = COLUMNS.find((x) => x.id === id)!;
+                const c = columns.find((x) => x.id === id);
+                if (!c) return null;
                 return (
                   <div
                     key={id}

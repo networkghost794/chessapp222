@@ -533,11 +533,13 @@ export function Customizer() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {draft.tierOrder.map((t) => (
-                          <SelectItem key={t} value={t}>
-                            {draft.tierLabels[t]?.trim() || defLabel(t, draft.customTiers)}
-                          </SelectItem>
-                        ))}
+                        {Array.from(new Set([...draft.tierOrder, b.category].filter(Boolean))).map(
+                          (t) => (
+                            <SelectItem key={t} value={t}>
+                              {draft.tierLabels[t]?.trim() || defLabel(t, draft.customTiers)}
+                            </SelectItem>
+                          ),
+                        )}
                       </SelectContent>
                     </Select>
                   </div>

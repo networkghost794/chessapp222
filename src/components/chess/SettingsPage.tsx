@@ -67,7 +67,7 @@ export function SettingsPage({
 }: {
   initialTab?: "board" | "gameplay" | "account";
 }) {
-  const { profile, user, refreshProfile } = useAuth();
+  const { profile, user, refreshProfile, claimOwner } = useAuth();
 
   const [settings, update] = useSettings();
   const [tab, setTab] = useState<"board" | "gameplay" | "account">(initialTab);
@@ -137,8 +137,7 @@ export function SettingsPage({
 
   const tryCreatorUnlock = async () => {
     if (code === CREATOR_CODE) {
-      await supabase.from("profiles").update({ title_badge: CRTR }).eq("id", user.id);
-      await refreshProfile();
+      await claimOwner(code);
       setCreatorOpen(false);
       setCode("");
       setCodeError("");

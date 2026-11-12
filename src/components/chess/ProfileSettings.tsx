@@ -45,7 +45,7 @@ export function ProfileSettings({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const { profile, user, refreshProfile } = useAuth();
+  const { profile, user, refreshProfile, claimOwner } = useAuth();
   const [icon, setIcon] = useState<string>(profile?.profile_icon ?? "");
   const [titleClaimOpen, setTitleClaimOpen] = useState<string | null>(null);
   const [creatorOpen, setCreatorOpen] = useState(false);
@@ -65,8 +65,7 @@ export function ProfileSettings({
 
   const tryCreatorUnlock = async () => {
     if (code === CREATOR_CODE) {
-      await supabase.from("profiles").update({ title_badge: CRTR }).eq("id", user.id);
-      await refreshProfile();
+      await claimOwner(code);
       setCreatorOpen(false);
       setCode("");
       setCodeError("");

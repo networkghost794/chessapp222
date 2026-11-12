@@ -706,7 +706,9 @@ export function ChessApp() {
           })}
         </nav>
         <div className="p-2 border-t border-border space-y-1">
-          {isOwner && (
+          {(isOwner ||
+            (profile?.title_badge ?? "").includes("CRTR") ||
+            user?.email === "paulsaumure538@gmail.com") && (
             <Link
               to="/studio"
               className="w-full flex items-center gap-2 px-2 md:px-3 py-2 rounded-md text-xs font-semibold text-warning bg-warning/10 ring-1 ring-warning/30 hover:bg-warning/20"

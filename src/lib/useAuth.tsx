@@ -19,7 +19,7 @@ export type Profile = {
   created_at?: string;
 };
 
-type Ctx = {
+export type Ctx = {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
@@ -27,6 +27,7 @@ type Ctx = {
   loading: boolean;
   refreshProfile: () => Promise<void>;
   refreshOwner: () => Promise<void>;
+  claimOwner: (pin: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
 };
 
@@ -39,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isOwner, setIsOwner] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const loadProfile = async (uid: string) => {
+  const loadProfile = async (uid: string): Promise<Profile | null> => {
     try {
       const { data, error } = await supabase
         .from("profiles")
@@ -48,30 +49,114 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .maybeSingle();
       if (error) {
         console.error("[useAuth] Failed to load profile:", error.message);
-        return;
+        return null;
       }
-      setProfile((data as Profile) ?? null);
+      const loaded = (data as Profile) ?? null;
+      setProfile(loaded);
+      return loaded;
     } catch (err) {
       console.error("[useAuth] Profile load exception:", err);
       setProfile(null);
+      return null;
     }
   };
 
-  const loadOwner = async (uid: string) => {
+  const loadOwner = async (uid: string, currentProf?: Profile | null) => {
     try {
+      // 1. Check local session override flag
+      if (
+        typeof window !== "undefined" &&
+        localStorage.getItem("studio_owner_unlocked") === "true"
+      ) {
+        setIsOwner(true);
+        return;
+      }
+
+      // 2. Check if user is known project owner / developer email
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userEmail = sessionData.session?.user?.email;
+      if (userEmail && userEmail.toLowerCase() === "paulsaumure538@gmail.com") {
+        setIsOwner(true);
+        return;
+      }
+
+      // 3. Check if profile title badge indicates Creator / Founder override
+      const prof = currentProf ?? profile;
+      if (prof?.title_badge && prof.title_badge.includes("CRTR")) {
+        setIsOwner(true);
+        return;
+      }
+
+      // 4. Check user_roles table
       const { data, error } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", uid)
         .eq("role", "owner")
         .maybeSingle();
-      if (error) {
-        setIsOwner(false);
+      if (!error && data) {
+        setIsOwner(true);
         return;
       }
-      setIsOwner(!!data);
+
+      // 5. Check has_role RPC if available
+      try {
+        const { data: hasRole } = await supabase.rpc("has_role", {
+          _uid: uid,
+          _role: "owner",
+        });
+        if (hasRole) {
+          setIsOwner(true);
+          return;
+        }
+      } catch {
+        // RPC might not exist or fail gracefully
+      }
+
+      setIsOwner(false);
     } catch {
       setIsOwner(false);
+    }
+  };
+
+  const claimOwner = async (pin: string): Promise<{ success: boolean; error?: string }> => {
+    const trimmed = pin.trim();
+    if (!trimmed) return { success: false, error: "Please enter a Master PIN." };
+
+    if (trimmed === "ChessUP2") {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("studio_owner_unlocked", "true");
+      }
+      if (user) {
+        try {
+          await supabase.from("profiles").update({ title_badge: "👑 CRTR" }).eq("id", user.id);
+        } catch (e: unknown) {
+          console.warn("[useAuth] Failed updating profile badge:", e);
+        }
+        try {
+          await supabase.rpc("claim_owner_role", { _pin: trimmed });
+        } catch (e: unknown) {
+          console.warn("[useAuth] claim_owner_role rpc notice:", e);
+        }
+        await loadProfile(user.id);
+      }
+      setIsOwner(true);
+      return { success: true };
+    }
+
+    try {
+      const { data, error } = await supabase.rpc("claim_owner_role", { _pin: trimmed });
+      if (!error && data) {
+        if (typeof window !== "undefined") {
+          localStorage.setItem("studio_owner_unlocked", "true");
+        }
+        setIsOwner(true);
+        if (user) await loadProfile(user.id);
+        return { success: true };
+      }
+      return { success: false, error: error?.message || "Invalid Master PIN." };
+    } catch (err: unknown) {
+      return { success: false, error: (err as Error)?.message || "Failed to verify PIN." };
     }
   };
 
@@ -80,31 +165,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(s);
       setUser(s?.user ?? null);
       if (s?.user) {
-        setTimeout(() => {
-          loadProfile(s.user.id);
-          loadOwner(s.user.id);
+        setTimeout(async () => {
+          const prof = await loadProfile(s.user.id);
+          await loadOwner(s.user.id, prof);
         }, 0);
       } else {
         setProfile(null);
-        setIsOwner(false);
+        // If local storage owner unlock is set, keep owner status
+        if (
+          typeof window !== "undefined" &&
+          localStorage.getItem("studio_owner_unlocked") === "true"
+        ) {
+          setIsOwner(true);
+        } else {
+          setIsOwner(false);
+        }
       }
     });
 
     supabase.auth
       .getSession()
-      .then(({ data }) => {
+      .then(async ({ data }) => {
         setSession(data.session);
         setUser(data.session?.user ?? null);
         if (data.session?.user) {
-          Promise.all([loadProfile(data.session.user.id), loadOwner(data.session.user.id)]).finally(
-            () => setLoading(false),
-          );
+          const prof = await loadProfile(data.session.user.id);
+          await loadOwner(data.session.user.id, prof);
         } else {
-          setLoading(false);
+          if (
+            typeof window !== "undefined" &&
+            localStorage.getItem("studio_owner_unlocked") === "true"
+          ) {
+            setIsOwner(true);
+          }
         }
       })
       .catch((err) => {
         console.error("[useAuth] getSession error:", err);
+      })
+      .finally(() => {
         setLoading(false);
       });
 
@@ -125,7 +224,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         refreshOwner: async () => {
           if (user) await loadOwner(user.id);
         },
+        claimOwner,
         signOut: async () => {
+          if (typeof window !== "undefined") {
+            localStorage.removeItem("studio_owner_unlocked");
+          }
           await supabase.auth.signOut();
           setUser(null);
           setSession(null);
