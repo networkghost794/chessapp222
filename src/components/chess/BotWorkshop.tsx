@@ -5,10 +5,12 @@ import {
   STRENGTH_LABELS,
   loadBots,
   refreshFromCloud,
+  resolveCategoryLabel,
   subscribeBots,
   type BotConfig,
   type BotCategory,
 } from "@/lib/botStore";
+import { useUiSettings } from "@/lib/appSettings";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -38,7 +40,6 @@ type ColDef = {
 };
 
 const strengthLabel = (v: string) => STRENGTH_LABELS.find((s) => s.value === v)?.label ?? v;
-const catLabel = (c: BotCategory) => BOT_CATEGORIES.find((x) => x.value === c)?.label ?? c;
 const mistakeTotal = (b: BotConfig) => {
   const m = b.humanMistake;
   return (
@@ -49,8 +50,16 @@ const mistakeTotal = (b: BotConfig) => {
   );
 };
 
-const COLUMNS: ColDef[] = [
-  { id: "category", label: "Category", get: (b) => catLabel(b.category), sort: (b) => b.category },
+const getColumns = (
+  customTiers?: Array<{ id: string; name: string }>,
+  tierLabels?: Record<string, string>,
+): ColDef[] => [
+  {
+    id: "category",
+    label: "Category",
+    get: (b) => resolveCategoryLabel(b.category, customTiers, tierLabels),
+    sort: (b) => resolveCategoryLabel(b.category, customTiers, tierLabels),
+  },
   { id: "elo", label: "Display Elo", get: (b) => b.elo, sort: (b) => b.elo },
   { id: "title", label: "Title", get: (b) => b.title || "—" },
   { id: "country", label: "Flag", get: (b) => b.country || "—" },
@@ -99,21 +108,44 @@ const COLUMNS: ColDef[] = [
 
 type Prefs = { order: ColId[]; hidden: ColId[] };
 const DEFAULT_PREFS: Prefs = {
-  order: COLUMNS.map((c) => c.id),
+  order: [
+    "category",
+    "elo",
+    "title",
+    "country",
+    "mgStrength",
+    "egStrength",
+    "mistakes",
+    "maxLoss",
+    "thinking",
+    "opening",
+    "record",
+    "dialogue",
+  ],
   hidden: ["country", "dialogue", "thinking"],
 };
 const PREFS_KEY = "studio_workshop";
 
-function normalizePrefs(p?: Partial<Prefs>): Prefs {
-  const valid = new Set(COLUMNS.map((c) => c.id));
+function normalizePrefs(p?: Partial<Prefs>, cols?: ColDef[]): Prefs {
+  const columnList = cols ?? [];
+  const valid = new Set(columnList.map((c) => c.id));
   const order = (p?.order ?? []).filter((id) => valid.has(id));
-  for (const c of COLUMNS) if (!order.includes(c.id)) order.push(c.id);
+  for (const c of columnList) if (!order.includes(c.id)) order.push(c.id);
   return { order, hidden: (p?.hidden ?? DEFAULT_PREFS.hidden).filter((id) => valid.has(id)) };
 }
 
 export function BotWorkshop({ onEdit }: { onEdit: (id: string) => void }) {
+  const ui = useUiSettings();
+  const columns = useMemo(
+    () => getColumns(ui.customTiers, ui.tierLabels),
+    [ui.customTiers, ui.tierLabels],
+  );
+
   const [bots, setBots] = useState<BotConfig[]>(loadBots());
-  const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
+  const [prefs, setPrefs] = useState<Prefs>(() => ({
+    order: columns.map((c) => c.id),
+    hidden: ["country", "dialogue", "thinking"],
+  }));
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<BotCategory | "all">("all");
   const [sort, setSort] = useState<{ col: ColId | "name"; dir: 1 | -1 }>({ col: "elo", dir: -1 });
@@ -126,8 +158,10 @@ export function BotWorkshop({ onEdit }: { onEdit: (id: string) => void }) {
       .select("value")
       .eq("key", PREFS_KEY)
       .maybeSingle()
-      .then(({ data }) => setPrefs(normalizePrefs(data?.value as Partial<Prefs> | undefined)));
-  }, []);
+      .then(({ data }) =>
+        setPrefs(normalizePrefs(data?.value as Partial<Prefs> | undefined, columns)),
+      );
+  }, [columns]);
 
   const savePrefs = async (next: Prefs) => {
     setPrefs(next);
@@ -140,7 +174,29 @@ export function BotWorkshop({ onEdit }: { onEdit: (id: string) => void }) {
 
   const visibleCols = prefs.order
     .filter((id) => !prefs.hidden.includes(id))
-    .map((id) => COLUMNS.find((c) => c.id === id)!);
+    .map((id) => columns.find((c) => c.id === id)!)
+    .filter(Boolean);
+
+  const categoryOptions = useMemo(() => {
+    const list: { value: string; label: string }[] = [...BOT_CATEGORIES];
+    const existing = new Set(list.map((c) => c.value));
+    for (const ct of ui.customTiers ?? []) {
+      if (!existing.has(ct.id)) {
+        list.push({ value: ct.id, label: ct.name });
+        existing.add(ct.id);
+      }
+    }
+    for (const b of bots) {
+      if (b.category && !existing.has(b.category)) {
+        list.push({
+          value: b.category,
+          label: resolveCategoryLabel(b.category, ui.customTiers, ui.tierLabels),
+        });
+        existing.add(b.category);
+      }
+    }
+    return list;
+  }, [ui.customTiers, ui.tierLabels, bots]);
 
   const rows = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -150,15 +206,15 @@ export function BotWorkshop({ onEdit }: { onEdit: (id: string) => void }) {
     );
     const key = (b: BotConfig): string | number => {
       if (sort.col === "name") return b.name.toLowerCase();
-      const c = COLUMNS.find((x) => x.id === sort.col)!;
-      return (c.sort ?? c.get)(b);
+      const c = columns.find((x) => x.id === sort.col);
+      return c ? (c.sort ?? c.get)(b) : "";
     };
     return [...list].sort((a, b) => {
       const x = key(a),
         y = key(b);
       return (x < y ? -1 : x > y ? 1 : 0) * sort.dir;
     });
-  }, [bots, q, cat, sort]);
+  }, [bots, q, cat, sort, columns]);
 
   const toggleSort = (col: ColId | "name") =>
     setSort((s) =>
@@ -203,18 +259,29 @@ export function BotWorkshop({ onEdit }: { onEdit: (id: string) => void }) {
           />
         </div>
         <div className="flex flex-wrap gap-1">
-          {(["all", ...BOT_CATEGORIES.map((c) => c.value)] as const).map((c) => (
+          <button
+            onClick={() => setCat("all")}
+            className={cn(
+              "h-7 px-2.5 rounded-md text-[11px] border border-border",
+              cat === "all"
+                ? "bg-primary text-primary-foreground border-primary"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            All
+          </button>
+          {categoryOptions.map((c) => (
             <button
-              key={c}
-              onClick={() => setCat(c)}
+              key={c.value}
+              onClick={() => setCat(c.value as BotCategory)}
               className={cn(
                 "h-7 px-2.5 rounded-md text-[11px] border border-border",
-                cat === c
+                cat === c.value
                   ? "bg-primary text-primary-foreground border-primary"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              {c === "all" ? "All" : catLabel(c).replace(" Bots", "")}
+              {c.label.replace(" Bots", "")}
             </button>
           ))}
         </div>

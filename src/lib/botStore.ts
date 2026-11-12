@@ -306,6 +306,27 @@ export const BOT_CATEGORIES: { value: BotCategory; label: string }[] = [
   { value: "Master", label: "Master Bots" },
 ];
 
+/**
+ * Resolves a category key/ID (e.g., "Intermediate" or "col_1794435369918") into a human-readable label.
+ */
+export function resolveCategoryLabel(
+  category: string,
+  customTiers?: Array<{ id: string; name: string }>,
+  tierLabels?: Record<string, string>,
+): string {
+  if (!category) return "";
+  if (tierLabels && tierLabels[category]?.trim()) {
+    return tierLabels[category].trim();
+  }
+  const std = BOT_CATEGORIES.find((c) => c.value === category);
+  if (std) return std.label;
+
+  const custom = customTiers?.find((t) => t.id === category);
+  if (custom) return custom.name;
+
+  return category;
+}
+
 export type BotConfig = {
   id: string;
   name: string;

@@ -29,7 +29,9 @@ import {
   Bell,
   ExternalLink,
   Bot,
+  Search,
 } from "lucide-react";
+import { UserSearchDialog } from "./UserSearchDialog";
 import { UpdateLogButton } from "./UpdateLogButton";
 import { cn } from "@/lib/utils";
 import {
@@ -67,7 +69,7 @@ import { recordFinishedGame } from "@/lib/gameHistory";
 type ColorChoice = "white" | "black" | "random";
 type BotStats = { wins: number; losses: number; draws: number };
 type AppMode = "home" | "hub" | "match" | "profile" | "settings" | "modes";
-type SidebarKey = "home" | "play" | "modes" | "profile" | "updates" | "settings";
+type SidebarKey = "home" | "play" | "modes" | "search" | "profile" | "updates" | "settings";
 
 const EMPTY_STATS: BotStats = { wins: 0, losses: 0, draws: 0 };
 
@@ -254,6 +256,7 @@ export function ChessApp() {
   const game = gameRef.current;
 
   const [bathroomOpen, setBathroomOpen] = useState(false);
+  const [userSearchOpen, setUserSearchOpen] = useState(false);
 
   const [resignedFlag, setResignedFlag] = useState(false);
   const [matchActive, setMatchActive] = useState(false);
@@ -622,6 +625,14 @@ export function ChessApp() {
         setMode("modes");
       },
     },
+    {
+      key: "search",
+      label: "Search Users",
+      icon: Search,
+      onClick: () => {
+        setUserSearchOpen(true);
+      },
+    },
     { key: "updates", label: label(ui, "nav.updates"), icon: Bell },
     {
       key: "settings",
@@ -846,6 +857,8 @@ export function ChessApp() {
       />
 
       <BathroomBreak open={bathroomOpen} onClose={() => setBathroomOpen(false)} />
+
+      <UserSearchDialog open={userSearchOpen} onOpenChange={setUserSearchOpen} />
 
       <UpdatesPopup />
     </div>

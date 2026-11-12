@@ -33,6 +33,7 @@ import {
   chooseBotMove,
   loadBots,
   pickThinkingDelayMs,
+  resolveCategoryLabel,
   subscribeBots,
   type BotConfig,
 } from "@/lib/botStore";
@@ -343,12 +344,15 @@ export function SidePicker({
     }
     for (const b of bots) {
       if (b.category && !existing.has(b.category)) {
-        list.push({ value: b.category, label: b.category });
+        list.push({
+          value: b.category,
+          label: resolveCategoryLabel(b.category, ui.customTiers, ui.tierLabels),
+        });
         existing.add(b.category);
       }
     }
     return list;
-  }, [ui.customTiers, bots]);
+  }, [ui.customTiers, ui.tierLabels, bots]);
   return (
     <Card className="evt-card bg-card p-4 min-w-0">
       <div className="flex items-center justify-between px-1 mb-3">
@@ -384,7 +388,8 @@ export function SidePicker({
               <span className="truncate">{selected.name}</span>
             </div>
             <div className="text-[11px] text-muted-foreground mt-0.5">
-              ELO {selected.elo} · {selected.category}
+              ELO {selected.elo} ·{" "}
+              {resolveCategoryLabel(selected.category, ui.customTiers, ui.tierLabels)}
             </div>
           </div>
         </div>
@@ -467,6 +472,7 @@ export function SidePicker({
 }
 
 export function VsBotCard({ bot, side }: { bot: BotConfig; side: "left" | "right" }) {
+  const ui = useUiSettings();
   return (
     <div
       className={cn(
@@ -488,7 +494,7 @@ export function VsBotCard({ bot, side }: { bot: BotConfig; side: "left" | "right
         </div>
         <div className="text-xs text-muted-foreground">({bot.elo})</div>
         <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">
-          {bot.category}
+          {resolveCategoryLabel(bot.category, ui.customTiers, ui.tierLabels)}
         </div>
       </div>
     </div>
@@ -907,6 +913,7 @@ function MoveCell({
 }
 
 export function BotHeaderCard({ bot, sideLabel }: { bot: BotConfig; sideLabel: string }) {
+  const ui = useUiSettings();
   const isWhite = sideLabel === "White";
   return (
     <Card className="evt-card bg-card/90 py-1.5 px-3 flex items-center gap-2.5 rounded-lg border border-border/60">
@@ -926,7 +933,7 @@ export function BotHeaderCard({ bot, sideLabel }: { bot: BotConfig; sideLabel: s
         </div>
         <span className="text-[10px] text-muted-foreground/80 shrink-0 font-mono">({bot.elo})</span>
         <span className="text-[10px] text-muted-foreground/60 hidden sm:inline shrink-0">
-          · {bot.category}
+          · {resolveCategoryLabel(bot.category, ui.customTiers, ui.tierLabels)}
         </span>
       </div>
       <div className="flex items-center gap-1.5 shrink-0 px-2 py-0.5 rounded-md bg-secondary/60">

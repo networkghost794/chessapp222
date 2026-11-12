@@ -24,7 +24,13 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { BOT_CATEGORIES, loadBots, subscribeBots, type BotConfig } from "@/lib/botStore";
+import {
+  BOT_CATEGORIES,
+  loadBots,
+  resolveCategoryLabel,
+  subscribeBots,
+  type BotConfig,
+} from "@/lib/botStore";
 import {
   BotVsBotMatch,
   BotVsBotMode,
@@ -1364,12 +1370,15 @@ function MultiBotPicker({
     }
     for (const b of bots) {
       if (b.category && !existing.has(b.category)) {
-        list.push({ value: b.category, label: b.category });
+        list.push({
+          value: b.category,
+          label: resolveCategoryLabel(b.category, ui.customTiers, ui.tierLabels),
+        });
         existing.add(b.category);
       }
     }
     return list;
-  }, [ui.customTiers, bots]);
+  }, [ui.customTiers, ui.tierLabels, bots]);
   const atMax = max != null && selectedIds.length >= max;
   return (
     <Card className="evt-card bg-card p-4">

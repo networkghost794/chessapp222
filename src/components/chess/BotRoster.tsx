@@ -25,6 +25,7 @@ import {
   loadTitleColors,
   subscribeTitleColors,
   refreshTitleColors,
+  resolveCategoryLabel,
   BOT_CATEGORIES,
   type BotConfig,
   type BotCategory,
@@ -52,12 +53,15 @@ export function BotRoster({ onSelect }: { onSelect?: (bot: BotConfig) => void })
     }
     for (const b of bots) {
       if (b.category && !existing.has(b.category)) {
-        list.push({ value: b.category, label: b.category });
+        list.push({
+          value: b.category,
+          label: resolveCategoryLabel(b.category, ui.customTiers, ui.tierLabels),
+        });
         existing.add(b.category);
       }
     }
     return list;
-  }, [ui.customTiers, bots]);
+  }, [ui.customTiers, ui.tierLabels, bots]);
 
   useEffect(() => {
     const refresh = () => {
