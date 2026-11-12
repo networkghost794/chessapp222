@@ -24,13 +24,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  BOT_CATEGORIES,
-  loadBots,
-  resolveCategoryLabel,
-  subscribeBots,
-  type BotConfig,
-} from "@/lib/botStore";
+import { loadBots, subscribeBots, type BotConfig } from "@/lib/botStore";
 import {
   BotVsBotMatch,
   BotVsBotMode,
@@ -39,7 +33,7 @@ import {
   type SpeedSetting,
 } from "./BotVsBotMode";
 import { HumanVsBotMatch, type PlayerProfileLite } from "./HumanVsBotMatch";
-import { useUiSettings } from "@/lib/appSettings";
+import { useUiSettings, visibleTiers } from "@/lib/appSettings";
 import { SandboxBoard } from "./SandboxBoard";
 import { TitleBadge } from "./ChessApp";
 import { botDisplayIdentity, isImmersiveEnabled } from "@/lib/immersive";
@@ -1358,27 +1352,10 @@ function MultiBotPicker({
   onToggle: (id: string) => void;
   max?: number;
 }) {
+  const { user, isOwner } = useAuth();
   const ui = useUiSettings();
-  const allSections = useMemo(() => {
-    const list: { value: string; label: string }[] = [...BOT_CATEGORIES];
-    const existing = new Set(list.map((c) => c.value));
-    for (const ct of ui.customTiers ?? []) {
-      if (!existing.has(ct.id)) {
-        list.push({ value: ct.id, label: ct.name });
-        existing.add(ct.id);
-      }
-    }
-    for (const b of bots) {
-      if (b.category && !existing.has(b.category)) {
-        list.push({
-          value: b.category,
-          label: resolveCategoryLabel(b.category, ui.customTiers, ui.tierLabels),
-        });
-        existing.add(b.category);
-      }
-    }
-    return list;
-  }, [ui.customTiers, ui.tierLabels, bots]);
+  const tiers = visibleTiers(ui);
+
   const atMax = max != null && selectedIds.length >= max;
   return (
     <Card className="evt-card bg-card p-4">
@@ -1389,10 +1366,30 @@ function MultiBotPicker({
         {max && <div className="text-[10px] text-muted-foreground">Max {max}</div>}
       </div>
       <Accordion type="multiple" className="w-full">
-        {allSections.map((section) => {
+        {tiers.map((section) => {
+          // Hide Personal category from unauthorized visitors
+          if (section.value === "Personal") {
+            const hasAccess =
+              user &&
+              (isOwner || bots.some((b) => b.category === "Personal" && b.createdBy === user.id));
+            if (!hasAccess) return null;
+          }
+
           const list = bots
-            .filter((b) => b.category === section.value)
+            .filter((b) => {
+              if (b.category !== section.value) return false;
+              if (section.value === "Personal") {
+                return isOwner || b.createdBy === user?.id;
+              }
+              return true;
+            })
             .sort((a, b) => a.orderIndex - b.orderIndex);
+
+          // If Personal tier has no bots for this user, hide it
+          if (section.value === "Personal" && list.length === 0 && !isOwner) {
+            return null;
+          }
+
           return (
             <AccordionItem key={section.value} value={section.value} className="border-border/60">
               <AccordionTrigger className="text-xs font-semibold py-2.5 hover:no-underline">
@@ -1424,9 +1421,19 @@ function MultiBotPicker({
                             disabled && "opacity-40 cursor-not-allowed",
                           )}
                         >
-                          <BotAvatar bot={b} size={32} />
+                          <div className="w-9 h-9 rounded-lg bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-border">
+                            {b.avatar ? (
+                              <img
+                                src={b.avatar}
+                                alt={b.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <User className="w-4 h-4 text-muted-foreground" />
+                            )}
+                          </div>
                           <div className="min-w-0 flex-1">
-                            <div className="text-xs font-semibold truncate inline-flex items-center gap-1 max-w-full">
+                            <div className="text-xs font-semibold truncate flex items-center gap-1">
                               {b.title && !isImmersiveEnabled() && (
                                 <TitleBadge title={b.title} color={b.titleColor} size="sm" />
                               )}
@@ -1434,11 +1441,18 @@ function MultiBotPicker({
                                 {botDisplayIdentity(b, isImmersiveEnabled()).name}
                               </span>
                             </div>
-                            <div className="text-[10px] text-muted-foreground mt-0.5">
-                              ELO {b.elo}
-                            </div>
+                            <div className="text-[10px] text-muted-foreground">ELO {b.elo}</div>
                           </div>
-                          {isMe && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+                          <div
+                            className={cn(
+                              "w-4 h-4 rounded border flex items-center justify-center shrink-0",
+                              isMe
+                                ? "bg-primary border-primary text-primary-foreground"
+                                : "border-muted-foreground/30",
+                            )}
+                          >
+                            {isMe && <Check className="w-3 h-3" />}
+                          </div>
                         </button>
                       );
                     })}
@@ -1450,21 +1464,6 @@ function MultiBotPicker({
         })}
       </Accordion>
     </Card>
-  );
-}
-
-function BotAvatar({ bot, size = 32 }: { bot: BotConfig; size?: number }) {
-  return (
-    <div
-      className="rounded-md bg-secondary grid place-items-center overflow-hidden ring-1 ring-border shrink-0"
-      style={{ width: size, height: size }}
-    >
-      {bot.avatar ? (
-        <img src={bot.avatar} alt={bot.name} className="w-full h-full object-cover" />
-      ) : (
-        <User className="w-1/2 h-1/2 text-muted-foreground" />
-      )}
-    </div>
   );
 }
 

@@ -29,7 +29,6 @@ import { TitleBadge } from "./ChessApp";
 import { botDisplayIdentity, isImmersiveEnabled } from "@/lib/immersive";
 import { cn } from "@/lib/utils";
 import {
-  BOT_CATEGORIES,
   chooseBotMove,
   loadBots,
   pickThinkingDelayMs,
@@ -43,7 +42,8 @@ import { evaluatePosition, type PositionEval } from "@/lib/stockfishEval";
 import { PositionEditor } from "./PositionEditor";
 import { Switch } from "@/components/ui/switch";
 import { BoardScaleControl } from "./BoardScaleControl";
-import { useUiSettings } from "@/lib/appSettings";
+import { useAuth } from "@/lib/useAuth";
+import { useUiSettings, visibleTiers } from "@/lib/appSettings";
 
 /* ───────── Speed control ───────── */
 
@@ -332,27 +332,10 @@ export function SidePicker({
   bots: BotConfig[];
   otherId: string | null;
 }) {
+  const { user, isOwner } = useAuth();
   const ui = useUiSettings();
-  const allSections = useMemo(() => {
-    const list: { value: string; label: string }[] = [...BOT_CATEGORIES];
-    const existing = new Set(list.map((c) => c.value));
-    for (const ct of ui.customTiers ?? []) {
-      if (!existing.has(ct.id)) {
-        list.push({ value: ct.id, label: ct.name });
-        existing.add(ct.id);
-      }
-    }
-    for (const b of bots) {
-      if (b.category && !existing.has(b.category)) {
-        list.push({
-          value: b.category,
-          label: resolveCategoryLabel(b.category, ui.customTiers, ui.tierLabels),
-        });
-        existing.add(b.category);
-      }
-    }
-    return list;
-  }, [ui.customTiers, ui.tierLabels, bots]);
+  const tiers = visibleTiers(ui);
+
   return (
     <Card className="evt-card bg-card p-4 min-w-0">
       <div className="flex items-center justify-between px-1 mb-3">
@@ -385,7 +368,9 @@ export function SidePicker({
               {!isImmersiveEnabled() && (
                 <TitleBadge title={selected.title} color={selected.titleColor} size="sm" />
               )}
-              <span className="truncate">{selected.name}</span>
+              <span className="truncate">
+                {botDisplayIdentity(selected, isImmersiveEnabled()).name}
+              </span>
             </div>
             <div className="text-[11px] text-muted-foreground mt-0.5">
               ELO {selected.elo} ·{" "}
@@ -400,10 +385,29 @@ export function SidePicker({
       )}
 
       <Accordion type="multiple" className="w-full mt-2">
-        {allSections.map((section) => {
+        {tiers.map((section) => {
+          // Hide Personal category from unauthorized visitors
+          if (section.value === "Personal") {
+            const hasAccess =
+              user &&
+              (isOwner || bots.some((b) => b.category === "Personal" && b.createdBy === user.id));
+            if (!hasAccess) return null;
+          }
+
           const list = bots
-            .filter((b) => b.category === section.value)
+            .filter((b) => {
+              if (b.category !== section.value) return false;
+              if (section.value === "Personal") {
+                return isOwner || b.createdBy === user?.id;
+              }
+              return true;
+            })
             .sort((a, b) => a.orderIndex - b.orderIndex);
+
+          if (section.value === "Personal" && list.length === 0 && !isOwner) {
+            return null;
+          }
+
           return (
             <AccordionItem key={section.value} value={section.value} className="border-border/60">
               <AccordionTrigger className="text-xs font-semibold py-2.5 hover:no-underline">
@@ -428,14 +432,14 @@ export function SidePicker({
                           disabled={isOther}
                           onClick={() => onSelect(b)}
                           className={cn(
-                            "flex flex-col items-center text-center gap-2 rounded-lg p-3 transition-colors border min-w-0",
+                            "flex items-center gap-2 rounded-xl p-2.5 transition-colors border text-left min-w-0",
                             isMe
-                              ? "bg-primary/15 border-primary/40"
+                              ? "bg-primary/15 border-primary/40 ring-1 ring-primary/50"
                               : "bg-secondary/30 hover:bg-secondary/60 border-transparent",
-                            isOther && "opacity-40 cursor-not-allowed",
+                            isOther && "opacity-35 cursor-not-allowed",
                           )}
                         >
-                          <div className="w-11 h-11 rounded-lg bg-secondary grid place-items-center overflow-hidden ring-1 ring-border">
+                          <div className="w-8 h-8 rounded-lg bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-border">
                             {b.avatar ? (
                               <img
                                 src={b.avatar}
@@ -443,11 +447,11 @@ export function SidePicker({
                                 className="w-full h-full object-cover"
                               />
                             ) : (
-                              <User className="w-5 h-5 text-muted-foreground" />
+                              <User className="w-4 h-4 text-muted-foreground" />
                             )}
                           </div>
-                          <div className="w-full min-w-0">
-                            <div className="text-xs font-semibold truncate inline-flex items-center gap-1 max-w-full justify-center">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs font-semibold truncate flex items-center gap-1">
                               {b.title && !isImmersiveEnabled() && (
                                 <TitleBadge title={b.title} color={b.titleColor} size="sm" />
                               )}
