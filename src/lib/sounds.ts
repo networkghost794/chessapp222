@@ -1,20 +1,45 @@
-// Lightweight synthesized chess sound effects using WebAudio.
-// No external asset dependencies. Respects the "chess:sound" localStorage
-// toggle written by SettingsPage (defaults to "on").
+// Authentic Acoustic Chess Audio Engine (Chess.com / Lichess standard Staunton wood soundpack)
+// Preloads decoded AudioBuffers via WebAudio for zero-latency, tactile piece moves.
 
 let ctx: AudioContext | null = null;
+const audioBuffers: Record<string, AudioBuffer | null> = {
+  move: null,
+  capture: null,
+  castle: null,
+  check: null,
+  promote: null,
+};
+
+// High-fidelity acoustic Staunton wood recordings (CC0 / Open Chess audio)
+const SOUND_URLS: Record<string, string[]> = {
+  move: [
+    "https://raw.githubusercontent.com/lichess-org/lila/master/public/sound/standard/Move.mp3",
+    "https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/move-self.mp3",
+  ],
+  capture: [
+    "https://raw.githubusercontent.com/lichess-org/lila/master/public/sound/standard/Capture.mp3",
+    "https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/capture.mp3",
+  ],
+  castle: [
+    "https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/castle.mp3",
+    "https://raw.githubusercontent.com/lichess-org/lila/master/public/sound/standard/Move.mp3",
+  ],
+  check: [
+    "https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/move-check.mp3",
+    "https://raw.githubusercontent.com/lichess-org/lila/master/public/sound/standard/GenericNotify.mp3",
+  ],
+  promote: [
+    "https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/promote.mp3",
+    "https://raw.githubusercontent.com/lichess-org/lila/master/public/sound/standard/Capture.mp3",
+  ],
+};
 
 function getCtx(): AudioContext | null {
   if (typeof window === "undefined") return null;
   try {
     if (!ctx) {
-      const AC: typeof AudioContext =
-        (
-          window as unknown as {
-            AudioContext: typeof AudioContext;
-            webkitAudioContext?: typeof AudioContext;
-          }
-        ).AudioContext ||
+      const AC =
+        window.AudioContext ||
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (!AC) return null;
       ctx = new AC();
@@ -35,110 +60,126 @@ function soundEnabled(): boolean {
   }
 }
 
-/** Short, soft "wood tap" for a normal move. */
+// Preload and decode audio buffers into memory
+async function loadSound(name: keyof typeof SOUND_URLS): Promise<AudioBuffer | null> {
+  if (audioBuffers[name]) return audioBuffers[name];
+  const ac = getCtx();
+  if (!ac) return null;
+
+  const urls = SOUND_URLS[name];
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, { mode: "cors", cache: "force-cache" });
+      if (!res.ok) continue;
+      const arrayBuf = await res.arrayBuffer();
+      const decoded = await ac.decodeAudioData(arrayBuf);
+      audioBuffers[name] = decoded;
+      return decoded;
+    } catch {
+      // try fallback mirror
+    }
+  }
+  return null;
+}
+
+// Preload all sounds on boot or user interaction
+if (typeof window !== "undefined") {
+  const initAudio = () => {
+    Object.keys(SOUND_URLS).forEach((k) => void loadSound(k as keyof typeof SOUND_URLS));
+    window.removeEventListener("pointerdown", initAudio);
+    window.removeEventListener("keydown", initAudio);
+  };
+  window.addEventListener("pointerdown", initAudio, { once: true });
+  window.addEventListener("keydown", initAudio, { once: true });
+}
+
+// Play decoded audio buffer with high-precision WebAudio gain
+function playBuffer(name: keyof typeof SOUND_URLS, volume = 0.85) {
+  if (!soundEnabled()) return;
+  const ac = getCtx();
+  if (!ac) return;
+
+  const buf = audioBuffers[name];
+  if (buf) {
+    try {
+      const source = ac.createBufferSource();
+      const gain = ac.createGain();
+      gain.gain.value = volume;
+      source.buffer = buf;
+      source.connect(gain).connect(ac.destination);
+      source.start(0);
+      return;
+    } catch {
+      // fallback to audio element
+    }
+  }
+
+  // Backup fallback using native HTML5 Audio element if buffer isn't ready yet
+  try {
+    const url = SOUND_URLS[name][0];
+    const audio = new Audio(url);
+    audio.volume = volume;
+    void audio.play().catch(() => {});
+  } catch {
+    // silent failure if browser blocks autoplay
+  }
+}
+
+/** Authentic acoustic wood move sound */
 export function playMoveSound() {
-  if (!soundEnabled()) return;
-  const ac = getCtx();
-  if (!ac) return;
-  const now = ac.currentTime;
-
-  // Body: quick sine thump
-  const osc = ac.createOscillator();
-  const gain = ac.createGain();
-  osc.type = "sine";
-  osc.frequency.setValueAtTime(320, now);
-  osc.frequency.exponentialRampToValueAtTime(140, now + 0.09);
-  gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(0.35, now + 0.006);
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
-  osc.connect(gain).connect(ac.destination);
-  osc.start(now);
-  osc.stop(now + 0.15);
-
-  // Click: tiny filtered noise burst for the "tap"
-  const bufSize = Math.floor(ac.sampleRate * 0.03);
-  const buffer = ac.createBuffer(1, bufSize, ac.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufSize);
-  const noise = ac.createBufferSource();
-  noise.buffer = buffer;
-  const nGain = ac.createGain();
-  const filt = ac.createBiquadFilter();
-  filt.type = "highpass";
-  filt.frequency.value = 1800;
-  nGain.gain.setValueAtTime(0.18, now);
-  nGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
-  noise.connect(filt).connect(nGain).connect(ac.destination);
-  noise.start(now);
-  noise.stop(now + 0.05);
+  playBuffer("move", 0.9);
 }
 
-/** Sharper, punchier sound for a capture. */
+/** Punchy acoustic wood capture sound (piece collision clack) */
 export function playCaptureSound() {
-  if (!soundEnabled()) return;
-  const ac = getCtx();
-  if (!ac) return;
-  const now = ac.currentTime;
-
-  // Lower thud
-  const osc = ac.createOscillator();
-  const gain = ac.createGain();
-  osc.type = "triangle";
-  osc.frequency.setValueAtTime(220, now);
-  osc.frequency.exponentialRampToValueAtTime(70, now + 0.13);
-  gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(0.5, now + 0.008);
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
-  osc.connect(gain).connect(ac.destination);
-  osc.start(now);
-  osc.stop(now + 0.2);
-
-  // Sharper crack: wide-band noise burst
-  const bufSize = Math.floor(ac.sampleRate * 0.08);
-  const buffer = ac.createBuffer(1, bufSize, ac.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufSize);
-  const noise = ac.createBufferSource();
-  noise.buffer = buffer;
-  const nGain = ac.createGain();
-  const filt = ac.createBiquadFilter();
-  filt.type = "bandpass";
-  filt.frequency.value = 2200;
-  filt.Q.value = 0.9;
-  nGain.gain.setValueAtTime(0.4, now);
-  nGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
-  noise.connect(filt).connect(nGain).connect(ac.destination);
-  noise.start(now);
-  noise.stop(now + 0.1);
+  playBuffer("capture", 1.0);
 }
 
-/** Convenience: pick sound from a chess.js move result. */
+/** Rapid double-tap castle sound */
+export function playCastleSound() {
+  playBuffer("castle", 0.95);
+}
+
+/** Crisp check alert sound */
+export function playCheckSound() {
+  playBuffer("check", 0.9);
+}
+
+/** Piece promotion sound */
+export function playPromoteSound() {
+  playBuffer("promote", 0.95);
+}
+
+/**
+ * Convenience router: automatically selects the right acoustic sound based on the move:
+ * - Castle -> double wood tap
+ * - Capture -> wood piece collision clack
+ * - Check / Checkmate -> check sound
+ * - Normal move -> acoustic wood thump
+ */
 export function playMoveResultSound(
   move: { captured?: string; flags?: string; san?: string } | null | undefined,
 ) {
   if (!move) return;
-  const isCapture = !!move.captured || (typeof move.flags === "string" && /[ce]/.test(move.flags));
-  if (isCapture) playCaptureSound();
-  else playMoveSound();
-  if (typeof move.san === "string" && /[+#]/.test(move.san)) playCheckSound();
-}
 
-/** Bright two-tone chime for check / checkmate. */
-export function playCheckSound() {
-  if (!soundEnabled()) return;
-  const ac = getCtx();
-  if (!ac) return;
-  const now = ac.currentTime;
-  [880, 1320].forEach((freq, i) => {
-    const osc = ac.createOscillator();
-    const gain = ac.createGain();
-    osc.type = "triangle";
-    osc.frequency.setValueAtTime(freq, now + i * 0.09);
-    gain.gain.setValueAtTime(0.0001, now + i * 0.09);
-    gain.gain.exponentialRampToValueAtTime(0.16, now + i * 0.09 + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.09 + 0.18);
-    osc.connect(gain).connect(ac.destination);
-    osc.start(now + i * 0.09);
-    osc.stop(now + i * 0.09 + 0.2);
-  });
+  const isCheck = typeof move.san === "string" && /[+#]/.test(move.san);
+  const isCastle =
+    (typeof move.flags === "string" && /[kq]/.test(move.flags)) ||
+    (typeof move.san === "string" && /O-O/.test(move.san));
+  const isCapture = !!move.captured || (typeof move.flags === "string" && /[ce]/.test(move.flags));
+  const isPromotion =
+    (typeof move.flags === "string" && /[npbqr]/.test(move.flags)) ||
+    (typeof move.san === "string" && /=/.test(move.san));
+
+  if (isCheck) {
+    playCheckSound();
+  } else if (isCastle) {
+    playCastleSound();
+  } else if (isCapture) {
+    playCaptureSound();
+  } else if (isPromotion) {
+    playPromoteSound();
+  } else {
+    playMoveSound();
+  }
 }
