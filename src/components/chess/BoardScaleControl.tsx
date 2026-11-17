@@ -1,6 +1,7 @@
-import { Minus, Plus } from "lucide-react";
+import { Box, Maximize2, Minimize2, Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSettings } from "@/lib/settings";
+import { cn } from "@/lib/utils";
 
 export function BoardScaleControl({ className }: { className?: string }) {
   const [settings, update] = useSettings();
@@ -20,7 +21,10 @@ export function BoardScaleControl({ className }: { className?: string }) {
 
   return (
     <div
-      className={`inline-flex items-center gap-0.5 bg-secondary/50 rounded-md p-0.5 border border-border/40 ${className ?? ""}`}
+      className={cn(
+        "inline-flex items-center gap-0.5 bg-secondary/50 rounded-md p-0.5 border border-border/40",
+        className,
+      )}
     >
       <Button
         variant="ghost"
@@ -53,5 +57,47 @@ export function BoardScaleControl({ className }: { className?: string }) {
         <Plus className="w-3 h-3" />
       </Button>
     </div>
+  );
+}
+
+export function BoardViewToggle({ className }: { className?: string }) {
+  const [settings, updateSetting] = useSettings();
+  return (
+    <Button
+      type="button"
+      variant={settings.immersive3D ? "secondary" : "ghost"}
+      size="sm"
+      className={cn("h-7 px-2 gap-1 text-[11px] font-medium", className)}
+      onClick={() => updateSetting("immersive3D", !settings.immersive3D)}
+      title={settings.immersive3D ? "Switch to 2D board" : "Switch to Immersive 3D view"}
+      aria-label="Toggle 3D view"
+    >
+      <Box className="w-3.5 h-3.5" />
+      <span>{settings.immersive3D ? "3D" : "2D"}</span>
+    </Button>
+  );
+}
+
+export function TheaterToggleButton({
+  active,
+  onToggle,
+  className,
+}: {
+  active: boolean;
+  onToggle: () => void;
+  className?: string;
+}) {
+  return (
+    <Button
+      type="button"
+      variant={active ? "secondary" : "ghost"}
+      size="sm"
+      className={cn("h-7 w-7 p-0", className)}
+      onClick={onToggle}
+      title={active ? "Exit Theater mode" : "Expand board (Theater mode)"}
+      aria-label={active ? "Exit Theater mode" : "Expand board"}
+    >
+      {active ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+    </Button>
   );
 }

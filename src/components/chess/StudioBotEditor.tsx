@@ -1074,7 +1074,14 @@ function Inspector({ draft }: { draft: Draft }) {
         Tests your unsaved settings. Move pieces to set up a position.
       </p>
       <div className="max-w-[360px] mx-auto">
-        <Board game={game} flipped={false} disabled={busy} lastMove={last} onAttemptMove={onMove} />
+        <Board
+          game={game}
+          flipped={false}
+          disabled={busy}
+          lastMove={last}
+          onAttemptMove={onMove}
+          force2D
+        />
       </div>
       <div className="flex gap-2">
         <button

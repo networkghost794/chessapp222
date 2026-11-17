@@ -30,6 +30,8 @@ import {
   ExternalLink,
   Bot,
   Search,
+  Hand,
+  Timer,
 } from "lucide-react";
 import { UserSearchDialog } from "./UserSearchDialog";
 import { UpdateLogButton } from "./UpdateLogButton";
@@ -59,17 +61,22 @@ import { BotChatBubble } from "./BotChatBubble";
 import { UpdatesPopup } from "./UpdatesPopup";
 import { getTitleColor, refreshTitleColors, subscribeTitleColors } from "@/lib/botStore";
 import { MessageCircle } from "lucide-react";
-import { playMoveResultSound } from "@/lib/sounds";
+import { playClockClickSound, playMoveResultSound } from "@/lib/sounds";
 import { GameModesHub } from "./GameModesHub";
 import { EventDecor } from "./EventDecor";
-import { BoardScaleControl } from "./BoardScaleControl";
-import { initSettingsEffects } from "@/lib/settings";
+import { BoardScaleControl, BoardViewToggle, TheaterToggleButton } from "./BoardScaleControl";
+import { getTimeControlFromSettings, initSettingsEffects, useSettings } from "@/lib/settings";
 import { recordFinishedGame } from "@/lib/gameHistory";
+import { useChessClock } from "@/lib/useChessClock";
+import { MatchClockBadge } from "./MatchClockBadge";
+import { ChampionshipHub } from "./ChampionshipHub";
+import { fetchChampionshipData } from "@/lib/championshipStore";
 
 type ColorChoice = "white" | "black" | "random";
 type BotStats = { wins: number; losses: number; draws: number };
-type AppMode = "home" | "hub" | "match" | "profile" | "settings" | "modes";
-type SidebarKey = "home" | "play" | "modes" | "search" | "profile" | "updates" | "settings";
+type AppMode = "home" | "hub" | "match" | "profile" | "settings" | "modes" | "championship";
+type SidebarKey =
+  "home" | "play" | "modes" | "championship" | "search" | "profile" | "updates" | "settings";
 
 const EMPTY_STATS: BotStats = { wins: 0, losses: 0, draws: 0 };
 
@@ -171,6 +178,7 @@ function PlayerIdentity({
 
 function MiniProfileCard({
   profile,
+  clockSlot,
 }: {
   profile: {
     username: string;
@@ -182,6 +190,7 @@ function MiniProfileCard({
     losses: number;
     draws: number;
   };
+  clockSlot?: React.ReactNode;
 }) {
   return (
     <Card className="bg-card/90 py-1.5 px-3 flex items-center gap-2.5 rounded-lg border border-border/60">
@@ -208,6 +217,7 @@ function MiniProfileCard({
           · {profile.wins}W {profile.losses}L {profile.draws}D
         </div>
       </div>
+      {clockSlot}
     </Card>
   );
 }
@@ -260,6 +270,30 @@ export function ChessApp() {
 
   const [resignedFlag, setResignedFlag] = useState(false);
   const [matchActive, setMatchActive] = useState(false);
+  const [awaitingClockPunch, setAwaitingClockPunch] = useState(false);
+  const botPunchTimerRef = useRef<number | null>(null);
+
+  const [settings] = useSettings();
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const timeControl = useMemo(
+    () => getTimeControlFromSettings(settings),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [settings.timeControlBaseMinutes, settings.timeControlIncrementSeconds],
+  );
+
+  const clock = useChessClock(timeControl, {
+    enabled: matchActive && !game.isGameOver() && !resignedFlag && !resultModal.open,
+    running: matchActive && history.length > 0,
+  });
+
+  useEffect(() => {
+    return () => {
+      if (botPunchTimerRef.current !== null) {
+        window.clearTimeout(botPunchTimerRef.current);
+      }
+    };
+  }, []);
 
   // Navigation modes
   const [mode, setMode] = useState<AppMode>("home");
@@ -274,6 +308,7 @@ export function ChessApp() {
     refresh();
     const unsub = subscribeBots(refresh);
     refreshFromCloud();
+    void fetchChampionshipData();
     return unsub;
   }, []);
 
@@ -359,6 +394,23 @@ export function ChessApp() {
         setLastMove({ from: pick.from as Square, to: pick.to as Square });
         force();
         setPendingBotMove(null);
+
+        if (!game.isGameOver()) {
+          if (botPunchTimerRef.current !== null) {
+            window.clearTimeout(botPunchTimerRef.current);
+            botPunchTimerRef.current = null;
+          }
+          if (settingsRef.current.manualClockPunch) {
+            botPunchTimerRef.current = window.setTimeout(() => {
+              botPunchTimerRef.current = null;
+              playClockClickSound();
+              clock.commitMoveOnClock(m.color);
+            }, 200);
+          } else {
+            clock.commitMoveOnClock(m.color);
+            if (settingsRef.current.immersive3D) playClockClickSound();
+          }
+        }
       };
 
       // If coachMode or thoughtExplainer is on, pause and let the player click Next
@@ -375,13 +427,17 @@ export function ChessApp() {
     } finally {
       setPending(false);
     }
-  }, [game, force, activeBot]);
+  }, [game, force, activeBot, clock]);
 
   useEffect(() => {
     requestBotMoveRef.current = requestBotMove;
   }, [requestBotMove]);
 
   const beginMatch = useCallback(() => {
+    if (botPunchTimerRef.current !== null) {
+      window.clearTimeout(botPunchTimerRef.current);
+      botPunchTimerRef.current = null;
+    }
     gameRef.current = new Chess();
     setHistory([]);
     setUciHistory([]);
@@ -389,9 +445,11 @@ export function ChessApp() {
     setPromotion(null);
     recordedRef.current = false;
     setResignedFlag(false);
+    setAwaitingClockPunch(false);
     setLiveThought(null);
     setCoachSpeech(null);
     setPendingBotMove(null);
+    clock.resetClock(timeControl);
 
     let color: Color = "w";
     if (colorChoice === "white") color = "w";
@@ -409,7 +467,7 @@ export function ChessApp() {
     } else {
       setPending(false);
     }
-  }, [colorChoice, force, activeBot]);
+  }, [colorChoice, force, clock, timeControl]);
 
   const triggerPlay = useCallback(() => {
     if (!activeBot) return;
@@ -432,6 +490,41 @@ export function ChessApp() {
     beginMatch();
   }, [vsOverlay, beginMatch]);
 
+  const handlePunchClock = useCallback(() => {
+    if (!awaitingClockPunch || game.isGameOver() || resignedFlag || clock.timedOutSide) return;
+    playClockClickSound();
+    setAwaitingClockPunch(false);
+    clock.commitMoveOnClock(playerColor);
+    setPending(true);
+    setTimeout(() => requestBotMoveRef.current(), 180);
+  }, [awaitingClockPunch, game, resignedFlag, clock, playerColor]);
+
+  // Auto-submit clock punch if user disables Manual Clock Punch mid-turn
+  useEffect(() => {
+    if (!settings.manualClockPunch && awaitingClockPunch) {
+      handlePunchClock();
+    }
+  }, [settings.manualClockPunch, awaitingClockPunch, handlePunchClock]);
+
+  // Spacebar shortcut for hitting the physical clock in manual punch mode
+  useEffect(() => {
+    if (mode !== "match" || !awaitingClockPunch || promotion || bathroomOpen || resultModal.open) {
+      return;
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code !== "Space") return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target?.isContentEditable) {
+        return;
+      }
+      e.preventDefault();
+      handlePunchClock();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [mode, awaitingClockPunch, promotion, bathroomOpen, resultModal.open, handlePunchClock]);
+
   const finishMove = useCallback(
     (from: Square, to: Square, promo?: PieceSymbol) => {
       const move = game.move({ from, to, promotion: promo as "q" | "r" | "b" | "n" | undefined });
@@ -442,17 +535,35 @@ export function ChessApp() {
       setUciHistory((h) => [...h, uci]);
       setLastMove({ from, to });
       force();
-      setPending(true);
-      setTimeout(() => requestBotMoveRef.current(), 250);
+
+      if (!game.isGameOver()) {
+        if (settingsRef.current.manualClockPunch) {
+          setAwaitingClockPunch(true);
+        } else {
+          clock.commitMoveOnClock(move.color);
+          if (settingsRef.current.immersive3D) playClockClickSound();
+          setPending(true);
+          setTimeout(() => requestBotMoveRef.current(), 250);
+        }
+      }
       return true;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [game, uciHistory],
+    [game, uciHistory, clock],
   );
 
   const handleAttemptMove = useCallback(
     (from: Square, to: Square) => {
-      if (pending || pendingBotMove) return false;
+      if (
+        pending ||
+        pendingBotMove ||
+        awaitingClockPunch ||
+        resignedFlag ||
+        clock.timedOutSide ||
+        game.isGameOver()
+      ) {
+        return false;
+      }
       if (game.turn() !== playerColor) return false;
       const piece = game.get(from);
       if (!piece || piece.color !== playerColor) return false;
@@ -471,30 +582,52 @@ export function ChessApp() {
       }
       return finishMove(from, to);
     },
-    [game, pending, pendingBotMove, finishMove, playerColor],
+    [
+      game,
+      pending,
+      pendingBotMove,
+      awaitingClockPunch,
+      resignedFlag,
+      clock.timedOutSide,
+      finishMove,
+      playerColor,
+    ],
   );
 
   const gameStatusText = useMemo(() => {
+    if (clock.timedOutSide) {
+      return `Time Out — ${clock.timedOutSide === "w" ? "Black" : "White"} wins`;
+    }
+    if (awaitingClockPunch) return "Move played — hit the clock to start bot's turn";
     if (game.isCheckmate()) return `Checkmate — ${game.turn() === "w" ? "Black" : "White"} wins`;
     if (game.isStalemate()) return "Stalemate";
     if (game.isDraw()) return "Draw";
     if (game.inCheck()) return `${game.turn() === "w" ? "White" : "Black"} is in check`;
     return `${game.turn() === "w" ? "White" : "Black"} to move`;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [history.length, game]);
+  }, [history.length, game, awaitingClockPunch, clock.timedOutSide]);
 
   const resignMatch = useCallback(() => {
-    if (recordedRef.current || game.isGameOver()) return;
+    if (recordedRef.current || game.isGameOver() || clock.timedOutSide) return;
     if (history.length === 0) return;
     setPending(false);
+    setAwaitingClockPunch(false);
     setResignedFlag(true);
-  }, [game, history.length]);
+  }, [game, history.length, clock.timedOutSide]);
 
   useEffect(() => {
     if (!user || !profile || recordedRef.current) return;
-    const over = game.isGameOver() || resignedFlag;
+    const timedOut = clock.timedOutSide;
+    const over = game.isGameOver() || resignedFlag || !!timedOut;
     if (!over) return;
     recordedRef.current = true;
+    setPending(false);
+    setAwaitingClockPunch(false);
+    setPromotion(null);
+    if (botPunchTimerRef.current !== null) {
+      window.clearTimeout(botPunchTimerRef.current);
+      botPunchTimerRef.current = null;
+    }
 
     let userField: "wins" | "losses" | "draws" = "draws";
     let botField: "wins" | "losses" | "draws" = "draws";
@@ -505,10 +638,23 @@ export function ChessApp() {
     else if (game.isThreefoldRepetition()) reason = "Repetition";
     else if (game.isInsufficientMaterial()) reason = "Insufficient Material";
     else if (game.isDraw()) reason = "50-Move Rule";
-    if (resignedFlag) reason = "Resignation";
+    if (timedOut) reason = "Time Out";
+    else if (resignedFlag) reason = "Resignation";
     else if (game.isCheckmate()) reason = "Checkmate";
 
-    if (resignedFlag) {
+    if (timedOut) {
+      if (timedOut === playerColor) {
+        userField = "losses";
+        botField = "wins";
+        title = "Defeat";
+        detail = `You ran out of time — ${activeBotName ?? "the bot"} wins.`;
+      } else {
+        userField = "wins";
+        botField = "losses";
+        title = "Victory";
+        detail = `${activeBotName ?? "Bot"} ran out of time!`;
+      }
+    } else if (resignedFlag) {
       userField = "losses";
       botField = "wins";
       title = "Defeat";
@@ -577,9 +723,11 @@ export function ChessApp() {
     profile,
     refreshProfile,
     activeBot,
+    activeBotName,
     playerColor,
     botStats,
     resignedFlag,
+    clock.timedOutSide,
   ]);
 
   const moveRows = useMemo(() => {
@@ -623,6 +771,15 @@ export function ChessApp() {
       onClick: () => {
         setSidebar("modes");
         setMode("modes");
+      },
+    },
+    {
+      key: "championship",
+      label: "Championship",
+      icon: Trophy,
+      onClick: () => {
+        setSidebar("championship");
+        setMode("championship");
       },
     },
     {
@@ -670,11 +827,13 @@ export function ChessApp() {
                   ? mode === "hub" || mode === "match"
                   : item.key === "modes"
                     ? mode === "modes"
-                    : item.key === "profile"
-                      ? mode === "profile"
-                      : item.key === "settings"
-                        ? mode === "settings"
-                        : false;
+                    : item.key === "championship"
+                      ? mode === "championship"
+                      : item.key === "profile"
+                        ? mode === "profile"
+                        : item.key === "settings"
+                          ? mode === "settings"
+                          : false;
             const content = (
               <button
                 key={idx}
@@ -774,6 +933,13 @@ export function ChessApp() {
               pending={pending}
               matchActive={matchActive}
               resignedFlag={resignedFlag}
+              timedOutSide={clock.timedOutSide}
+              playerColor={playerColor}
+              whiteTimeMs={clock.whiteMs}
+              blackTimeMs={clock.blackMs}
+              activeClockSide={clock.activeSide}
+              awaitingClockPunch={awaitingClockPunch}
+              onPunchClock={handlePunchClock}
               gameStatusText={gameStatusText}
               bathroomOpen={bathroomOpen}
               lastMove={lastMove}
@@ -791,6 +957,7 @@ export function ChessApp() {
           {mode === "profile" && profile && <ProfilePage />}
           {mode === "settings" && <SettingsPage initialTab={settingsInitialTab} />}
           {mode === "modes" && <GameModesHub />}
+          {mode === "championship" && <ChampionshipHub />}
         </main>
       </div>
 
@@ -938,11 +1105,29 @@ function HubView({
 }) {
   const idleGame = useMemo(() => new Chess(), []);
   const [immersive] = useImmersive();
+  const [settings] = useSettings();
+  const [isTheater, setIsTheater] = useState(false);
   const ident = activeBot ? botDisplayIdentity(activeBot, immersive) : null;
   return (
-    <div className="max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px] gap-6">
+    <div
+      className={cn(
+        "mx-auto grid gap-6",
+        isTheater
+          ? "max-w-[1600px] grid-cols-1"
+          : "max-w-[1400px] grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px]",
+      )}
+    >
       {/* Left: board preview */}
-      <div className="min-w-0 mx-auto w-full max-w-[calc(min(78vh,760px)*var(--board-scale,1))]">
+      <div
+        className={cn(
+          "min-w-0 mx-auto w-full",
+          isTheater
+            ? "max-w-none"
+            : settings.immersive3D
+              ? "max-w-[calc(min(90vh,1120px)*var(--board-scale,1))]"
+              : "max-w-[calc(min(78vh,760px)*var(--board-scale,1))]",
+        )}
+      >
         <div className="flex items-center gap-2 mb-2 h-10">
           <div className="w-9 h-9 rounded-sm bg-secondary overflow-hidden grid place-items-center">
             {activeBot?.avatar ? (
@@ -959,8 +1144,10 @@ function HubView({
             )}
             {activeBot?.country && !immersive && <span>{activeBot.country}</span>}
           </span>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-1.5">
             <BoardScaleControl />
+            <BoardViewToggle />
+            <TheaterToggleButton active={isTheater} onToggle={() => setIsTheater((t) => !t)} />
           </div>
         </div>
         <Board
@@ -969,6 +1156,8 @@ function HubView({
           disabled
           lastMove={null}
           onAttemptMove={() => false}
+          isTheater={isTheater}
+          onToggleTheater={() => setIsTheater((t) => !t)}
         />
         <div className="flex items-center gap-2 mt-2 h-10">
           <div className="w-9 h-9 rounded-sm bg-secondary overflow-hidden grid place-items-center">
@@ -1012,6 +1201,13 @@ function MatchView({
   pending,
   matchActive,
   resignedFlag,
+  timedOutSide,
+  playerColor,
+  whiteTimeMs,
+  blackTimeMs,
+  activeClockSide,
+  awaitingClockPunch,
+  onPunchClock,
   gameStatusText,
   bathroomOpen,
   lastMove,
@@ -1032,6 +1228,13 @@ function MatchView({
   pending: boolean;
   matchActive: boolean;
   resignedFlag: boolean;
+  timedOutSide: Color | null;
+  playerColor: Color;
+  whiteTimeMs: number | null;
+  blackTimeMs: number | null;
+  activeClockSide: Color;
+  awaitingClockPunch: boolean;
+  onPunchClock: () => void;
   gameStatusText: string;
   bathroomOpen: boolean;
   lastMove: { from: Square; to: Square } | null;
@@ -1045,6 +1248,8 @@ function MatchView({
   pendingBotMove: (() => void) | null;
   onExecutePendingBotMove: () => void;
 }) {
+  const [settings, updateSetting] = useSettings();
+  const [isTheater, setIsTheater] = useState(false);
   const movesContainerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (movesContainerRef.current) {
@@ -1053,14 +1258,25 @@ function MatchView({
   }, [moveRows.length]);
 
   const botInfo = activeBot ? botDisplay(activeBot) : null;
+  const botColor: Color = playerColor === "w" ? "b" : "w";
+  const playerMs = playerColor === "w" ? whiteTimeMs : blackTimeMs;
+  const botMs = botColor === "w" ? whiteTimeMs : blackTimeMs;
+  const isOver = game.isGameOver() || resignedFlag || !!timedOutSide;
 
   return (
-    <div className="max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] gap-4 lg:gap-6 items-start">
+    <div
+      className={cn(
+        "mx-auto grid gap-4 lg:gap-6 items-start",
+        isTheater
+          ? "max-w-[1600px] grid-cols-1"
+          : "max-w-[1400px] grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px]",
+      )}
+    >
       {/* Left Column: Board + Opponent & Player bars */}
       <section className="space-y-1.5 min-w-0">
         {/* Top: Opponent Bar */}
         {activeBot && (
-          <div className="bg-card/90 py-1 px-2.5 flex items-center justify-between rounded-lg border border-border/60">
+          <div className="bg-card/90 py-1 px-2.5 flex items-center justify-between gap-2 rounded-lg border border-border/60">
             <div className="flex items-center gap-2 min-w-0">
               <div className="w-7 h-7 rounded bg-secondary grid place-items-center overflow-hidden shrink-0 ring-1 ring-border">
                 {activeBot.avatar ? (
@@ -1082,43 +1298,108 @@ function MatchView({
                 {activeBot.country && <span className="text-xs shrink-0">{activeBot.country}</span>}
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0">
               {pending && (
                 <span className="text-[10px] text-primary animate-pulse font-medium">
                   Thinking…
                 </span>
               )}
               <BoardScaleControl />
+              <BoardViewToggle />
+              <TheaterToggleButton active={isTheater} onToggle={() => setIsTheater((t) => !t)} />
+              <MatchClockBadge
+                ms={botMs}
+                active={matchActive && !isOver && activeClockSide === botColor}
+              />
             </div>
           </div>
         )}
 
         {/* Board Card */}
         <Card className="p-2 sm:p-3 bg-card min-w-0">
-          <div className="flex items-center justify-between mb-1.5 px-0.5">
+          <div className="flex items-center justify-between mb-1.5 px-0.5 gap-2 flex-wrap">
             <div className="text-xs font-medium truncate text-muted-foreground">
               {gameStatusText}
             </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Button
+                type="button"
+                variant={settings.manualClockPunch ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => updateSetting("manualClockPunch", !settings.manualClockPunch)}
+                className={cn(
+                  "h-7 px-2 gap-1 text-[11px] font-medium",
+                  settings.manualClockPunch && "border border-amber-500/50 text-amber-300",
+                )}
+                title="Toggle Press the Clock Myself mode"
+              >
+                <Timer className="w-3 h-3" />
+                <span>Manual Clock</span>
+              </Button>
+              {awaitingClockPunch && (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={onPunchClock}
+                  className="h-7 px-3 gap-1.5 text-xs font-extrabold bg-amber-500 hover:bg-amber-400 text-zinc-950 shadow-sm"
+                >
+                  <Hand className="w-3.5 h-3.5" />
+                  <span>Hit Clock (Space)</span>
+                </Button>
+              )}
+            </div>
           </div>
-          <div className="mx-auto w-full max-w-[calc(min(74vh,640px)*var(--board-scale,1))]">
+          <div
+            className={cn(
+              "mx-auto w-full",
+              isTheater
+                ? "max-w-none"
+                : settings.immersive3D
+                  ? "max-w-[calc(min(90vh,1120px)*var(--board-scale,1))]"
+                  : "max-w-[calc(min(74vh,640px)*var(--board-scale,1))]",
+            )}
+          >
             <Board
               game={game}
               flipped={flipped}
-              disabled={
-                pending || !!pendingBotMove || game.isGameOver() || bathroomOpen || resignedFlag
-              }
+              disabled={pending || !!pendingBotMove || awaitingClockPunch || isOver || bathroomOpen}
               lastMove={lastMove}
               onAttemptMove={handleAttemptMove}
+              activeSide={activeClockSide}
+              whiteTimeMs={whiteTimeMs}
+              blackTimeMs={blackTimeMs}
+              activeClockSide={activeClockSide}
+              playerSide={playerColor}
+              needsClockPunch={awaitingClockPunch}
+              onClockPunch={onPunchClock}
+              isTheater={isTheater}
+              onToggleTheater={() => setIsTheater((t) => !t)}
             />
           </div>
         </Card>
 
         {/* Bottom: Player */}
-        {profile && <MiniProfileCard profile={profile} />}
+        {profile && (
+          <MiniProfileCard
+            profile={profile}
+            clockSlot={
+              <MatchClockBadge
+                ms={playerMs}
+                active={matchActive && !isOver && activeClockSide === playerColor}
+                needsPunch={awaitingClockPunch}
+              />
+            }
+          />
+        )}
       </section>
 
       {/* Right Column: Play Bots Sidebar */}
-      <aside className="flex flex-col h-[calc(min(76vh,640px)+80px)] lg:h-[calc(min(80vh,700px))] self-stretch bg-card border border-border/70 rounded-xl p-3 sm:p-4 gap-3 shadow-sm overflow-hidden">
+      <aside
+        className={cn(
+          "flex flex-col self-stretch bg-card border border-border/70 rounded-xl p-3 sm:p-4 gap-3 shadow-sm overflow-hidden",
+          isTheater ? "h-[440px]" : "h-[calc(min(76vh,640px)+80px)] lg:h-[calc(min(80vh,700px))]",
+        )}
+      >
         {/* Top Header: Play Bots */}
         <div className="flex items-center justify-between pb-2 border-b border-border/50">
           <div className="flex items-center gap-2 font-bold text-sm tracking-tight text-foreground">

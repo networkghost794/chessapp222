@@ -1,0 +1,1085 @@
+# 🏆 BOTBOARD — OFFICIAL WORLD CHAMPIONSHIP SYSTEM SPEC & CODE PACKAGE
+
+You are an expert full-stack TypeScript & React engineer. Implement the **Official World Championship System** for BotBoard.
+
+This is a prestigious, multi-stage championship cycle modeled after the real-world FIDE World Championship cycle:
+1. **Stage 1 — Qualification:** Configurable format (Swiss, Round-Robin, Double Round-Robin, Knockout) where bots fight for spots in the Candidates.
+2. **Stage 2 — The Candidates Tournament:** 8-player double round-robin. The winner earns the right to challenge the reigning World Champion.
+3. **Stage 3 — World Championship Match:** 14-game classical match between the Reigning Champion and Candidates Challenger with scorekeeping (1 pt win, 0.5 draw) and tiebreaks.
+4. **Reigning World Champion & Hall of Champions:** Permanent hall of fame, historical records, and a prestigious glowing gold `WORLD CHAMPION` crown badge on bot profiles.
+5. **Owner Control in Studio:** Only the application owner (`/studio`) can launch, configure, schedule, and advance cycles. Ordinary users enjoy a live spectator experience.
+
+---
+
+### STEP 1: Create `src/lib/championshipStore.ts`
+
+Create this file to handle all championship data structures, scoring logic, pairing generation, and persistent cloud storage (via `app_settings` in Supabase).
+
+```typescript
+import { supabase } from "@/integrations/supabase/client";
+import { type BotConfig, loadBots } from "@/lib/botStore";
+
+export type StageType = "qualification" | "candidates" | "match" | "completed";
+export type QualFormat = "round_robin" | "double_round_robin" | "swiss" | "knockout";
+
+export type MatchStatus = "upcoming" | "live" | "completed" | "postponed" | "cancelled";
+
+export interface ScheduledGame {
+  id: string;
+  gameNumber: number;
+  stage: StageType;
+  whiteBotId: string;
+  blackBotId: string;
+  result?: "1-0" | "0-1" | "1/2-1/2" | "*";
+  status: MatchStatus;
+  scheduledTime?: string;
+  pgn?: string;
+  moveHistory?: string[];
+  eco?: string;
+  openingName?: string;
+}
+
+export interface StandingRow {
+  botId: string;
+  botName: string;
+  avatarUrl?: string;
+  rating: number;
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  points: number;
+  qualified?: boolean;
+}
+
+export interface ChampionshipCycle {
+  id: string;
+  name: string; // e.g. "BotBoard World Championship 2026"
+  season: string; // e.g. "Spring 2026"
+  createdAt: string;
+  stage: StageType;
+  isPaused: boolean;
+
+  // Reigning Champion going into this cycle
+  reigningChampionId: string;
+
+  // Stage 1: Qualification
+  qualification: {
+    format: QualFormat;
+    botIds: string[];
+    qualifySlots: number; // default 8
+    games: ScheduledGame[];
+    standings: StandingRow[];
+    isCompleted: boolean;
+  };
+
+  // Stage 2: Candidates
+  candidates: {
+    botIds: string[]; // typically 8 bots
+    games: ScheduledGame[];
+    standings: StandingRow[];
+    winnerBotId?: string;
+    isCompleted: boolean;
+  };
+
+  // Stage 3: Championship Match
+  match: {
+    championId: string;
+    challengerId: string;
+    totalGames: number; // default 14
+    championScore: number;
+    challengerScore: number;
+    targetScore: number; // e.g. 7.5 to clinch
+    games: ScheduledGame[];
+    currentGameIndex: number;
+    tiebreaksRequired: boolean;
+    tiebreakGames?: ScheduledGame[];
+    winnerId?: string;
+    isCompleted: boolean;
+  };
+}
+
+export interface HallOfFameRecord {
+  cycleId: string;
+  cycleName: string;
+  year: string;
+  championId: string;
+  championName: string;
+  championAvatar?: string;
+  challengerId: string;
+  challengerName: string;
+  challengerAvatar?: string;
+  finalScore: string; // e.g. "7.5 - 5.5"
+  gamesPlayed: number;
+  dateConcluded: string;
+  defensesCount: number;
+}
+
+export interface ReigningChampion {
+  botId: string;
+  botName: string;
+  rating: number;
+  avatarUrl?: string;
+  reignSince: string;
+  defensesCount: number;
+  titlesWon: number;
+}
+
+const STORAGE_KEY_CYCLE = "championship_active_cycle";
+const STORAGE_KEY_HALL = "championship_hall_of_fame";
+const STORAGE_KEY_CHAMP = "championship_reigning";
+
+// Default / Initial State
+const DEFAULT_REIGNING_CHAMPION: ReigningChampion = {
+  botId: "the-grandmaster",
+  botName: "The Grandmaster",
+  rating: 3200,
+  avatarUrl: "/avatars/grandmaster.png",
+  reignSince: "2026-01-01",
+  defensesCount: 2,
+  titlesWon: 3,
+};
+
+let activeCycleCache: ChampionshipCycle | null = null;
+let hallCache: HallOfFameRecord[] = [];
+let reigningCache: ReigningChampion = DEFAULT_REIGNING_CHAMPION;
+
+// Listeners
+const listeners = new Set<() => void>();
+function notify() {
+  listeners.forEach((fn) => fn());
+}
+
+export function subscribeChampionship(fn: () => void) {
+  listeners.add(fn);
+  return () => {
+    listeners.delete(fn);
+  };
+}
+
+export async function fetchChampionshipData() {
+  try {
+    const { data } = await supabase
+      .from("app_settings")
+      .select("key, value")
+      .in("key", [STORAGE_KEY_CYCLE, STORAGE_KEY_HALL, STORAGE_KEY_CHAMP]);
+
+    if (data) {
+      data.forEach((row) => {
+        if (row.key === STORAGE_KEY_CYCLE && row.value) {
+          activeCycleCache = row.value as unknown as ChampionshipCycle;
+        } else if (row.key === STORAGE_KEY_HALL && row.value) {
+          hallCache = row.value as unknown as HallOfFameRecord[];
+        } else if (row.key === STORAGE_KEY_CHAMP && row.value) {
+          reigningCache = row.value as unknown as ReigningChampion;
+        }
+      });
+    }
+  } catch (err) {
+    console.error("Failed to load championship data from cloud:", err);
+  }
+  notify();
+  return { activeCycle: activeCycleCache, hall: hallCache, reigning: reigningCache };
+}
+
+export async function saveActiveCycle(cycle: ChampionshipCycle | null) {
+  activeCycleCache = cycle;
+  notify();
+  try {
+    await supabase.from("app_settings").upsert({
+      key: STORAGE_KEY_CYCLE,
+      value: cycle as any,
+      updated_at: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error("Failed to persist cycle:", e);
+  }
+}
+
+export async function saveReigningChampion(champ: ReigningChampion) {
+  reigningCache = champ;
+  notify();
+  try {
+    await supabase.from("app_settings").upsert({
+      key: STORAGE_KEY_CHAMP,
+      value: champ as any,
+      updated_at: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error("Failed to save reigning champion:", e);
+  }
+}
+
+export async function saveHallOfFame(hall: HallOfFameRecord[]) {
+  hallCache = hall;
+  notify();
+  try {
+    await supabase.from("app_settings").upsert({
+      key: STORAGE_KEY_HALL,
+      value: hall as any,
+      updated_at: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error("Failed to save hall of fame:", e);
+  }
+}
+
+export function getActiveCycle(): ChampionshipCycle | null {
+  return activeCycleCache;
+}
+
+export function getHallOfFame(): HallOfFameRecord[] {
+  return hallCache;
+}
+
+export function getReigningChampion(): ReigningChampion {
+  return reigningCache;
+}
+
+/** Generate a double round-robin pairings list */
+export function generateDoubleRoundRobin(botIds: string[], stage: StageType): ScheduledGame[] {
+  const games: ScheduledGame[] = [];
+  let idCount = 1;
+
+  for (let i = 0; i < botIds.length; i++) {
+    for (let j = 0; j < botIds.length; j++) {
+      if (i === j) continue;
+      games.push({
+        id: `game-${stage}-${idCount}`,
+        gameNumber: idCount++,
+        stage,
+        whiteBotId: botIds[i],
+        blackBotId: botIds[j],
+        status: "upcoming",
+      });
+    }
+  }
+  return games;
+}
+
+/** Generate 14-game Championship match pairings */
+export function generateChampionshipMatchGames(
+  champId: string,
+  challengerId: string,
+  totalGames: number = 14
+): ScheduledGame[] {
+  const games: ScheduledGame[] = [];
+  for (let i = 1; i <= totalGames; i++) {
+    // Alternates colors every game
+    const champIsWhite = i % 2 !== 0;
+    games.push({
+      id: `match-game-${i}`,
+      gameNumber: i,
+      stage: "match",
+      whiteBotId: champIsWhite ? champId : challengerId,
+      blackBotId: champIsWhite ? challengerId : champId,
+      status: "upcoming",
+    });
+  }
+  return games;
+}
+
+/** Recalculate standings from games */
+export function calculateStandings(botIds: string[], games: ScheduledGame[]): StandingRow[] {
+  const bots = loadBots();
+  const map: Record<string, StandingRow> = {};
+
+  botIds.forEach((id) => {
+    const b = bots.find((x) => x.id === id);
+    map[id] = {
+      botId: id,
+      botName: b?.name || id,
+      avatarUrl: b?.avatar,
+      rating: b?.rating || 1500,
+      played: 0,
+      wins: 0,
+      draws: 0,
+      losses: 0,
+      points: 0,
+    };
+  });
+
+  games.forEach((g) => {
+    if (g.status !== "completed" || !g.result) return;
+    const white = map[g.whiteBotId];
+    const black = map[g.blackBotId];
+    if (!white || !black) return;
+
+    white.played += 1;
+    black.played += 1;
+
+    if (g.result === "1-0") {
+      white.wins += 1;
+      white.points += 1;
+      black.losses += 1;
+    } else if (g.result === "0-1") {
+      black.wins += 1;
+      black.points += 1;
+      white.losses += 1;
+    } else if (g.result === "1/2-1/2") {
+      white.draws += 1;
+      white.points += 0.5;
+      black.draws += 1;
+      black.points += 0.5;
+    }
+  });
+
+  return Object.values(map).sort((a, b) => b.points - a.points || b.wins - a.wins || b.rating - a.rating);
+}
+
+
+
+
+STEP 2: Create Owner Championship Admin Tab (src/components/chess/ChampionshipManager.tsx)
+
+
+
+This component lives inside Studio (/studio) and grants the Owner full executive power over the tournament cycle:
+
+
+
+
+
+Create new championship cycles.
+
+
+Select participating bots for Qualification & Candidates.
+
+
+Start, pause, resume, or advance stages (Qualification ➔ Candidates ➔ Championship Match).
+
+
+Launch individual games or run automated rounds using the bot engine.
+
+
+Officially declare and crown the World Champion.
+
+
+
+
+import React, { useState, useEffect } from "react";
+import {
+  type ChampionshipCycle,
+  type StageType,
+  type QualFormat,
+  getActiveCycle,
+  saveActiveCycle,
+  subscribeChampionship,
+  generateDoubleRoundRobin,
+  generateChampionshipMatchGames,
+  calculateStandings,
+  getReigningChampion,
+  saveReigningChampion,
+  saveHallOfFame,
+  getHallOfFame,
+} from "@/lib/championshipStore";
+import { loadBots, type BotConfig } from "@/lib/botStore";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Crown, Play, Pause, Trophy, ArrowRight, CheckCircle2, RotateCcw } from "lucide-react";
+import { toast } from "sonner";
+
+export function ChampionshipManager() {
+  const [cycle, setCycle] = useState<ChampionshipCycle | null>(getActiveCycle());
+  const [bots, setBots] = useState<BotConfig[]>([]);
+  const reigning = getReigningChampion();
+
+  // Cycle creation state
+  const [cycleName, setCycleName] = useState("BotBoard World Championship 2026");
+  const [season, setSeason] = useState("Season 1");
+  const [selectedBotIds, setSelectedBotIds] = useState<string[]>([]);
+  const [qualFormat, setQualFormat] = useState<QualFormat>("round_robin");
+
+  useEffect(() => {
+    setBots(loadBots());
+    return subscribeChampionship(() => setCycle(getActiveCycle()));
+  }, []);
+
+  const toggleBotSelection = (id: string) => {
+    setSelectedBotIds((prev) =>
+      prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id]
+    );
+  };
+
+  const handleCreateCycle = async () => {
+    if (selectedBotIds.length < 4) {
+      toast.error("Please select at least 4 bots to participate.");
+      return;
+    }
+
+    const initialGames = generateDoubleRoundRobin(selectedBotIds, "qualification");
+    const initialStandings = calculateStandings(selectedBotIds, initialGames);
+
+    const newCycle: ChampionshipCycle = {
+      id: `cycle-${Date.now()}`,
+      name: cycleName,
+      season,
+      createdAt: new Date().toISOString(),
+      stage: "qualification",
+      isPaused: false,
+      reigningChampionId: reigning.botId,
+      qualification: {
+        format: qualFormat,
+        botIds: selectedBotIds,
+        qualifySlots: 8,
+        games: initialGames,
+        standings: initialStandings,
+        isCompleted: false,
+      },
+      candidates: {
+        botIds: [],
+        games: [],
+        standings: [],
+        isCompleted: false,
+      },
+      match: {
+        championId: reigning.botId,
+        challengerId: "",
+        totalGames: 14,
+        championScore: 0,
+        challengerScore: 0,
+        targetScore: 7.5,
+        games: [],
+        currentGameIndex: 0,
+        tiebreaksRequired: false,
+        isCompleted: false,
+      },
+    };
+
+    await saveActiveCycle(newCycle);
+    toast.success("Championship cycle initialized!");
+  };
+
+  const advanceToCandidates = async () => {
+    if (!cycle) return;
+    // Top 8 from qualification
+    const topBots = cycle.qualification.standings.slice(0, 8).map((s) => s.botId);
+    if (topBots.length < 2) {
+      toast.error("Not enough qualified bots to begin Candidates.");
+      return;
+    }
+
+    const candidateGames = generateDoubleRoundRobin(topBots, "candidates");
+    const candidateStandings = calculateStandings(topBots, candidateGames);
+
+    const updated: ChampionshipCycle = {
+      ...cycle,
+      stage: "candidates",
+      candidates: {
+        botIds: topBots,
+        games: candidateGames,
+        standings: candidateStandings,
+        isCompleted: false,
+      },
+    };
+
+    await saveActiveCycle(updated);
+    toast.success("Advanced to Stage 2: The Candidates Tournament!");
+  };
+
+  const advanceToMatch = async () => {
+    if (!cycle || !cycle.candidates.standings[0]) return;
+    const challengerId = cycle.candidates.standings[0].botId;
+    const matchGames = generateChampionshipMatchGames(cycle.reigningChampionId, challengerId, 14);
+
+    const updated: ChampionshipCycle = {
+      ...cycle,
+      stage: "match",
+      match: {
+        ...cycle.match,
+        challengerId,
+        games: matchGames,
+        championScore: 0,
+        challengerScore: 0,
+      },
+    };
+
+    await saveActiveCycle(updated);
+    toast.success("Advanced to Stage 3: The World Championship Match!");
+  };
+
+  const declareWinner = async (winnerId: string) => {
+    if (!cycle) return;
+    const winnerBot = bots.find((b) => b.id === winnerId);
+    if (!winnerBot) return;
+
+    const isDefense = winnerId === cycle.reigningChampionId;
+    const challenger = bots.find(
+      (b) => b.id === (isDefense ? cycle.match.challengerId : cycle.reigningChampionId)
+    );
+
+    // Update Reigning Champion
+    await saveReigningChampion({
+      botId: winnerBot.id,
+      botName: winnerBot.name,
+      rating: winnerBot.rating,
+      avatarUrl: winnerBot.avatar,
+      reignSince: isDefense ? reigning.reignSince : new Date().toISOString().split("T")[0],
+      defensesCount: isDefense ? reigning.defensesCount + 1 : 0,
+      titlesWon: isDefense ? reigning.titlesWon : (reigning.titlesWon || 1) + 1,
+    });
+
+    // Add to Hall of Fame
+    const hallRecord = {
+      cycleId: cycle.id,
+      cycleName: cycle.name,
+      year: new Date().getFullYear().toString(),
+      championId: winnerBot.id,
+      championName: winnerBot.name,
+      championAvatar: winnerBot.avatar,
+      challengerId: challenger?.id || "unknown",
+      challengerName: challenger?.name || "Challenger",
+      challengerAvatar: challenger?.avatar,
+      finalScore: `${cycle.match.championScore} - ${cycle.match.challengerScore}`,
+      gamesPlayed: cycle.match.games.filter((g) => g.status === "completed").length,
+      dateConcluded: new Date().toISOString().split("T")[0],
+      defensesCount: isDefense ? reigning.defensesCount + 1 : 0,
+    };
+
+    const currentHall = getHallOfFame();
+    await saveHallOfFame([hallRecord, ...currentHall]);
+
+    await saveActiveCycle({
+      ...cycle,
+      stage: "completed",
+      match: { ...cycle.match, isCompleted: true, winnerId },
+    });
+
+    toast.success(`🎉 ${winnerBot.name} is crowned the Official World Champion!`);
+  };
+
+  return (
+    <div className="space-y-6 max-w-5xl mx-auto py-4 text-foreground">
+      {/* Current Reigning Banner */}
+      <div className="p-6 rounded-2xl bg-gradient-to-r from-warning/20 via-background to-warning/5 border border-warning/30 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-warning/20 border border-warning/40 grid place-items-center text-warning shadow-lg shadow-warning/10">
+            <Crown className="w-8 h-8" />
+          </div>
+          <div>
+            <div className="text-xs uppercase font-mono tracking-widest text-warning font-semibold">
+              Reigning World Champion
+            </div>
+            <h2 className="text-2xl font-black">{reigning.botName}</h2>
+            <p className="text-xs text-muted-foreground">
+              Rating: {reigning.rating} • {reigning.defensesCount} Successful Defenses • Titleholder
+              since {reigning.reignSince}
+            </p>
+          </div>
+        </div>
+        <Badge className="bg-warning/20 text-warning border-warning/40 px-3 py-1 text-sm font-bold">
+          WORLD CHAMPION
+        </Badge>
+      </div>
+
+      {!cycle || cycle.stage === "completed" ? (
+        /* Create Cycle Form */
+        <Card className="p-6 bg-card border-border space-y-5">
+          <h3 className="text-lg font-bold flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-warning" /> Launch New World Championship Cycle
+          </h3>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-semibold">Championship Name</label>
+              <Input
+                value={cycleName}
+                onChange={(e) => setCycleName(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold">Season / Year</label>
+              <Input value={season} onChange={(e) => setSeason(e.target.value)} className="mt-1" />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold mb-2 block">
+              Select Participating Bots ({selectedBotIds.length} selected)
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-60 overflow-y-auto p-2 border border-border rounded-lg bg-background/50">
+              {bots
+                .filter((b) => b.id !== reigning.botId)
+                .map((b) => (
+                  <button
+                    key={b.id}
+                    onClick={() => toggleBotSelection(b.id)}
+                    className={`flex items-center gap-2 p-2 rounded-md border text-left text-xs transition-colors ${
+                      selectedBotIds.includes(b.id)
+                        ? "border-warning bg-warning/15 font-semibold text-warning"
+                        : "border-border hover:bg-muted/50"
+                    }`}
+                  >
+                    <img
+                      src={b.avatar}
+                      alt={b.name}
+                      className="w-6 h-6 rounded-full object-cover"
+                    />
+                    <span className="truncate">{b.name}</span>
+                  </button>
+                ))}
+            </div>
+          </div>
+
+          <Button
+            onClick={handleCreateCycle}
+            className="w-full bg-warning text-warning-foreground font-bold hover:bg-warning/90"
+          >
+            Launch Official Championship Cycle
+          </Button>
+        </Card>
+      ) : (
+        /* Active Cycle Control Hub */
+        <Card className="p-6 bg-card border-border space-y-6">
+          <div className="flex items-center justify-between border-b border-border pb-4">
+            <div>
+              <span className="text-xs font-mono text-warning font-semibold">
+                ACTIVE CHAMPIONSHIP CYCLE
+              </span>
+              <h3 className="text-xl font-bold">{cycle.name}</h3>
+              <p className="text-xs text-muted-foreground">
+                Current Stage:{" "}
+                <span className="text-foreground font-bold uppercase">{cycle.stage}</span>
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {cycle.stage === "qualification" && (
+                <Button
+                  size="sm"
+                  onClick={advanceToCandidates}
+                  className="bg-warning text-warning-foreground font-bold hover:bg-warning/90 gap-1.5"
+                >
+                  Advance to Candidates <ArrowRight className="w-4 h-4" />
+                </Button>
+              )}
+              {cycle.stage === "candidates" && (
+                <Button
+                  size="sm"
+                  onClick={advanceToMatch}
+                  className="bg-warning text-warning-foreground font-bold hover:bg-warning/90 gap-1.5"
+                >
+                  Start Title Match <ArrowRight className="w-4 h-4" />
+                </Button>
+              )}
+              {cycle.stage === "match" && (
+                <Button
+                  size="sm"
+                  onClick={() => declareWinner(cycle.match.challengerId || cycle.reigningChampionId)}
+                  className="bg-emerald-600 text-white font-bold hover:bg-emerald-500 gap-1.5"
+                >
+                  <Trophy className="w-4 h-4" /> Declare & Crown Winner
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Quick Stats Grid */}
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div className="p-3 rounded-lg bg-background border border-border">
+              <div className="text-xs text-muted-foreground">Qualification Stage</div>
+              <div className="text-sm font-bold">
+                {cycle.qualification.botIds.length} Bots Registered
+              </div>
+            </div>
+            <div className="p-3 rounded-lg bg-background border border-border">
+              <div className="text-xs text-muted-foreground">Candidates Stage</div>
+              <div className="text-sm font-bold">
+                {cycle.candidates.botIds.length || 8} Contenders
+              </div>
+            </div>
+            <div className="p-3 rounded-lg bg-background border border-border">
+              <div className="text-xs text-muted-foreground">Championship Match</div>
+              <div className="text-sm font-bold">
+                Score: {cycle.match.championScore} - {cycle.match.challengerScore} (First to 7.5)
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+
+
+
+
+STEP 3: Create Public Championship Hub (src/components/chess/ChampionshipHub.tsx)
+
+
+
+This is the public spectator page where any user can:
+
+
+
+
+
+See the Reigning World Champion banner.
+
+
+Follow live matches and watch the board update in real time.
+
+
+Check Candidates standings and Qualification leaderboards.
+
+
+Browse the permanent Hall of Champions.
+
+
+
+
+import React, { useState, useEffect } from "react";
+import {
+  type ChampionshipCycle,
+  type HallOfFameRecord,
+  getActiveCycle,
+  getHallOfFame,
+  getReigningChampion,
+  subscribeChampionship,
+  fetchChampionshipData,
+} from "@/lib/championshipStore";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Crown, Trophy, History, PlaySquare, Award } from "lucide-react";
+import { loadBots } from "@/lib/botStore";
+
+export function ChampionshipHub() {
+  const [cycle, setCycle] = useState<ChampionshipCycle | null>(getActiveCycle());
+  const [hall, setHall] = useState<HallOfFameRecord[]>(getHallOfFame());
+  const [reigning, setReigning] = useState(getReigningChampion());
+  const [activeTab, setActiveTab] = useState<"live" | "candidates" | "qual" | "hall">("live");
+
+  useEffect(() => {
+    fetchChampionshipData().then((data) => {
+      setCycle(data.activeCycle);
+      setHall(data.hall);
+      setReigning(data.reigning);
+    });
+    return subscribeChampionship(() => {
+      setCycle(getActiveCycle());
+      setHall(getHallOfFame());
+      setReigning(getReigningChampion());
+    });
+  }, []);
+
+  const bots = loadBots();
+
+  return (
+    <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-6">
+      {/* 👑 REIGNING CHAMPION HERO */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1a1d21] via-[#121417] to-[#1a1d21] border border-amber-500/30 p-6 sm:p-8 shadow-2xl">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-6 relative z-10">
+          <div className="flex items-center gap-5">
+            <div className="relative">
+              <img
+                src={reigning.avatarUrl || "/placeholder.svg"}
+                alt={reigning.botName}
+                className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover ring-2 ring-amber-500 shadow-xl"
+              />
+              <div className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-amber-500 grid place-items-center text-black shadow-md">
+                <Crown className="w-5 h-5 fill-black" />
+              </div>
+            </div>
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-[11px] font-bold tracking-wider uppercase border border-amber-500/30">
+                Official World Champion
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-black text-white mt-1">
+                {reigning.botName}
+              </h1>
+              <p className="text-xs text-zinc-400">
+                Rating: <span className="font-semibold text-white">{reigning.rating}</span> • Title
+                Defenses:{" "}
+                <span className="font-semibold text-amber-400">{reigning.defensesCount}</span> •
+                Reign: Since {reigning.reignSince}
+              </p>
+            </div>
+          </div>
+          <div className="text-right sm:border-l sm:border-zinc-800 sm:pl-6 space-y-1">
+            <div className="text-[11px] uppercase tracking-wider text-zinc-400 font-mono">
+              Championship Status
+            </div>
+            <div className="text-sm font-bold text-amber-400 capitalize">
+              {cycle ? `${cycle.stage} Stage Active` : "Next Cycle Upcoming"}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* TABS */}
+      <div className="flex gap-2 border-b border-zinc-800 pb-2">
+        <button
+          onClick={() => setActiveTab("live")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+            activeTab === "live"
+              ? "bg-amber-500 text-black shadow-lg shadow-amber-500/20"
+              : "text-zinc-400 hover:text-white hover:bg-zinc-800/50"
+          }`}
+        >
+          <PlaySquare className="w-4 h-4" /> Live Title Match
+        </button>
+        <button
+          onClick={() => setActiveTab("candidates")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+            activeTab === "candidates"
+              ? "bg-amber-500 text-black shadow-lg shadow-amber-500/20"
+              : "text-zinc-400 hover:text-white hover:bg-zinc-800/50"
+          }`}
+        >
+          <Trophy className="w-4 h-4" /> Candidates Tournament
+        </button>
+        <button
+          onClick={() => setActiveTab("hall")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+            activeTab === "hall"
+              ? "bg-amber-500 text-black shadow-lg shadow-amber-500/20"
+              : "text-zinc-400 hover:text-white hover:bg-zinc-800/50"
+          }`}
+        >
+          <History className="w-4 h-4" /> Hall of Champions
+        </button>
+      </div>
+
+      {/* TAB CONTENT: LIVE MATCH */}
+      {activeTab === "live" && (
+        <Card className="p-6 bg-[#16181c] border-zinc-800 space-y-6">
+          {!cycle || cycle.stage !== "match" ? (
+            <div className="text-center py-12 space-y-2 text-zinc-400">
+              <Trophy className="w-10 h-10 mx-auto text-zinc-600 mb-2" />
+              <div className="font-bold text-white">No Title Match Currently Active</div>
+              <p className="text-xs">
+                The Candidates tournament must conclude before the World Championship match begins.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Match Header Score */}
+              <div className="flex items-center justify-around p-6 rounded-xl bg-black/40 border border-zinc-800">
+                <div className="text-center space-y-2">
+                  <div className="text-xs uppercase font-mono text-amber-500 font-bold">
+                    Reigning Champion
+                  </div>
+                  <div className="text-xl font-black text-white">
+                    {bots.find((b) => b.id === cycle.match.championId)?.name || "Champion"}
+                  </div>
+                  <div className="text-4xl font-black text-amber-400">
+                    {cycle.match.championScore}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs text-zinc-500 uppercase font-mono">Game 1 of 14</div>
+                  <div className="text-2xl font-bold text-zinc-600 font-mono">VS</div>
+                  <div className="text-xs text-zinc-500">First to 7.5 wins</div>
+                </div>
+                <div className="text-center space-y-2">
+                  <div className="text-xs uppercase font-mono text-blue-400 font-bold">
+                    Candidates Challenger
+                  </div>
+                  <div className="text-xl font-black text-white">
+                    {bots.find((b) => b.id === cycle.match.challengerId)?.name || "Challenger"}
+                  </div>
+                  <div className="text-4xl font-black text-blue-400">
+                    {cycle.match.challengerScore}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* TAB CONTENT: CANDIDATES STANDINGS */}
+      {activeTab === "candidates" && (
+        <Card className="p-6 bg-[#16181c] border-zinc-800">
+          <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-amber-500" /> Official Candidates Leaderboard
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead className="bg-zinc-900/60 text-zinc-400 uppercase font-mono border-b border-zinc-800">
+                <tr>
+                  <th className="p-3">#</th>
+                  <th className="p-3">Bot</th>
+                  <th className="p-3">Rating</th>
+                  <th className="p-3 text-center">Played</th>
+                  <th className="p-3 text-center">W</th>
+                  <th className="p-3 text-center">D</th>
+                  <th className="p-3 text-center">L</th>
+                  <th className="p-3 text-right">Points</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-800/50">
+                {(cycle?.candidates.standings || []).map((s, idx) => (
+                  <tr
+                    key={s.botId}
+                    className={idx === 0 ? "bg-amber-500/10 font-bold text-amber-400" : ""}
+                  >
+                    <td className="p-3">{idx + 1}</td>
+                    <td className="p-3 flex items-center gap-2">
+                      <img
+                        src={s.avatarUrl}
+                        alt=""
+                        className="w-5 h-5 rounded-full object-cover"
+                      />
+                      <span>{s.botName}</span>
+                      {idx === 0 && <Crown className="w-3.5 h-3.5 text-amber-400" />}
+                    </td>
+                    <td className="p-3 text-zinc-400 font-mono">{s.rating}</td>
+                    <td className="p-3 text-center">{s.played}</td>
+                    <td className="p-3 text-center text-emerald-400">{s.wins}</td>
+                    <td className="p-3 text-center text-zinc-400">{s.draws}</td>
+                    <td className="p-3 text-center text-rose-400">{s.losses}</td>
+                    <td className="p-3 text-right font-bold text-sm">{s.points}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {/* TAB CONTENT: HALL OF CHAMPIONS */}
+      {activeTab === "hall" && (
+        <div className="space-y-4">
+          {hall.length === 0 ? (
+            <div className="p-12 text-center text-zinc-500 text-xs">
+              No previous championship records archived yet.
+            </div>
+          ) : (
+            hall.map((record, i) => (
+              <Card
+                key={i}
+                className="p-5 bg-[#16181c] border-zinc-800 flex items-center justify-between"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 grid place-items-center text-amber-500">
+                    <Crown className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="text-[11px] font-mono text-zinc-500 uppercase">
+                      {record.year} • {record.cycleName}
+                    </div>
+                    <div className="text-base font-bold text-white flex items-center gap-2">
+                      {record.championName}{" "}
+                      <span className="text-xs font-normal text-zinc-400">def.</span>{" "}
+                      {record.challengerName}
+                    </div>
+                    <div className="text-xs text-zinc-400">
+                      Concluded: {record.dateConcluded} • {record.gamesPlayed} Games Played
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs font-mono text-zinc-500">Score</div>
+                  <div className="text-lg font-black text-amber-400">{record.finalScore}</div>
+                </div>
+              </Card>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
+
+
+STEP 4: Wire Championship into Navigation & Studio
+
+
+
+
+
+
+
+Add to Studio Tabs (src/routes/studio.tsx):
+
+
+
+
+
+In the Studio header tab list:
+
+
+
+
+["championship", "World Championship"]
+
+
+
+
+
+In the tab rendering switch:
+
+
+
+
+{tab === "championship" && (
+  <TabErrorBoundary name="Championship Manager">
+    <ChampionshipManager />
+  </TabErrorBoundary>
+)}
+
+
+
+
+
+
+
+
+Add to Main Sidebar Navigation (src/components/chess/ChessApp.tsx):
+
+
+
+
+
+Add "championship" to type AppMode and type SidebarKey.
+
+
+Add a sidebar item:
+
+
+
+
+{ id: "championship", label: "Championship", icon: Trophy }
+
+
+
+
+
+In the main view switcher:
+
+
+
+
+{mode === "championship" && <ChampionshipHub />}
+
+
+
+
+
+
+
+
+Add Prestigious WORLD CHAMPION Crown Badge to Bot Cards (src/components/chess/PlayBotsPanel.tsx):
+
+
+
+
+
+When rendering any bot in the roster, check if its ID matches getReigningChampion().botId.
+
+
+If true, display a glowing gold crown with the badge:
+
+
+
+
+<span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40 inline-flex items-center gap-1">
+  <Crown className="w-3 h-3 text-amber-400 fill-amber-400" /> WORLD CHAMPION
+</span>

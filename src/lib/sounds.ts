@@ -183,3 +183,27 @@ export function playMoveResultSound(
     playMoveSound();
   }
 }
+
+/** Tactile mechanical click for the 3D physical chess clock rocker / plunger. */
+export function playClockClickSound() {
+  if (!soundEnabled()) return;
+  const ac = getCtx();
+  if (!ac) return;
+  try {
+    const now = ac.currentTime;
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(1450, now);
+    osc.frequency.exponentialRampToValueAtTime(320, now + 0.028);
+
+    gain.gain.setValueAtTime(0.08, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.032);
+
+    osc.connect(gain).connect(ac.destination);
+    osc.start(now);
+    osc.stop(now + 0.035);
+  } catch {
+    // ignore audio errors
+  }
+}

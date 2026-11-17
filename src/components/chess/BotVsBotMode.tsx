@@ -41,9 +41,10 @@ import { EvaluationBar } from "./EvaluationBar";
 import { evaluatePosition, type PositionEval } from "@/lib/stockfishEval";
 import { PositionEditor } from "./PositionEditor";
 import { Switch } from "@/components/ui/switch";
-import { BoardScaleControl } from "./BoardScaleControl";
+import { BoardScaleControl, BoardViewToggle, TheaterToggleButton } from "./BoardScaleControl";
 import { useAuth } from "@/lib/useAuth";
 import { useUiSettings, visibleTiers } from "@/lib/appSettings";
+import { useSettings } from "@/lib/settings";
 
 /* ───────── Speed control ───────── */
 
@@ -553,6 +554,8 @@ export function BotVsBotMatch({
   // Live evaluation (Stockfish, display-only).
   const [evalData, setEvalData] = useState<PositionEval | null>(null);
   const [evalLoading, setEvalLoading] = useState(false);
+  const [settings] = useSettings();
+  const [isTheater, setIsTheater] = useState(false);
 
   useEffect(() => {
     cancelledRef.current = false;
@@ -703,7 +706,14 @@ export function BotVsBotMatch({
   }, [history.length, replayIndex]);
 
   return (
-    <div className="max-w-[1500px] mx-auto grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-4 lg:gap-6 items-start">
+    <div
+      className={cn(
+        "mx-auto grid gap-4 lg:gap-6 items-start",
+        isTheater
+          ? "max-w-[1600px] grid-cols-1"
+          : "max-w-[1500px] grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]",
+      )}
+    >
       <section className="space-y-2 min-w-0">
         {headerExtra}
         <BotHeaderCard bot={flipped ? white : black} sideLabel={flipped ? "White" : "Black"} />
@@ -717,11 +727,13 @@ export function BotVsBotMatch({
                   : `Replay · move ${replayIndex + 1}/${history.length}`
                 : statusText}
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0">
               {thinking && !gameOver && (
                 <div className="text-xs text-muted-foreground">Thinking…</div>
               )}
               <BoardScaleControl />
+              <BoardViewToggle />
+              <TheaterToggleButton active={isTheater} onToggle={() => setIsTheater((t) => !t)} />
               <Button
                 variant="ghost"
                 size="sm"
@@ -734,7 +746,16 @@ export function BotVsBotMatch({
               </Button>
             </div>
           </div>
-          <div className="mx-auto w-full max-w-[calc(min(60vh,540px)*var(--board-scale,1))] flex gap-3 items-stretch">
+          <div
+            className={cn(
+              "mx-auto w-full flex gap-3 items-stretch",
+              isTheater
+                ? "max-w-none"
+                : settings.immersive3D
+                  ? "max-w-[calc(min(90vh,1120px)*var(--board-scale,1))]"
+                  : "max-w-[calc(min(60vh,540px)*var(--board-scale,1))]",
+            )}
+          >
             {showEval && (
               <div className="flex items-stretch">
                 <EvaluationBar evalData={evalData} loading={evalLoading} />
@@ -747,6 +768,9 @@ export function BotVsBotMatch({
                 disabled
                 lastMove={displayLastMove}
                 onAttemptMove={() => false}
+                activeSide={displayGame.turn()}
+                isTheater={isTheater}
+                onToggleTheater={() => setIsTheater((t) => !t)}
               />
             </div>
           </div>
@@ -805,7 +829,12 @@ export function BotVsBotMatch({
         <BotHeaderCard bot={flipped ? black : white} sideLabel={flipped ? "Black" : "White"} />
       </section>
 
-      <aside className="flex flex-col h-full min-h-[360px] max-h-[calc(min(60vh,540px)+80px)] self-stretch">
+      <aside
+        className={cn(
+          "flex flex-col h-full min-h-[360px] self-stretch",
+          isTheater ? "max-h-[420px]" : "max-h-[calc(min(60vh,540px)+80px)]",
+        )}
+      >
         <Card className="evt-card bg-card p-3.5 flex flex-col h-full min-h-[360px] overflow-hidden">
           <div className="flex items-center justify-between px-1 mb-2.5 shrink-0">
             <div className="text-xs font-semibold uppercase tracking-wide">Moves</div>

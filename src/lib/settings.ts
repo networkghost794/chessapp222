@@ -4,8 +4,20 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { findBoardTheme } from "./boardThemes";
+import {
+  makeCustomTimeControl,
+  TIME_CONTROL_PRESETS,
+  type TimeControlConfig,
+} from "./timeControls";
 
 export type ThemeMode = "dark" | "light" | "auto";
+export type Environment3DId = "library" | "garden" | "club" | "penthouse" | "hall";
+export type BoardMaterial3DId = "walnut" | "marble" | "mahogany" | "glass";
+export type PieceDesign3DId = "staunton_wood" | "staunton_marble" | "modern_metal";
+export type ClockStyle3DId = "analog_vintage" | "digital_tournament";
+export type ClockSide3D = "left" | "right";
+export type CameraPreset3D = "overhead" | "seated_front" | "perspective_angled";
+export type GraphicsQuality3D = "low" | "medium" | "high";
 
 export type Settings = {
   theme: ThemeMode;
@@ -17,6 +29,21 @@ export type Settings = {
   boardSize: number;
   pieceSet: string;
   boardTheme: string;
+  /** Optional 3D tabletop presentation (disabled by default). */
+  immersive3D: boolean;
+  environment3D: Environment3DId;
+  boardMaterial3D: BoardMaterial3DId;
+  pieceDesign3D: PieceDesign3DId;
+  clockStyle3D: ClockStyle3DId;
+  clockSide3D: ClockSide3D;
+  cameraPreset3D: CameraPreset3D;
+  graphicsQuality3D: GraphicsQuality3D;
+  /** Require player to punch the physical clock after moving. */
+  manualClockPunch: boolean;
+  /** Bot match time control: 0 = unlimited, 1..180 = base minutes. */
+  timeControlBaseMinutes: number;
+  /** Increment in seconds per move (0..60). */
+  timeControlIncrementSeconds: number;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -28,6 +55,17 @@ export const DEFAULT_SETTINGS: Settings = {
   boardSize: 100,
   pieceSet: "neo",
   boardTheme: "green",
+  immersive3D: false,
+  environment3D: "library",
+  boardMaterial3D: "walnut",
+  pieceDesign3D: "staunton_wood",
+  clockStyle3D: "analog_vintage",
+  clockSide3D: "right",
+  cameraPreset3D: "seated_front",
+  graphicsQuality3D: "high",
+  manualClockPunch: false,
+  timeControlBaseMinutes: 0,
+  timeControlIncrementSeconds: 0,
 };
 
 const KEYS: Record<keyof Settings, string> = {
@@ -39,6 +77,17 @@ const KEYS: Record<keyof Settings, string> = {
   boardSize: "botboard-board-size",
   pieceSet: "botboard-piece-set",
   boardTheme: "botboard-board-theme",
+  immersive3D: "botboard-immersive-3d",
+  environment3D: "botboard-3d-env",
+  boardMaterial3D: "botboard-3d-board",
+  pieceDesign3D: "botboard-3d-pieces",
+  clockStyle3D: "botboard-3d-clock",
+  clockSide3D: "botboard-3d-clock-side",
+  cameraPreset3D: "botboard-3d-cam",
+  graphicsQuality3D: "botboard-3d-quality",
+  manualClockPunch: "botboard-3d-manual-punch",
+  timeControlBaseMinutes: "botboard-tc-base",
+  timeControlIncrementSeconds: "botboard-tc-inc",
 };
 
 const EVENT = "botboard-settings-change";
@@ -52,6 +101,42 @@ function readBool(key: string, fallback: boolean): boolean {
   }
 }
 
+function readEnum<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
+  try {
+    const v = localStorage.getItem(key) as T | null;
+    return v && allowed.includes(v) ? v : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function readInt(key: string, min: number, max: number, fallback: number): number {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw === null) return fallback;
+    const n = Number(raw);
+    return Number.isFinite(n) ? Math.max(min, Math.min(max, Math.round(n))) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+const ENVS_3D: readonly Environment3DId[] = ["library", "garden", "club", "penthouse", "hall"];
+const BOARDS_3D: readonly BoardMaterial3DId[] = ["walnut", "marble", "mahogany", "glass"];
+const PIECES_3D: readonly PieceDesign3DId[] = ["staunton_wood", "staunton_marble", "modern_metal"];
+const CLOCKS_3D: readonly ClockStyle3DId[] = ["analog_vintage", "digital_tournament"];
+const CLOCK_SIDES_3D: readonly ClockSide3D[] = ["left", "right"];
+const CAMS_3D: readonly CameraPreset3D[] = ["overhead", "seated_front", "perspective_angled"];
+const QUALITIES_3D: readonly GraphicsQuality3D[] = ["low", "medium", "high"];
+
+export function getTimeControlFromSettings(settings: Settings): TimeControlConfig {
+  if (settings.timeControlBaseMinutes <= 0) return TIME_CONTROL_PRESETS[0];
+  return makeCustomTimeControl(
+    settings.timeControlBaseMinutes,
+    settings.timeControlIncrementSeconds,
+  );
+}
+
 export function getSettings(): Settings {
   if (typeof window === "undefined") return DEFAULT_SETTINGS;
   let theme: ThemeMode = DEFAULT_SETTINGS.theme;
@@ -60,7 +145,7 @@ export function getSettings(): Settings {
     const t = localStorage.getItem(KEYS.theme);
     if (t === "dark" || t === "light" || t === "auto") theme = t;
     const s = Number(localStorage.getItem(KEYS.boardSize));
-    if (Number.isFinite(s) && s >= 60 && s <= 130) boardSize = s;
+    if (Number.isFinite(s) && s >= 60 && s <= 160) boardSize = s;
   } catch {
     /* ignore */
   }
@@ -85,6 +170,31 @@ export function getSettings(): Settings {
         return "green";
       }
     })(),
+    immersive3D: readBool(KEYS.immersive3D, DEFAULT_SETTINGS.immersive3D),
+    environment3D: readEnum(KEYS.environment3D, ENVS_3D, DEFAULT_SETTINGS.environment3D),
+    boardMaterial3D: readEnum(KEYS.boardMaterial3D, BOARDS_3D, DEFAULT_SETTINGS.boardMaterial3D),
+    pieceDesign3D: readEnum(KEYS.pieceDesign3D, PIECES_3D, DEFAULT_SETTINGS.pieceDesign3D),
+    clockStyle3D: readEnum(KEYS.clockStyle3D, CLOCKS_3D, DEFAULT_SETTINGS.clockStyle3D),
+    clockSide3D: readEnum(KEYS.clockSide3D, CLOCK_SIDES_3D, DEFAULT_SETTINGS.clockSide3D),
+    cameraPreset3D: readEnum(KEYS.cameraPreset3D, CAMS_3D, DEFAULT_SETTINGS.cameraPreset3D),
+    graphicsQuality3D: readEnum(
+      KEYS.graphicsQuality3D,
+      QUALITIES_3D,
+      DEFAULT_SETTINGS.graphicsQuality3D,
+    ),
+    manualClockPunch: readBool(KEYS.manualClockPunch, DEFAULT_SETTINGS.manualClockPunch),
+    timeControlBaseMinutes: readInt(
+      KEYS.timeControlBaseMinutes,
+      0,
+      180,
+      DEFAULT_SETTINGS.timeControlBaseMinutes,
+    ),
+    timeControlIncrementSeconds: readInt(
+      KEYS.timeControlIncrementSeconds,
+      0,
+      60,
+      DEFAULT_SETTINGS.timeControlIncrementSeconds,
+    ),
   };
 }
 

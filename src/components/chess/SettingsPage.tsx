@@ -32,11 +32,22 @@ import {
   Clock,
   Check,
   AlertCircle,
+  Box,
+  Hand,
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { VerificationCard } from "./VerificationRequest";
 import { useSettings, type ThemeMode } from "@/lib/settings";
 import { BOARD_THEMES, PIECE_SETS, findBoardTheme, pieceUrl } from "@/lib/boardThemes";
+import { TimeControlPicker } from "./TimeControlPicker";
+import {
+  BOARD_MATERIALS_3D,
+  CAMERA_PRESETS_3D,
+  CLOCK_STYLES_3D,
+  ENVIRONMENTS_3D,
+  GRAPHICS_QUALITIES_3D,
+  PIECE_DESIGNS_3D,
+} from "./3d/assets3d";
 
 const EMOJIS = [
   "♞",
@@ -393,6 +404,285 @@ export function SettingsPage({
             <Card className="bg-card">
               <CardHeader className="pb-4">
                 <div className="flex items-center gap-2">
+                  <Box className="w-4 h-4 text-primary" />
+                  <CardTitle className="text-base">Immersive 3D Experience</CardTitle>
+                </div>
+                <CardDescription>
+                  Transform the board into a realistic physical 3D chess table with atmospheric
+                  lighting, 3D pieces, and a physical chess clock.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-sm font-medium">Enable Immersive 3D Chess (Beta)</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Optional 3D visual mode. Off by default; 2D mode remains available anytime.
+                    </div>
+                  </div>
+                  <Switch
+                    checked={settings.immersive3D}
+                    onCheckedChange={(v) => update("immersive3D", v)}
+                  />
+                </div>
+
+                {settings.immersive3D && (
+                  <>
+                    <Separator />
+
+                    {/* Environment */}
+                    <div>
+                      <Label className="text-xs text-muted-foreground">3D Environment</Label>
+                      <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        {ENVIRONMENTS_3D.map((env) => {
+                          const active = settings.environment3D === env.id;
+                          return (
+                            <button
+                              key={env.id}
+                              type="button"
+                              onClick={() => update("environment3D", env.id)}
+                              className={cn(
+                                "flex items-center gap-2.5 rounded-md border p-2 text-left transition-colors",
+                                active
+                                  ? "border-primary bg-primary/10 ring-1 ring-primary/40"
+                                  : "border-border/60 bg-secondary/30 hover:bg-secondary",
+                              )}
+                            >
+                              <div
+                                className="w-8 h-8 rounded shrink-0 border border-white/10"
+                                style={{
+                                  background: `linear-gradient(180deg, ${env.swatchTop} 0%, ${env.swatchBottom} 100%)`,
+                                }}
+                              />
+                              <div className="min-w-0">
+                                <div className="text-xs font-medium truncate">{env.name}</div>
+                                <div className="text-[10px] text-muted-foreground truncate">
+                                  {env.subtitle}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Chessboard Material */}
+                    <div>
+                      <Label className="text-xs text-muted-foreground">
+                        3D Chessboard Material
+                      </Label>
+                      <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {BOARD_MATERIALS_3D.map((mat) => {
+                          const active = settings.boardMaterial3D === mat.id;
+                          return (
+                            <button
+                              key={mat.id}
+                              type="button"
+                              onClick={() => update("boardMaterial3D", mat.id)}
+                              className={cn(
+                                "rounded-md border p-2 text-left transition-colors",
+                                active
+                                  ? "border-primary bg-primary/10 ring-1 ring-primary/40"
+                                  : "border-border/60 bg-secondary/30 hover:bg-secondary",
+                              )}
+                            >
+                              <div
+                                className="p-1 rounded-sm mb-1.5"
+                                style={{ background: mat.frameSwatch }}
+                              >
+                                <div className="grid grid-cols-2 aspect-[2/1] rounded-[2px] overflow-hidden">
+                                  <span style={{ background: mat.lightSwatch }} />
+                                  <span style={{ background: mat.darkSwatch }} />
+                                </div>
+                              </div>
+                              <div className="text-xs font-medium truncate">{mat.name}</div>
+                              <div className="text-[10px] text-muted-foreground truncate">
+                                {mat.subtitle}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Piece Design */}
+                    <div>
+                      <Label className="text-xs text-muted-foreground">3D Piece Set</Label>
+                      <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        {PIECE_DESIGNS_3D.map((ps) => {
+                          const active = settings.pieceDesign3D === ps.id;
+                          return (
+                            <button
+                              key={ps.id}
+                              type="button"
+                              onClick={() => update("pieceDesign3D", ps.id)}
+                              className={cn(
+                                "rounded-md border p-2 text-left transition-colors",
+                                active
+                                  ? "border-primary bg-primary/10 ring-1 ring-primary/40"
+                                  : "border-border/60 bg-secondary/30 hover:bg-secondary",
+                              )}
+                            >
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <span
+                                  className="w-3.5 h-3.5 rounded-full border border-black/20"
+                                  style={{ background: ps.lightSwatch }}
+                                />
+                                <span
+                                  className="w-3.5 h-3.5 rounded-full border border-white/20"
+                                  style={{ background: ps.darkSwatch }}
+                                />
+                                <span className="text-xs font-medium truncate">{ps.name}</span>
+                              </div>
+                              <div className="text-[10px] text-muted-foreground truncate">
+                                {ps.subtitle}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Physical Chess Clock */}
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Physical Chess Clock</Label>
+                      <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {CLOCK_STYLES_3D.map((clk) => {
+                          const active = settings.clockStyle3D === clk.id;
+                          return (
+                            <button
+                              key={clk.id}
+                              type="button"
+                              onClick={() => update("clockStyle3D", clk.id)}
+                              className={cn(
+                                "flex items-center gap-2.5 rounded-md border p-2 text-left transition-colors",
+                                active
+                                  ? "border-primary bg-primary/10 ring-1 ring-primary/40"
+                                  : "border-border/60 bg-secondary/30 hover:bg-secondary",
+                              )}
+                            >
+                              <span
+                                className="w-7 h-7 rounded shrink-0 border border-white/15"
+                                style={{ background: clk.accentSwatch }}
+                              />
+                              <div className="min-w-0">
+                                <div className="text-xs font-medium truncate">{clk.name}</div>
+                                <div className="text-[10px] text-muted-foreground truncate">
+                                  {clk.subtitle}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Physical Clock Side */}
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Clock Placement Side</Label>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        {(
+                          [
+                            { id: "left", label: "Left of Board" },
+                            { id: "right", label: "Right of Board" },
+                          ] as const
+                        ).map((side) => {
+                          const active = settings.clockSide3D === side.id;
+                          return (
+                            <button
+                              key={side.id}
+                              type="button"
+                              onClick={() => update("clockSide3D", side.id)}
+                              className={cn(
+                                "rounded-md border px-3 py-2 text-xs font-medium transition-colors",
+                                active
+                                  ? "border-primary bg-primary/15 text-primary"
+                                  : "border-border/60 bg-secondary/30 text-muted-foreground hover:bg-secondary",
+                              )}
+                            >
+                              {side.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Physical Clock Punch Mode */}
+                    <div className="flex items-center justify-between gap-4 rounded-md border border-border/60 bg-secondary/20 px-3 py-2.5">
+                      <div>
+                        <div className="text-xs font-medium">
+                          Press the Clock Myself (Manual Punch)
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">
+                          After moving a piece, your timer keeps running until you click the 3D
+                          clock plunger or press Spacebar.
+                        </div>
+                      </div>
+                      <Switch
+                        checked={settings.manualClockPunch}
+                        onCheckedChange={(v) => update("manualClockPunch", v)}
+                      />
+                    </div>
+
+                    {/* Camera Angle Preset */}
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Camera Angle Preset</Label>
+                      <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        {CAMERA_PRESETS_3D.map((cam) => {
+                          const active = settings.cameraPreset3D === cam.id;
+                          return (
+                            <button
+                              key={cam.id}
+                              type="button"
+                              onClick={() => update("cameraPreset3D", cam.id)}
+                              className={cn(
+                                "rounded-md border px-3 py-2 text-left text-xs transition-colors",
+                                active
+                                  ? "border-primary bg-primary/15 text-primary font-medium"
+                                  : "border-border/60 bg-secondary/30 text-muted-foreground hover:bg-secondary",
+                              )}
+                            >
+                              {cam.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Graphics Quality */}
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Graphics Quality</Label>
+                      <div className="mt-2 grid grid-cols-3 gap-2">
+                        {GRAPHICS_QUALITIES_3D.map((q) => {
+                          const active = settings.graphicsQuality3D === q.id;
+                          return (
+                            <button
+                              key={q.id}
+                              type="button"
+                              onClick={() => update("graphicsQuality3D", q.id)}
+                              className={cn(
+                                "rounded-md border p-2 text-left transition-colors",
+                                active
+                                  ? "border-primary bg-primary/10 ring-1 ring-primary/40"
+                                  : "border-border/60 bg-secondary/30 hover:bg-secondary",
+                              )}
+                            >
+                              <div className="text-xs font-medium">{q.name}</div>
+                              <div className="text-[10px] text-muted-foreground truncate">
+                                {q.desc}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+            <Card className="bg-card">
+              <CardHeader className="pb-4">
+                <div className="flex items-center gap-2">
                   <Palette className="w-4 h-4 text-primary" />
                   <CardTitle className="text-base">Appearance</CardTitle>
                 </div>
@@ -537,6 +827,25 @@ export function SettingsPage({
                   onCheckedChange={(v) => update("immersive", v)}
                 />
               </div>
+              <Separator />
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <Hand className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <div>
+                    <div className="text-sm font-medium">Press the Clock Myself</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Keep your timer ticking after a move until you click the clock, press Hit
+                      Clock, or tap Spacebar.
+                    </div>
+                  </div>
+                </div>
+                <Switch
+                  checked={settings.manualClockPunch}
+                  onCheckedChange={(v) => update("manualClockPunch", v)}
+                />
+              </div>
+              <Separator />
+              <TimeControlPicker />
             </CardContent>
           </Card>
         )}

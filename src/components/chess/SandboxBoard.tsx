@@ -6,7 +6,9 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, FlipHorizontal2, Grid3x3, RotateCcw, Undo2 } from "lucide-react";
 import { playMoveResultSound } from "@/lib/sounds";
-import { BoardScaleControl } from "./BoardScaleControl";
+import { BoardScaleControl, BoardViewToggle, TheaterToggleButton } from "./BoardScaleControl";
+import { useSettings } from "@/lib/settings";
+import { cn } from "@/lib/utils";
 
 /**
  * Sandbox Board — a free-play board where the user moves both sides.
@@ -22,6 +24,8 @@ export function SandboxBoard({ onBack }: { onBack: () => void }) {
   const [history, setHistory] = useState<string[]>([]);
   const [lastMove, setLastMove] = useState<{ from: Square; to: Square } | null>(null);
   const [promotion, setPromotion] = useState<{ from: Square; to: Square } | null>(null);
+  const [settings] = useSettings();
+  const [isTheater, setIsTheater] = useState(false);
 
   const movesContainerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -91,7 +95,7 @@ export function SandboxBoard({ onBack }: { onBack: () => void }) {
         : `${game.turn() === "w" ? "White" : "Black"} to move`;
 
   return (
-    <div className="max-w-[1200px] mx-auto space-y-4">
+    <div className={cn("mx-auto space-y-4", isTheater ? "max-w-[1600px]" : "max-w-[1200px]")}>
       <div className="flex items-center justify-between gap-3">
         <header className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-md bg-primary/15 grid place-items-center ring-1 ring-primary/30">
@@ -109,12 +113,17 @@ export function SandboxBoard({ onBack }: { onBack: () => void }) {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-6">
+      <div
+        className={cn(
+          "grid gap-6",
+          isTheater ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px]",
+        )}
+      >
         <section className="space-y-3 min-w-0">
           <Card className="p-4 md:p-5 bg-card min-w-0">
             <div className="flex items-center justify-between mb-3 gap-2">
               <div className="text-sm font-medium truncate">{statusText}</div>
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="flex items-center gap-1.5 shrink-0">
                 <Button variant="ghost" size="sm" onClick={undo} disabled={history.length === 0}>
                   <Undo2 className="w-3.5 h-3.5" />
                 </Button>
@@ -122,18 +131,32 @@ export function SandboxBoard({ onBack }: { onBack: () => void }) {
                   <RotateCcw className="w-3.5 h-3.5" />
                 </Button>
                 <BoardScaleControl />
+                <BoardViewToggle />
+                <TheaterToggleButton active={isTheater} onToggle={() => setIsTheater((t) => !t)} />
                 <Button variant="ghost" size="sm" onClick={() => setFlipped((f) => !f)}>
                   <FlipHorizontal2 className="w-3.5 h-3.5" />
                 </Button>
               </div>
             </div>
-            <div className="mx-auto w-full max-w-[calc(min(65vh,560px)*var(--board-scale,1))]">
+            <div
+              className={cn(
+                "mx-auto w-full",
+                isTheater
+                  ? "max-w-none"
+                  : settings.immersive3D
+                    ? "max-w-[calc(min(90vh,1120px)*var(--board-scale,1))]"
+                    : "max-w-[calc(min(65vh,560px)*var(--board-scale,1))]",
+              )}
+            >
               <Board
                 game={game}
                 flipped={flipped}
                 disabled={game.isGameOver()}
                 lastMove={lastMove}
                 onAttemptMove={handleAttemptMove}
+                activeSide={game.turn()}
+                isTheater={isTheater}
+                onToggleTheater={() => setIsTheater((t) => !t)}
               />
             </div>
           </Card>

@@ -12,6 +12,7 @@ import { BotWorkshop } from "@/components/chess/BotWorkshop";
 import { cn } from "@/lib/utils";
 import { StudioBotEditor } from "@/components/chess/StudioBotEditor";
 import { OpeningLab } from "@/components/chess/OpeningLab";
+import { ChampionshipManager } from "@/components/chess/ChampionshipManager";
 
 export const Route = createFileRoute("/studio")({
   ssr: false,
@@ -148,7 +149,7 @@ function StudioUnlockGate() {
 function StudioGate() {
   const { user, isOwner, loading } = useAuth();
   const [tab, setTab] = useState<
-    "workshop" | "builder" | "openings" | "verify" | "updates" | "customize"
+    "workshop" | "builder" | "openings" | "verify" | "updates" | "customize" | "championship"
   >("workshop");
   const [editRequest, setEditRequest] = useState<{ id: string; n: number } | null>(null);
 
@@ -199,6 +200,7 @@ function StudioGate() {
             ["workshop", "Bot Workshop"],
             ["builder", "Bot Builder"],
             ["openings", "Opening Lab"],
+            ["championship", "World Championship"],
             ["verify", "Verification"],
             ["updates", "Update Logs"],
             ["customize", "Customize App"],
@@ -254,6 +256,13 @@ function StudioGate() {
             <Customizer />
           </TabErrorBoundary>
         </div>
+        {tab === "championship" && (
+          <div className="max-w-[1200px] mx-auto mt-4">
+            <TabErrorBoundary name="Championship Manager">
+              <ChampionshipManager />
+            </TabErrorBoundary>
+          </div>
+        )}
       </main>
     </div>
   );

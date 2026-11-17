@@ -4,18 +4,21 @@ import { Board } from "./Board";
 import { PromotionDialog } from "./PromotionDialog";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Flag, FlipHorizontal2, User } from "lucide-react";
+import { Flag, FlipHorizontal2, Hand, Timer, User } from "lucide-react";
 import { TitleBadge } from "./ChessApp";
 import { cn } from "@/lib/utils";
 import { chooseBotMove, pickThinkingDelayMs, type BotConfig } from "@/lib/botStore";
-import { playMoveResultSound } from "@/lib/sounds";
+import { playClockClickSound, playMoveResultSound } from "@/lib/sounds";
 import type { MatchResult } from "./BotVsBotMode";
 import { SimulatorLegend } from "./SimulatorLegend";
 import { evaluatePerspective, type MoveVerdict } from "@/lib/perspectiveEval";
 import { botDisplayIdentity, useImmersive } from "@/lib/immersive";
 import { EvaluationBar } from "./EvaluationBar";
 import { evaluatePosition, type PositionEval } from "@/lib/stockfishEval";
-import { BoardScaleControl } from "./BoardScaleControl";
+import { BoardScaleControl, BoardViewToggle, TheaterToggleButton } from "./BoardScaleControl";
+import { getTimeControlFromSettings, useSettings } from "@/lib/settings";
+import { useChessClock } from "@/lib/useChessClock";
+import { MatchClockBadge } from "./MatchClockBadge";
 
 export type PlayerProfileLite = {
   name: string;
@@ -51,6 +54,9 @@ export function HumanVsBotMatch({
   const game = gameRef.current;
 
   const [immersive] = useImmersive();
+  const [settings, updateSetting] = useSettings();
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
   const botId = botDisplayIdentity(bot, immersive);
 
   const [flipped, setFlipped] = useState(playerColor === "b");
@@ -59,15 +65,36 @@ export function HumanVsBotMatch({
   const [pending, setPending] = useState(false);
   const [promotion, setPromotion] = useState<{ from: Square; to: Square } | null>(null);
   const [resigned, setResigned] = useState(false);
+  const [awaitingClockPunch, setAwaitingClockPunch] = useState(false);
+  const botPunchTimerRef = useRef<number | null>(null);
   const [indicators, setIndicators] = useState<Record<string, MoveVerdict> | null>(null);
   const [bestFrom, setBestFrom] = useState<string | null>(null);
   const [, setTick] = useState(0);
   const force = useCallback(() => setTick((t) => t + 1), []);
   const finishedRef = useRef(false);
 
+  const timeControl = useMemo(
+    () => getTimeControlFromSettings(settings),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [settings.timeControlBaseMinutes, settings.timeControlIncrementSeconds],
+  );
+  const clock = useChessClock(timeControl, {
+    enabled: !game.isGameOver() && !resigned && !finishedRef.current,
+    running: history.length > 0,
+  });
+
+  useEffect(() => {
+    return () => {
+      if (botPunchTimerRef.current !== null) {
+        window.clearTimeout(botPunchTimerRef.current);
+      }
+    };
+  }, []);
+
   // Live evaluation (Stockfish).
   const [evalData, setEvalData] = useState<PositionEval | null>(null);
   const [evalLoading, setEvalLoading] = useState(false);
+  const [isTheater, setIsTheater] = useState(false);
 
   const isPlayerTurn = game.turn() === playerColor;
   // If player joins, when it's player's turn the bar turns off automatically;
@@ -122,10 +149,27 @@ export function HumanVsBotMatch({
       setHistory((h) => [...h, m.san]);
       setLastMove({ from: pick.from as Square, to: pick.to as Square });
       force();
+
+      if (!game.isGameOver()) {
+        if (botPunchTimerRef.current !== null) {
+          window.clearTimeout(botPunchTimerRef.current);
+          botPunchTimerRef.current = null;
+        }
+        if (settingsRef.current.manualClockPunch) {
+          botPunchTimerRef.current = window.setTimeout(() => {
+            botPunchTimerRef.current = null;
+            playClockClickSound();
+            clock.commitMoveOnClock(m.color);
+          }, 200);
+        } else {
+          clock.commitMoveOnClock(m.color);
+          if (settingsRef.current.immersive3D) playClockClickSound();
+        }
+      }
     } finally {
       setPending(false);
     }
-  }, [game, bot, force]);
+  }, [game, bot, force, clock]);
 
   // If the bot moves first.
   useEffect(() => {
@@ -137,6 +181,39 @@ export function HumanVsBotMatch({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const handlePunchClock = useCallback(() => {
+    if (!awaitingClockPunch || game.isGameOver() || resigned || clock.timedOutSide) return;
+    playClockClickSound();
+    setAwaitingClockPunch(false);
+    clock.commitMoveOnClock(playerColor);
+    setPending(true);
+    setTimeout(() => requestBotMove(), 180);
+  }, [awaitingClockPunch, game, resigned, clock, playerColor, requestBotMove]);
+
+  useEffect(() => {
+    if (!settings.manualClockPunch && awaitingClockPunch) {
+      handlePunchClock();
+    }
+  }, [settings.manualClockPunch, awaitingClockPunch, handlePunchClock]);
+
+  useEffect(() => {
+    if (!awaitingClockPunch || promotion || resigned || clock.timedOutSide || game.isGameOver()) {
+      return;
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code !== "Space") return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target?.isContentEditable) {
+        return;
+      }
+      e.preventDefault();
+      handlePunchClock();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [awaitingClockPunch, promotion, resigned, clock.timedOutSide, game, handlePunchClock]);
+
   const finishMove = useCallback(
     (from: Square, to: Square, promo?: PieceSymbol) => {
       const m = game.move({ from, to, promotion: promo as "q" | "r" | "b" | "n" | undefined });
@@ -147,17 +224,25 @@ export function HumanVsBotMatch({
       setIndicators(null);
       force();
       if (!game.isGameOver()) {
-        setPending(true);
-        setTimeout(() => requestBotMove(), 250);
+        if (settingsRef.current.manualClockPunch) {
+          setAwaitingClockPunch(true);
+        } else {
+          clock.commitMoveOnClock(m.color);
+          if (settingsRef.current.immersive3D) playClockClickSound();
+          setPending(true);
+          setTimeout(() => requestBotMove(), 250);
+        }
       }
       return true;
     },
-    [game, force, requestBotMove],
+    [game, force, requestBotMove, clock],
   );
 
   const handleAttemptMove = useCallback(
     (from: Square, to: Square) => {
-      if (pending || resigned || game.isGameOver()) return false;
+      if (pending || resigned || awaitingClockPunch || clock.timedOutSide || game.isGameOver()) {
+        return false;
+      }
       if (game.turn() !== playerColor) return false;
       const piece = game.get(from);
       if (!piece || piece.color !== playerColor) return false;
@@ -174,17 +259,29 @@ export function HumanVsBotMatch({
       }
       return finishMove(from, to);
     },
-    [game, pending, resigned, playerColor, finishMove],
+    [game, pending, resigned, awaitingClockPunch, clock.timedOutSide, playerColor, finishMove],
   );
 
   // Report outcome exactly once.
   useEffect(() => {
     if (finishedRef.current) return;
-    if (!game.isGameOver() && !resigned) return;
+    const timedOut = clock.timedOutSide;
+    if (!game.isGameOver() && !resigned && !timedOut) return;
     finishedRef.current = true;
+    setPending(false);
+    setAwaitingClockPunch(false);
+    setPromotion(null);
+    if (botPunchTimerRef.current !== null) {
+      window.clearTimeout(botPunchTimerRef.current);
+      botPunchTimerRef.current = null;
+    }
+
     let winner: MatchResult["winner"] = "draw";
     let reason = "Draw";
-    if (resigned) {
+    if (timedOut) {
+      winner = timedOut === "w" ? "black" : "white";
+      reason = "Time Out";
+    } else if (resigned) {
       winner = playerColor === "w" ? "black" : "white";
       reason = "Player resigned";
     } else if (game.isCheckmate()) {
@@ -196,7 +293,7 @@ export function HumanVsBotMatch({
     else if (game.isDrawByFiftyMoves?.()) reason = "Fifty-move rule";
     else if (game.isDraw()) reason = "Draw";
     onFinished({ winner, reason, history: [...history] });
-  }, [history.length, resigned, game, playerColor, onFinished, history]);
+  }, [history.length, resigned, clock.timedOutSide, game, playerColor, onFinished, history]);
 
   // Perspective indicators: recompute whenever it becomes the player's turn.
   useEffect(() => {
@@ -228,6 +325,10 @@ export function HumanVsBotMatch({
   }, [history]);
 
   const statusText = useMemo(() => {
+    if (clock.timedOutSide) {
+      return `Time Out — ${clock.timedOutSide === "w" ? "Black" : "White"} wins`;
+    }
+    if (awaitingClockPunch) return "Move played — hit the clock to end your turn";
     if (game.isCheckmate()) return `Checkmate — ${game.turn() === "w" ? botId.name : "You"} loses`;
     if (game.isDraw()) return "Draw";
     if (resigned) return "You resigned";
@@ -235,10 +336,28 @@ export function HumanVsBotMatch({
       return `${game.turn() === playerColor ? "You are" : botId.name + " is"} in check`;
     return `${game.turn() === playerColor ? "Your" : botId.name + "'s"} move`;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [history.length, game, botId.name, playerColor, resigned]);
+  }, [
+    history.length,
+    game,
+    botId.name,
+    playerColor,
+    resigned,
+    awaitingClockPunch,
+    clock.timedOutSide,
+  ]);
+
+  const botColor: Color = playerColor === "w" ? "b" : "w";
+  const playerMs = playerColor === "w" ? clock.whiteMs : clock.blackMs;
+  const botMs = botColor === "w" ? clock.whiteMs : clock.blackMs;
+  const isOver = game.isGameOver() || resigned || !!clock.timedOutSide;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-4 lg:gap-6 items-start">
+    <div
+      className={cn(
+        "grid gap-4 lg:gap-6 items-start",
+        isTheater ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px]",
+      )}
+    >
       <section className="space-y-2 min-w-0">
         {headerExtra}
         <ParticipantHeader
@@ -248,12 +367,15 @@ export function HumanVsBotMatch({
           title={botId.title}
           titleColor={botId.titleColor}
           side={playerColor === "w" ? "Black" : "White"}
+          clockSlot={
+            <MatchClockBadge ms={botMs} active={!isOver && clock.activeSide === botColor} />
+          }
         />
 
         <Card className="p-3 md:p-4 bg-card min-w-0">
-          <div className="flex items-center justify-between mb-2 gap-2">
+          <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
             <div className="text-xs md:text-sm font-medium truncate">{statusText}</div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
               {pending && (
                 <div className="text-xs text-muted-foreground animate-pulse">Bot thinking…</div>
               )}
@@ -262,7 +384,33 @@ export function HumanVsBotMatch({
                   Eval hidden (your turn)
                 </span>
               )}
+              {awaitingClockPunch && (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handlePunchClock}
+                  className="h-7 px-3 gap-1.5 text-xs font-extrabold bg-amber-500 hover:bg-amber-400 text-zinc-950 shadow-sm"
+                >
+                  <Hand className="w-3.5 h-3.5" />
+                  <span>Hit Clock (Space)</span>
+                </Button>
+              )}
               <BoardScaleControl />
+              <Button
+                variant={settings.manualClockPunch ? "secondary" : "ghost"}
+                size="sm"
+                className={cn(
+                  "h-7 px-2 gap-1 text-[11px] font-medium",
+                  settings.manualClockPunch && "border border-amber-500/50 text-amber-300",
+                )}
+                onClick={() => updateSetting("manualClockPunch", !settings.manualClockPunch)}
+                title="Toggle Press the Clock Myself mode"
+              >
+                <Timer className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Manual Clock</span>
+              </Button>
+              <BoardViewToggle />
+              <TheaterToggleButton active={isTheater} onToggle={() => setIsTheater((t) => !t)} />
               <Button
                 variant="ghost"
                 size="sm"
@@ -275,7 +423,16 @@ export function HumanVsBotMatch({
               </Button>
             </div>
           </div>
-          <div className="mx-auto w-full max-w-[calc(min(60vh,540px)*var(--board-scale,1))] flex gap-3 items-stretch">
+          <div
+            className={cn(
+              "mx-auto w-full flex gap-3 items-stretch",
+              isTheater
+                ? "max-w-none"
+                : settings.immersive3D
+                  ? "max-w-[calc(min(90vh,1120px)*var(--board-scale,1))]"
+                  : "max-w-[calc(min(60vh,540px)*var(--board-scale,1))]",
+            )}
+          >
             {showEval && (
               <div className="flex items-stretch">
                 {showEvalVisible ? (
@@ -296,11 +453,20 @@ export function HumanVsBotMatch({
               <Board
                 game={game}
                 flipped={flipped}
-                disabled={pending || resigned || game.isGameOver()}
+                disabled={pending || awaitingClockPunch || isOver}
                 lastMove={lastMove}
                 onAttemptMove={handleAttemptMove}
+                activeSide={clock.activeSide}
+                whiteTimeMs={clock.whiteMs}
+                blackTimeMs={clock.blackMs}
+                activeClockSide={clock.activeSide}
+                playerSide={playerColor}
+                needsClockPunch={awaitingClockPunch}
+                onClockPunch={handlePunchClock}
                 indicators={indicators}
                 bestFrom={bestFrom}
+                isTheater={isTheater}
+                onToggleTheater={() => setIsTheater((t) => !t)}
               />
             </div>
           </div>
@@ -315,10 +481,22 @@ export function HumanVsBotMatch({
           title={player.title}
           titleColor={player.titleColor}
           side={playerColor === "w" ? "White" : "Black"}
+          clockSlot={
+            <MatchClockBadge
+              ms={playerMs}
+              active={!isOver && clock.activeSide === playerColor}
+              needsPunch={awaitingClockPunch}
+            />
+          }
         />
       </section>
 
-      <aside className="flex flex-col h-full min-h-[360px] max-h-[calc(min(60vh,540px)+80px)] self-stretch gap-3">
+      <aside
+        className={cn(
+          "flex flex-col h-full min-h-[360px] self-stretch gap-3",
+          isTheater ? "max-h-[420px]" : "max-h-[calc(min(60vh,540px)+80px)]",
+        )}
+      >
         <Card className="bg-card p-3 flex-1 flex flex-col min-h-[300px] overflow-hidden">
           <div className="text-xs font-semibold uppercase tracking-wide mb-2 px-1">Moves</div>
           <div
@@ -375,6 +553,7 @@ function ParticipantHeader({
   title,
   titleColor,
   side,
+  clockSlot,
 }: {
   name: string;
   avatar: string | null;
@@ -382,6 +561,7 @@ function ParticipantHeader({
   title?: string | null;
   titleColor?: string | null;
   side: string;
+  clockSlot?: React.ReactNode;
 }) {
   const isWhite = side === "White";
   return (
@@ -409,6 +589,7 @@ function ParticipantHeader({
         />
         <span className="text-[10px] font-semibold uppercase tracking-wider">{side}</span>
       </div>
+      {clockSlot}
     </Card>
   );
 }

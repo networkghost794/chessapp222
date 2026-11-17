@@ -15,6 +15,12 @@ import {
   type BotCategory,
 } from "@/lib/botStore";
 import { useUiSettings, visibleTiers, label } from "@/lib/appSettings";
+import { TimeControlPicker } from "./TimeControlPicker";
+import {
+  fetchChampionshipData,
+  getReigningChampion,
+  subscribeChampionship,
+} from "@/lib/championshipStore";
 
 export type SideChoice = "white" | "black" | "random";
 
@@ -36,6 +42,7 @@ export function PlayBotsPanel({
   const ui = useUiSettings();
   const tiers = visibleTiers(ui);
   const [beaten, setBeaten] = useState<Set<string>>(new Set());
+  const [reigningId, setReigningId] = useState<string>(() => getReigningChampion().botId);
 
   useEffect(() => {
     const refresh = () => {
@@ -43,7 +50,13 @@ export function PlayBotsPanel({
       setActive(getActiveBotId());
     };
     refresh();
-    return subscribeBots(refresh);
+    const unsubBots = subscribeBots(refresh);
+    void fetchChampionshipData().then((d) => setReigningId(d.reigning.botId));
+    const unsubChamp = subscribeChampionship(() => setReigningId(getReigningChampion().botId));
+    return () => {
+      unsubBots();
+      unsubChamp();
+    };
   }, []);
 
   useEffect(() => {
@@ -100,6 +113,11 @@ export function PlayBotsPanel({
               )}
               {beaten.has(active.id) && ui.showCrowns !== false && (
                 <Crown className="w-4 h-4 text-[color:var(--sim-ok)] fill-current" />
+              )}
+              {active.id === reigningId && (
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-[0_0_10px_rgba(245,158,11,0.25)] inline-flex items-center gap-1">
+                  <Crown className="w-3 h-3 text-amber-400 fill-amber-400" /> WORLD CHAMPION
+                </span>
               )}
             </div>
             {active.quote && ui.showQuotes !== false && (
@@ -193,6 +211,7 @@ export function PlayBotsPanel({
                   )}
                   {list.map((b) => {
                     const sel = b.id === activeId;
+                    const isChamp = b.id === reigningId;
                     return (
                       <button
                         key={b.id}
@@ -202,11 +221,15 @@ export function PlayBotsPanel({
                           pick(b);
                           onPlay();
                         }}
-                        title={`${botDisplayIdentity(b, immersive).name} (${b.elo})`}
+                        title={`${botDisplayIdentity(b, immersive).name} (${b.elo})${isChamp ? " · WORLD CHAMPION" : ""}`}
                         className={cn(
                           "group relative aspect-square rounded-md overflow-hidden ring-2 transition",
                           cardStyleClass,
-                          sel ? "ring-success" : "ring-transparent hover:ring-border",
+                          sel
+                            ? "ring-success"
+                            : isChamp
+                              ? "ring-amber-500/80 shadow-[0_0_12px_rgba(245,158,11,0.35)]"
+                              : "ring-transparent hover:ring-border",
                           ui.accentGlow && "shadow-[0_0_12px_rgba(234,179,8,0.25)]",
                         )}
                       >
@@ -215,7 +238,15 @@ export function PlayBotsPanel({
                         ) : (
                           <User className="w-1/2 h-1/2 m-auto mt-[25%] text-muted-foreground" />
                         )}
-                        {b.category === "Personal" && (
+                        {isChamp && (
+                          <span
+                            title="Reigning World Champion"
+                            className="absolute top-1 left-1 px-1 py-0.5 rounded bg-amber-500/90 text-black text-[8px] font-black tracking-tight inline-flex items-center gap-0.5 shadow"
+                          >
+                            <Crown className="w-2.5 h-2.5 fill-black" /> WC
+                          </span>
+                        )}
+                        {!isChamp && b.category === "Personal" && (
                           <span className="absolute top-1 left-1 h-4 w-4 rounded bg-background/80 text-warning grid place-items-center shadow-sm">
                             <Lock className="w-2.5 h-2.5" />
                           </span>
@@ -251,7 +282,8 @@ export function PlayBotsPanel({
       </div>
 
       {/* Launch bar */}
-      <div className="border-t border-border/60 p-3 space-y-2 bg-secondary/20">
+      <div className="border-t border-border/60 p-3 space-y-2.5 bg-secondary/20">
+        <TimeControlPicker compact />
         <div className="grid grid-cols-3 gap-1.5">
           {[
             { v: "white" as const, label: "White" },

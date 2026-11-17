@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Chess, type Square } from "chess.js";
+import { Chess, type Color, type Square } from "chess.js";
 import { PieceImg } from "./pieces";
+import { Scene3D } from "./3d/Scene3D";
 import { cn } from "@/lib/utils";
 import { useSettings } from "@/lib/settings";
 
@@ -11,7 +12,7 @@ export type PromotionRequest = { from: Square; to: Square };
 
 export type MoveIndicator = "purple" | "green" | "yellow" | "red";
 
-interface BoardProps {
+export interface BoardProps {
   game: Chess;
   flipped: boolean;
   disabled: boolean;
@@ -21,6 +22,18 @@ interface BoardProps {
   indicators?: Record<string, MoveIndicator> | null;
   /** Origin square of the best (purple) perspective move. */
   bestFrom?: string | null;
+  /** Bypass 3D view and always render classic 2D (used for SSR/WebGL fallback and mini previews). */
+  force2D?: boolean;
+  /** Optional 3D clock & tabletop pass-through props. */
+  activeSide?: Color;
+  whiteTimeMs?: number | null;
+  blackTimeMs?: number | null;
+  activeClockSide?: Color;
+  playerSide?: Color;
+  needsClockPunch?: boolean;
+  onClockPunch?: () => void;
+  isTheater?: boolean;
+  onToggleTheater?: () => void;
 }
 
 type DragState = {
@@ -35,7 +48,34 @@ type DragState = {
   moved: boolean;
 };
 
-export function Board({
+export function Board(props: BoardProps) {
+  const [settings] = useSettings();
+  if (!props.force2D && settings.immersive3D) {
+    return (
+      <Scene3D
+        game={props.game}
+        flipped={props.flipped}
+        disabled={props.disabled}
+        lastMove={props.lastMove}
+        onAttemptMove={props.onAttemptMove}
+        activeSide={props.activeSide}
+        whiteTimeMs={props.whiteTimeMs}
+        blackTimeMs={props.blackTimeMs}
+        activeClockSide={props.activeClockSide}
+        playerSide={props.playerSide}
+        needsClockPunch={props.needsClockPunch}
+        onClockPunch={props.onClockPunch}
+        indicators={props.indicators}
+        bestFrom={props.bestFrom}
+        isTheater={props.isTheater}
+        onToggleTheater={props.onToggleTheater}
+      />
+    );
+  }
+  return <Board2D {...props} />;
+}
+
+export function Board2D({
   game,
   flipped,
   disabled,
