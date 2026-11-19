@@ -5,7 +5,7 @@ import {
   Bot,
   CheckCircle2,
   Crown,
-  FastForward,
+  Gauge,
   Pause,
   Play,
   RotateCcw,
@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
+  CHAMPIONSHIP_SPEEDS,
   calculateMatchScore,
   calculateStandings,
   fetchChampionshipData,
@@ -29,12 +30,17 @@ import {
   saveReigningChampion,
   subscribeChampionship,
   type ChampionshipCycle,
+  type ChampionshipSpeed,
   type QualFormat,
   type ReigningChampion,
   type ScheduledGame,
 } from "@/lib/championshipStore";
 import { loadBots, subscribeBots, type BotConfig } from "@/lib/botStore";
+import { botDisplayIdentity, isImmersiveEnabled } from "@/lib/immersive";
+import { evaluatePosition, type PositionEval } from "@/lib/stockfishEval";
 import { Board } from "./Board";
+import { TitleBadge } from "./ChessApp";
+import { EvaluationBar } from "./EvaluationBar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -48,6 +54,59 @@ const QUAL_FORMATS: { value: QualFormat; label: string }[] = [
   { value: "knockout", label: "Knockout Bracket" },
 ];
 
+const SPEED_OPTIONS: ChampionshipSpeed[] = ["normal", "fast", "blitz", "turbo"];
+
+function SimPlayerBanner({
+  bot,
+  fallbackId,
+  side,
+  active,
+}: {
+  bot: BotConfig | undefined;
+  fallbackId: string;
+  side: "White" | "Black";
+  active: boolean;
+}) {
+  const ident = bot ? botDisplayIdentity(bot, isImmersiveEnabled()) : null;
+  return (
+    <div
+      className={cn(
+        "flex items-center justify-between gap-2 px-3 py-2 rounded-lg border transition-colors",
+        active ? "border-amber-500/60 bg-amber-500/10" : "border-border bg-card/80",
+      )}
+    >
+      <div className="flex items-center gap-2.5 min-w-0">
+        {bot?.avatar ? (
+          <img
+            src={bot.avatar}
+            alt={bot.name}
+            className="w-8 h-8 rounded-full object-cover ring-1 ring-border shrink-0"
+          />
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-secondary grid place-items-center shrink-0">
+            <Bot className="w-4 h-4 text-muted-foreground" />
+          </div>
+        )}
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <TitleBadge title={ident?.title} color={ident?.titleColor} size="sm" />
+            <span className="text-xs font-bold truncate">{ident?.name ?? fallbackId}</span>
+            {bot?.country && <span className="text-xs shrink-0">{bot.country}</span>}
+          </div>
+          <div className="text-[10px] text-muted-foreground font-mono">
+            {side} · {bot?.elo ?? 1500} Elo
+          </div>
+        </div>
+      </div>
+      {active && (
+        <span className="text-[10px] font-mono font-bold uppercase text-amber-400 shrink-0">
+          Turn
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function ChampionshipManager() {
   const [cycle, setCycle] = useState<ChampionshipCycle | null>(getActiveCycle());
   const [reigning, setReigning] = useState<ReigningChampion>(getReigningChampion());
@@ -60,13 +119,25 @@ export function ChampionshipManager() {
   const [qualFormat, setQualFormat] = useState<QualFormat>("round_robin");
   const [qualifySlots, setQualifySlots] = useState<number>(8);
 
-  // Live automated game runner state
+  // Speed & continuous auto-play state
+  const [speed, setSpeed] = useState<ChampionshipSpeed>("normal");
+  const speedRef = useRef<ChampionshipSpeed>("normal");
+  speedRef.current = speed;
+
+  const [autoRunning, setAutoRunning] = useState(false);
   const [runningGameId, setRunningGameId] = useState<string | null>(null);
-  const [runningBatch, setRunningBatch] = useState(false);
   const [liveFen, setLiveFen] = useState<string>(new Chess().fen());
+  const [liveMoves, setLiveMoves] = useState<string[]>([]);
   const [liveLastMove, setLiveLastMove] = useState<{ from: Square; to: Square } | null>(null);
-  const [livePlies, setLivePlies] = useState(0);
+  const [victoryBanner, setVictoryBanner] = useState<{
+    gameNumber: number;
+    result: string;
+    detail: string;
+  } | null>(null);
+  const [liveEval, setLiveEval] = useState<PositionEval | null>(null);
+
   const abortRef = useRef<AbortController | null>(null);
+  const moveFeedRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setBots(loadBots());
@@ -85,6 +156,26 @@ export function ChampionshipManager() {
       abortRef.current?.abort();
     };
   }, []);
+
+  useEffect(() => {
+    if (moveFeedRef.current) {
+      moveFeedRef.current.scrollTop = moveFeedRef.current.scrollHeight;
+    }
+  }, [liveMoves.length]);
+
+  useEffect(() => {
+    if (!runningGameId) {
+      setLiveEval(null);
+      return;
+    }
+    let stale = false;
+    void evaluatePosition(liveFen).then((res) => {
+      if (!stale && res) setLiveEval(res);
+    });
+    return () => {
+      stale = true;
+    };
+  }, [runningGameId, liveFen]);
 
   const botMap = useMemo(() => {
     const m = new Map<string, BotConfig>();
@@ -253,13 +344,22 @@ export function ChampionshipManager() {
     return next;
   };
 
-  const runSingleGame = async (targetCycle: ChampionshipCycle, gameToRun: ScheduledGame) => {
-    const controller = new AbortController();
-    abortRef.current = controller;
+  const runSingleGame = async (
+    targetCycle: ChampionshipCycle,
+    gameToRun: ScheduledGame,
+    externalSignal?: AbortSignal,
+  ) => {
+    const localController = new AbortController();
+    if (!externalSignal) {
+      abortRef.current = localController;
+    }
+    const signal = externalSignal ?? localController.signal;
+
     setRunningGameId(gameToRun.id);
+    setVictoryBanner(null);
     setLiveFen(new Chess().fen());
+    setLiveMoves([]);
     setLiveLastMove(null);
-    setLivePlies(0);
 
     // Mark live in cloud so public spectators see it
     let workingCycle = await applyGameUpdate(targetCycle, {
@@ -274,21 +374,19 @@ export function ChampionshipManager() {
 
     let lastBroadcastAt = 0;
     const outcome = await playChampionshipBotGame(whiteBot, blackBot, {
-      moveDelayMs: 90,
-      maxPlies: 200,
-      signal: controller.signal,
-      onMove: (moves, fen) => {
+      getDelayMs: () => CHAMPIONSHIP_SPEEDS[speedRef.current].delayMs,
+      maxPlies: 220,
+      signal,
+      playSound: true,
+      onMove: (moves, fen, lm) => {
         setLiveFen(fen);
-        setLivePlies(moves.length);
-        const c = new Chess();
-        for (let i = 0; i < moves.length; i++) {
-          const mv = c.move(moves[i]);
-          if (i === moves.length - 1 && mv) {
-            setLiveLastMove({ from: mv.from as Square, to: mv.to as Square });
-          }
-        }
+        setLiveMoves(moves);
+        setLiveLastMove(lm ? { from: lm.from as Square, to: lm.to as Square } : null);
+
         const now = Date.now();
-        if (now - lastBroadcastAt > 1800) {
+        const curDelay = CHAMPIONSHIP_SPEEDS[speedRef.current].delayMs;
+        const broadcastInterval = curDelay >= 450 ? 600 : 1200;
+        if (now - lastBroadcastAt >= broadcastInterval) {
           lastBroadcastAt = now;
           void applyGameUpdate(workingCycle, {
             ...gameToRun,
@@ -302,14 +400,14 @@ export function ChampionshipManager() {
       },
     });
 
-    if (controller.signal.aborted) {
-      await applyGameUpdate(workingCycle, {
+    if (signal.aborted) {
+      const reverted = await applyGameUpdate(workingCycle, {
         ...gameToRun,
         status: "upcoming",
         result: undefined,
       });
       setRunningGameId(null);
-      return workingCycle;
+      return { cycle: reverted, outcome: null };
     }
 
     const finishedCycle = await applyGameUpdate(workingCycle, {
@@ -319,19 +417,21 @@ export function ChampionshipManager() {
       moveHistory: outcome.moveHistory,
       pgn: outcome.pgn,
     });
-    setRunningGameId(null);
-    return finishedCycle;
+    return { cycle: finishedCycle, outcome };
   };
 
   const handleRunNextGame = async () => {
-    if (!cycle || cycle.isPaused || runningGameId) return;
+    if (!cycle || cycle.isPaused || runningGameId || autoRunning) return;
     const nextGame = currentStageGames.find((g) => g.status === "upcoming" || g.status === "live");
     if (!nextGame) {
       toast.info("All scheduled games in this stage are completed.");
       return;
     }
-    const updated = await runSingleGame(cycle, nextGame);
-    toast.success(`Game #${nextGame.gameNumber} completed.`);
+    const { cycle: updated, outcome } = await runSingleGame(cycle, nextGame);
+    setRunningGameId(null);
+    if (!outcome) return;
+
+    toast.success(`Game #${nextGame.gameNumber} completed (${outcome.result}).`);
     if (
       updated.stage === "match" &&
       (updated.match.championScore >= updated.match.targetScore ||
@@ -345,51 +445,90 @@ export function ChampionshipManager() {
     }
   };
 
-  const handleRunAllRemaining = async () => {
-    if (!cycle || cycle.isPaused || runningGameId) return;
-    setRunningBatch(true);
-    let current: ChampionshipCycle | null = cycle;
+  const runContinuousSchedule = async () => {
+    if (!cycle || cycle.isPaused || runningGameId || autoRunning) return;
+    setAutoRunning(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    let currentCycle: ChampionshipCycle | null = cycle;
+
     try {
-      while (current && !current.isPaused) {
+      while (currentCycle && !currentCycle.isPaused && !controller.signal.aborted) {
         const list =
-          current.stage === "qualification"
-            ? current.qualification.games
-            : current.stage === "candidates"
-              ? current.candidates.games
-              : current.stage === "match"
-                ? current.match.games
+          currentCycle.stage === "qualification"
+            ? currentCycle.qualification.games
+            : currentCycle.stage === "candidates"
+              ? currentCycle.candidates.games
+              : currentCycle.stage === "match"
+                ? currentCycle.match.games
                 : [];
+
         const nextGame = list.find((g) => g.status === "upcoming" || g.status === "live");
-        if (!nextGame) break;
-        if (
-          current.stage === "match" &&
-          (current.match.championScore >= current.match.targetScore ||
-            current.match.challengerScore >= current.match.targetScore)
-        ) {
+        if (!nextGame) {
+          toast.success("All games in this stage are completed!");
           break;
         }
-        const beforeAbort = abortRef.current?.signal.aborted;
-        current = await runSingleGame(current, nextGame);
-        if (beforeAbort || abortRef.current?.signal.aborted) break;
+
+        if (
+          currentCycle.stage === "match" &&
+          (currentCycle.match.championScore >= currentCycle.match.targetScore ||
+            currentCycle.match.challengerScore >= currentCycle.match.targetScore)
+        ) {
+          toast.success("Match clinched! Ready to Declare & Crown Winner.");
+          break;
+        }
+
+        const { cycle: afterGame, outcome } = await runSingleGame(
+          currentCycle,
+          nextGame,
+          controller.signal,
+        );
+        currentCycle = afterGame;
+
+        if (controller.signal.aborted || !outcome) break;
+
+        // Show brief 2.2s victory banner between games
+        const wName = botMap.get(nextGame.whiteBotId)?.name ?? nextGame.whiteBotId;
+        const bName = botMap.get(nextGame.blackBotId)?.name ?? nextGame.blackBotId;
+        const winnerLabel =
+          outcome.result === "1-0"
+            ? `${wName} wins as White`
+            : outcome.result === "0-1"
+              ? `${bName} wins as Black`
+              : "Draw";
+        setVictoryBanner({
+          gameNumber: nextGame.gameNumber,
+          result: outcome.result,
+          detail: winnerLabel,
+        });
+
+        await new Promise((r) => setTimeout(r, 2200));
+        setVictoryBanner(null);
+        setRunningGameId(null);
       }
-      toast.success("Automated stage run finished.");
     } finally {
-      setRunningBatch(false);
+      setAutoRunning(false);
+      setRunningGameId(null);
+      setVictoryBanner(null);
     }
   };
 
   const handleStopRunning = () => {
     abortRef.current?.abort();
-    setRunningBatch(false);
+    setAutoRunning(false);
     setRunningGameId(null);
-    toast.info("Stopped active simulation.");
+    setVictoryBanner(null);
+    toast.info("Stopped championship auto-play.");
   };
 
   const handleTogglePause = async () => {
     if (!cycle) return;
-    if (!cycle.isPaused && runningGameId) {
+    if (!cycle.isPaused && (runningGameId || autoRunning)) {
       abortRef.current?.abort();
-      setRunningBatch(false);
+      setAutoRunning(false);
+      setRunningGameId(null);
+      setVictoryBanner(null);
     }
     await saveActiveCycle({ ...cycle, isPaused: !cycle.isPaused });
   };
@@ -531,13 +670,26 @@ export function ChampionshipManager() {
       return;
     }
     abortRef.current?.abort();
-    setRunningBatch(false);
+    setAutoRunning(false);
     setRunningGameId(null);
+    setVictoryBanner(null);
     await saveActiveCycle(null);
     toast.info("Championship cycle cleared.");
   };
 
   const liveBoardGame = useMemo(() => new Chess(liveFen), [liveFen]);
+  const liveGameObj = useMemo(
+    () => currentStageGames.find((x) => x.id === runningGameId) ?? null,
+    [currentStageGames, runningGameId],
+  );
+  const liveMoveRows = useMemo(() => {
+    const rows: Array<{ n: number; w: string; b?: string }> = [];
+    for (let i = 0; i < liveMoves.length; i += 2) {
+      rows.push({ n: i / 2 + 1, w: liveMoves[i], b: liveMoves[i + 1] });
+    }
+    return rows;
+  }, [liveMoves]);
+
   const completedCount = currentStageGames.filter((g) => g.status === "completed").length;
   const recommendedWinnerId = useMemo(() => {
     if (!cycle || cycle.stage !== "match") return reigning.botId;
@@ -724,6 +876,11 @@ export function ChampionshipManager() {
                       PAUSED
                     </Badge>
                   )}
+                  {autoRunning && (
+                    <Badge className="bg-emerald-600/20 text-emerald-400 border-emerald-500/40 text-[10px]">
+                      AUTO-PLAYING
+                    </Badge>
+                  )}
                 </div>
                 <h3 className="text-xl font-bold">{cycle.name}</h3>
                 <p className="text-xs text-muted-foreground">
@@ -731,7 +888,7 @@ export function ChampionshipManager() {
                   <span className="text-foreground font-bold uppercase">{cycle.stage}</span>
                 </p>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 items-center">
                 <Button
                   size="sm"
                   variant="outline"
@@ -826,21 +983,42 @@ export function ChampionshipManager() {
               </div>
             </div>
 
-            {/* Match / Round Execution Toolbar */}
+            {/* Speed Selector + Match / Round Execution Toolbar */}
             <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl bg-background/60 border border-border">
-              <div className="text-xs">
-                <span className="font-bold">Stage Progress:</span> {completedCount} /{" "}
-                {currentStageGames.length} games completed
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="text-xs">
+                  <span className="font-bold">Stage Progress:</span> {completedCount} /{" "}
+                  {currentStageGames.length} games
+                </div>
+                <div className="flex items-center gap-1 bg-card border border-border rounded-md p-0.5">
+                  <Gauge className="w-3.5 h-3.5 text-muted-foreground mx-1.5" />
+                  {SPEED_OPTIONS.map((sp) => (
+                    <button
+                      key={sp}
+                      type="button"
+                      onClick={() => setSpeed(sp)}
+                      className={cn(
+                        "px-2 py-1 rounded text-[11px] font-semibold transition-colors",
+                        speed === sp
+                          ? "bg-warning text-warning-foreground"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {CHAMPIONSHIP_SPEEDS[sp].label}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                {runningGameId ? (
+                {runningGameId || autoRunning ? (
                   <Button
                     size="sm"
                     variant="destructive"
                     onClick={handleStopRunning}
-                    className="gap-1.5"
+                    className="gap-1.5 font-semibold"
                   >
-                    <StopIcon className="w-3.5 h-3.5" /> Stop Simulation ({livePlies} plies)
+                    <StopIcon className="w-3.5 h-3.5" />
+                    {autoRunning ? "Stop Auto-Play" : "Stop Game"} ({liveMoves.length} plies)
                   </Button>
                 ) : (
                   <>
@@ -856,46 +1034,106 @@ export function ChampionshipManager() {
                     <Button
                       size="sm"
                       disabled={cycle.isPaused || completedCount >= currentStageGames.length}
-                      onClick={handleRunAllRemaining}
+                      onClick={runContinuousSchedule}
                       className="bg-warning text-warning-foreground hover:bg-warning/90 gap-1.5 font-semibold"
                     >
-                      <FastForward className="w-3.5 h-3.5" /> Run Remaining Games
+                      <Play className="w-3.5 h-3.5 fill-current" /> Auto-Play Schedule
                     </Button>
                   </>
                 )}
               </div>
             </div>
 
-            {/* Live Mini Board when running a game in Studio */}
-            {runningGameId && (
-              <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-4 items-center p-4 rounded-xl border border-warning/30 bg-warning/5">
-                <div className="w-full max-w-[320px] mx-auto">
-                  <Board
-                    game={liveBoardGame}
-                    flipped={false}
-                    disabled
-                    lastMove={liveLastMove}
-                    onAttemptMove={() => false}
-                    force2D
-                  />
+            {/* Live Broadcast Simulation Card */}
+            {(runningGameId || victoryBanner) && (
+              <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 space-y-4">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-rose-500/15 text-rose-400 border border-rose-500/30 text-[10px] font-bold uppercase tracking-wider">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                      {victoryBanner ? "Intermission" : "Live Simulation"}
+                    </span>
+                    <span className="text-xs font-bold">
+                      {liveGameObj ? `Game #${liveGameObj.gameNumber}` : "Championship Game"}
+                    </span>
+                  </div>
+                  <div className="text-xs font-mono text-muted-foreground">
+                    Plies: <span className="font-bold text-foreground">{liveMoves.length}</span> •{" "}
+                    {CHAMPIONSHIP_SPEEDS[speed].label}
+                  </div>
                 </div>
-                <div className="space-y-2 text-xs">
-                  <div className="inline-flex items-center gap-1.5 font-mono uppercase text-warning font-bold">
-                    Live Match Engine Running
+
+                {victoryBanner && (
+                  <div className="p-3 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-center space-y-0.5">
+                    <div className="text-sm font-black text-emerald-400">
+                      Game #{victoryBanner.gameNumber} Result: {victoryBanner.result} —{" "}
+                      {victoryBanner.detail}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Preparing next scheduled match…
+                    </div>
                   </div>
-                  <div className="text-sm font-bold">
-                    {(() => {
-                      const g = currentStageGames.find((x) => x.id === runningGameId);
-                      if (!g) return "Active Match";
-                      const w = botMap.get(g.whiteBotId)?.name ?? g.whiteBotId;
-                      const b = botMap.get(g.blackBotId)?.name ?? g.blackBotId;
-                      return `Game #${g.gameNumber}: ${w} (White) vs ${b} (Black)`;
-                    })()}
+                )}
+
+                <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-4 items-start">
+                  <div className="space-y-2">
+                    {liveGameObj && (
+                      <SimPlayerBanner
+                        bot={botMap.get(liveGameObj.blackBotId)}
+                        fallbackId={liveGameObj.blackBotId}
+                        side="Black"
+                        active={liveBoardGame.turn() === "b" && !victoryBanner}
+                      />
+                    )}
+                    <div className="flex gap-2.5 items-stretch max-w-[440px] mx-auto w-full">
+                      <EvaluationBar evalData={liveEval} />
+                      <div className="flex-1 min-w-0">
+                        <Board
+                          game={liveBoardGame}
+                          flipped={false}
+                          disabled
+                          lastMove={liveLastMove}
+                          onAttemptMove={() => false}
+                          force2D
+                        />
+                      </div>
+                    </div>
+                    {liveGameObj && (
+                      <SimPlayerBanner
+                        bot={botMap.get(liveGameObj.whiteBotId)}
+                        fallbackId={liveGameObj.whiteBotId}
+                        side="White"
+                        active={liveBoardGame.turn() === "w" && !victoryBanner}
+                      />
+                    )}
                   </div>
-                  <p className="text-muted-foreground">
-                    Plies played: <span className="font-mono font-semibold">{livePlies}</span> •{" "}
-                    {runningBatch ? "Auto-running stage schedule" : "Single game execution"}
-                  </p>
+
+                  {/* Live Notation Feed */}
+                  <div className="rounded-lg border border-border bg-card overflow-hidden flex flex-col h-[380px]">
+                    <div className="px-3 py-2 border-b border-border text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                      <span>Live Move Feed</span>
+                      <span className="font-mono">{liveMoves.length} plies</span>
+                    </div>
+                    <div ref={moveFeedRef} className="flex-1 overflow-y-auto scroll-thin p-1">
+                      {liveMoveRows.length === 0 ? (
+                        <div className="text-xs text-muted-foreground px-3 py-6 text-center">
+                          Waiting for opening move…
+                        </div>
+                      ) : (
+                        <table className="w-full text-xs font-mono">
+                          <tbody>
+                            {liveMoveRows.map((r) => (
+                              <tr key={r.n} className="odd:bg-secondary/30">
+                                <td className="px-2 py-1 text-muted-foreground w-8">{r.n}.</td>
+                                <td className="px-2 py-1 font-semibold">{r.w}</td>
+                                <td className="px-2 py-1 text-muted-foreground">{r.b ?? ""}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -935,8 +1173,11 @@ export function ChampionshipManager() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            disabled={cycle.isPaused || !!runningGameId}
-                            onClick={() => void runSingleGame(cycle, g)}
+                            disabled={cycle.isPaused || !!runningGameId || autoRunning}
+                            onClick={async () => {
+                              await runSingleGame(cycle, g);
+                              setRunningGameId(null);
+                            }}
                             className="h-6 px-2 text-[11px]"
                           >
                             <Play className="w-3 h-3 mr-1" /> Play

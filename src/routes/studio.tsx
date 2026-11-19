@@ -152,6 +152,7 @@ function StudioGate() {
     "workshop" | "builder" | "openings" | "verify" | "updates" | "customize" | "championship"
   >("workshop");
   const [editRequest, setEditRequest] = useState<{ id: string; n: number } | null>(null);
+  const [labBotRequest, setLabBotRequest] = useState<{ id: string; n: number } | null>(null);
 
   if (loading) {
     return (
@@ -233,12 +234,18 @@ function StudioGate() {
         </div>
         <div className={cn("max-w-[1600px] mx-auto mt-4", tab !== "builder" && "hidden")}>
           <TabErrorBoundary name="Bot Builder">
-            <StudioBotEditor editRequest={editRequest} />
+            <StudioBotEditor
+              editRequest={editRequest}
+              onOpenInLab={(id) => {
+                setLabBotRequest((r) => ({ id, n: (r?.n ?? 0) + 1 }));
+                setTab("openings");
+              }}
+            />
           </TabErrorBoundary>
         </div>
         <div className={cn("max-w-[1600px] mx-auto mt-4", tab !== "openings" && "hidden")}>
           <TabErrorBoundary name="Opening Lab">
-            <OpeningLab />
+            <OpeningLab initialBotRequest={labBotRequest} />
           </TabErrorBoundary>
         </div>
         <div className={cn("max-w-[1000px] mx-auto mt-4", tab !== "verify" && "hidden")}>

@@ -312,8 +312,10 @@ const inputCls = "w-full h-8 rounded-md bg-background border border-border px-2 
 
 export function StudioBotEditor({
   editRequest,
+  onOpenInLab,
 }: {
   editRequest?: { id: string; n: number } | null;
+  onOpenInLab?: (botId: string) => void;
 }) {
   const [bots, setBots] = useState<BotConfig[]>(loadBots());
   const [draft, setDraft] = useState<Draft>(blankDraft());
@@ -987,8 +989,18 @@ export function StudioBotEditor({
             <p className="text-[10px] text-muted-foreground">
               {draft.opening.bookName
                 ? `Book: ${draft.opening.bookName} (plays directly from book)`
-                : "No custom book uploaded — calculates moves with engine from move 1."}
+                : "Using standard 6-opening repertoire. Custom book can be pruned in Opening Lab."}
             </p>
+            {onOpenInLab && (
+              <button
+                type="button"
+                disabled={!draft.id}
+                onClick={() => draft.id && onOpenInLab(draft.id)}
+                className="mt-2 w-full h-8 rounded-md bg-warning/20 text-warning hover:bg-warning/30 border border-warning/40 text-xs font-semibold flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {draft.id ? "🧪 Edit Book in Opening Lab" : "Save bot first to edit book in Lab"}
+              </button>
+            )}
           </Card>
         )}
         <div className="flex gap-2 sticky bottom-2">

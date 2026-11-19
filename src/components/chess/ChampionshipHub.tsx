@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Chess, type Square } from "chess.js";
 import {
   Award,
@@ -8,10 +8,13 @@ import {
   ChevronLeft,
   ChevronRight,
   Crown,
+  FlipHorizontal2,
   History,
   ListChecks,
   PlaySquare,
   Trophy,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import {
   fetchChampionshipData,
@@ -25,11 +28,79 @@ import {
   type ScheduledGame,
 } from "@/lib/championshipStore";
 import { loadBots, subscribeBots, type BotConfig } from "@/lib/botStore";
+import { botDisplayIdentity, isImmersiveEnabled } from "@/lib/immersive";
+import { useSettings } from "@/lib/settings";
+import { playMoveResultSound } from "@/lib/sounds";
+import { evaluatePosition, type PositionEval } from "@/lib/stockfishEval";
 import { Board } from "./Board";
+import { BoardScaleControl, BoardViewToggle, TheaterToggleButton } from "./BoardScaleControl";
+import { TitleBadge } from "./ChessApp";
+import { EvaluationBar } from "./EvaluationBar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+
+function SpectatorPlayerCard({
+  bot,
+  fallbackId,
+  colorLabel,
+  score,
+  isTurn,
+}: {
+  bot: BotConfig | undefined;
+  fallbackId: string;
+  colorLabel: "White" | "Black";
+  score?: number | null;
+  isTurn: boolean;
+}) {
+  const ident = bot ? botDisplayIdentity(bot, isImmersiveEnabled()) : null;
+  return (
+    <div
+      className={cn(
+        "flex items-center justify-between gap-3 px-3 py-2 rounded-lg border transition-colors",
+        isTurn ? "border-amber-500/60 bg-amber-500/10" : "border-border bg-secondary/25",
+      )}
+    >
+      <div className="flex items-center gap-2.5 min-w-0">
+        <div className="w-9 h-9 rounded-md bg-secondary overflow-hidden grid place-items-center shrink-0 ring-1 ring-border">
+          {bot?.avatar ? (
+            <img src={bot.avatar} alt={bot.name} className="w-full h-full object-cover" />
+          ) : (
+            <Bot className="w-4 h-4 text-muted-foreground" />
+          )}
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <TitleBadge title={ident?.title} color={ident?.titleColor} size="sm" />
+            <span className="text-xs sm:text-sm font-bold truncate">
+              {ident?.name ?? fallbackId}
+            </span>
+            {bot?.country && <span className="text-sm shrink-0 leading-none">{bot.country}</span>}
+          </div>
+          <div className="text-[11px] text-muted-foreground font-mono flex items-center gap-2">
+            <span>{colorLabel}</span>
+            <span>·</span>
+            <span>{bot?.elo ?? 1500} Elo</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 shrink-0">
+        {isTurn && (
+          <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-mono font-bold uppercase">
+            Thinking
+          </span>
+        )}
+        {score != null && (
+          <div className="px-2.5 py-1 rounded-md bg-background border border-border text-sm font-black font-mono text-amber-400">
+            {score}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function ChampionshipHub() {
   const [cycle, setCycle] = useState<ChampionshipCycle | null>(getActiveCycle());
@@ -39,6 +110,18 @@ export function ChampionshipHub() {
   const [activeTab, setActiveTab] = useState<"live" | "candidates" | "qual" | "hall">("live");
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
   const [replayMoveIndex, setReplayMoveIndex] = useState<number | null>(null);
+  const [flipped, setFlipped] = useState(false);
+  const [isTheater, setIsTheater] = useState(false);
+  const [spectatorSound, setSpectatorSound] = useState(true);
+  const [evalData, setEvalData] = useState<PositionEval | null>(null);
+  const [evalLoading, setEvalLoading] = useState(false);
+  const [settings] = useSettings();
+
+  const moveTableRef = useRef<HTMLDivElement | null>(null);
+  const lastSoundStateRef = useRef<{ gameId: string | null; plyCount: number }>({
+    gameId: null,
+    plyCount: 0,
+  });
 
   useEffect(() => {
     setBots(loadBots());
@@ -54,10 +137,10 @@ export function ChampionshipHub() {
       setReigning(getReigningChampion());
     });
 
-    // Gentle spectator sync poll when viewing Championship Hub
+    // Live spectator polling every 1.8s so broadcasted moves stream smoothly
     const poll = window.setInterval(() => {
       void fetchChampionshipData();
-    }, 5000);
+    }, 1800);
 
     return () => {
       unsubBots();
@@ -72,28 +155,26 @@ export function ChampionshipHub() {
     return m;
   }, [bots]);
 
-  const featuredGame: ScheduledGame | null = useMemo(() => {
-    if (!cycle) return null;
-    const allStageGames =
-      cycle.stage === "match"
-        ? cycle.match.games
-        : cycle.stage === "candidates"
-          ? cycle.candidates.games
-          : cycle.stage === "qualification"
-            ? cycle.qualification.games
-            : cycle.match.games;
+  const stageGames: ScheduledGame[] = useMemo(() => {
+    if (!cycle) return [];
+    if (cycle.stage === "match" || cycle.stage === "completed") return cycle.match.games;
+    if (cycle.stage === "candidates") return cycle.candidates.games;
+    return cycle.qualification.games;
+  }, [cycle]);
 
+  const featuredGame: ScheduledGame | null = useMemo(() => {
+    if (stageGames.length === 0) return null;
     if (selectedGameId) {
-      const found = allStageGames.find((g) => g.id === selectedGameId);
+      const found = stageGames.find((g) => g.id === selectedGameId);
       if (found) return found;
     }
-    const live = allStageGames.find((g) => g.status === "live");
+    const live = stageGames.find((g) => g.status === "live");
     if (live) return live;
-    const completed = [...allStageGames].reverse().find((g) => g.status === "completed");
-    return completed ?? allStageGames[0] ?? null;
-  }, [cycle, selectedGameId]);
+    const completed = [...stageGames].reverse().find((g) => g.status === "completed");
+    return completed ?? stageGames[0] ?? null;
+  }, [stageGames, selectedGameId]);
 
-  const { boardGame, lastMove, totalMoves } = useMemo(() => {
+  const { boardGame, lastMove, totalMoves, moveRows } = useMemo(() => {
     const g = new Chess();
     const moves = featuredGame?.moveHistory ?? [];
     const limit =
@@ -107,8 +188,71 @@ export function ChampionshipHub() {
         lm = { from: m.from as Square, to: m.to as Square };
       }
     }
-    return { boardGame: g, lastMove: lm, totalMoves: moves.length };
+    const rows: Array<{ n: number; w: string; b?: string; wIdx: number; bIdx?: number }> = [];
+    for (let i = 0; i < moves.length; i += 2) {
+      rows.push({
+        n: i / 2 + 1,
+        w: moves[i],
+        b: moves[i + 1],
+        wIdx: i + 1,
+        bIdx: i + 1 < moves.length ? i + 2 : undefined,
+      });
+    }
+    return { boardGame: g, lastMove: lm, totalMoves: moves.length, moveRows: rows };
   }, [featuredGame, replayMoveIndex]);
+
+  // Play acoustic move sound for spectators when new live moves arrive from cloud
+  useEffect(() => {
+    const gameId = featuredGame?.id ?? null;
+    const prev = lastSoundStateRef.current;
+    if (gameId !== prev.gameId) {
+      lastSoundStateRef.current = { gameId, plyCount: totalMoves };
+      return;
+    }
+    if (
+      spectatorSound &&
+      featuredGame?.status === "live" &&
+      replayMoveIndex === null &&
+      totalMoves > prev.plyCount
+    ) {
+      const moves = featuredGame.moveHistory ?? [];
+      const tmp = new Chess();
+      let latestMoveObj = null;
+      for (let i = 0; i < moves.length; i++) {
+        latestMoveObj = tmp.move(moves[i]);
+      }
+      if (latestMoveObj) {
+        playMoveResultSound(latestMoveObj);
+      }
+    }
+    lastSoundStateRef.current = { gameId, plyCount: totalMoves };
+  }, [featuredGame, totalMoves, replayMoveIndex, spectatorSound]);
+
+  // Auto-scroll move notation table when tracking live
+  useEffect(() => {
+    if (replayMoveIndex === null && moveTableRef.current) {
+      moveTableRef.current.scrollTop = moveTableRef.current.scrollHeight;
+    }
+  }, [totalMoves, replayMoveIndex]);
+
+  // Stockfish Evaluation Bar update for displayed position
+  const fen = boardGame.fen();
+  useEffect(() => {
+    if (!featuredGame || boardGame.isGameOver()) {
+      setEvalLoading(false);
+      return;
+    }
+    let stale = false;
+    setEvalLoading(true);
+    void evaluatePosition(fen).then((res) => {
+      if (stale) return;
+      if (res) setEvalData(res);
+      setEvalLoading(false);
+    });
+    return () => {
+      stale = true;
+    };
+  }, [fen, featuredGame, boardGame]);
 
   const currentMatchGameNumber = useMemo(() => {
     if (!cycle || cycle.stage !== "match") return 1;
@@ -118,8 +262,306 @@ export function ChampionshipHub() {
     return Math.min(cycle.match.totalGames, Math.max(1, completed + 1));
   }, [cycle]);
 
+  const scoreForBot = (botId: string): number | null => {
+    if (!cycle) return null;
+    if (cycle.stage === "match" || cycle.stage === "completed") {
+      if (botId === cycle.match.championId) return cycle.match.championScore;
+      if (botId === cycle.match.challengerId) return cycle.match.challengerScore;
+      return null;
+    }
+    const list =
+      cycle.stage === "candidates" ? cycle.candidates.standings : cycle.qualification.standings;
+    return list.find((s) => s.botId === botId)?.points ?? null;
+  };
+
+  const renderBroadcastArena = (title: string, subtitle: string) => {
+    if (!featuredGame) {
+      return (
+        <div className="text-center py-12 space-y-2 text-muted-foreground">
+          <Trophy className="w-10 h-10 mx-auto text-muted-foreground/60 mb-2" />
+          <div className="font-bold text-foreground">No Broadcast Match Available Yet</div>
+          <p className="text-xs max-w-md mx-auto">
+            Once the Studio Owner launches games for this cycle, live boards, evaluation, and full
+            move notation will appear here automatically.
+          </p>
+        </div>
+      );
+    }
+
+    const whiteBot = botMap.get(featuredGame.whiteBotId);
+    const blackBot = botMap.get(featuredGame.blackBotId);
+    const topBot = flipped ? whiteBot : blackBot;
+    const topId = flipped ? featuredGame.whiteBotId : featuredGame.blackBotId;
+    const topColor: "White" | "Black" = flipped ? "White" : "Black";
+
+    const bottomBot = flipped ? blackBot : whiteBot;
+    const bottomId = flipped ? featuredGame.blackBotId : featuredGame.whiteBotId;
+    const bottomColor: "White" | "Black" = flipped ? "Black" : "White";
+
+    const isLive = featuredGame.status === "live" && replayMoveIndex === null;
+    const activeTurn = boardGame.turn();
+
+    return (
+      <div className="space-y-4">
+        {/* Live Broadcast Status & Board Toolbar */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-border">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {featuredGame.status === "live" ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-500/15 text-rose-400 border border-rose-500/40 text-[11px] font-extrabold tracking-wider uppercase">
+                <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                LIVE IN PROGRESS
+              </span>
+            ) : featuredGame.status === "completed" ? (
+              <Badge variant="secondary" className="font-mono text-[11px] uppercase">
+                FINAL · {featuredGame.result}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-[11px] uppercase">
+                UPCOMING
+              </Badge>
+            )}
+            <div>
+              <span className="text-sm font-bold">{title}</span>
+              <span className="text-xs text-muted-foreground ml-2">{subtitle}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <BoardScaleControl />
+            <BoardViewToggle />
+            <TheaterToggleButton active={isTheater} onToggle={() => setIsTheater((t) => !t)} />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0"
+              onClick={() => setFlipped((f) => !f)}
+              title="Flip board"
+              aria-label="Flip board"
+            >
+              <FlipHorizontal2 className="w-3.5 h-3.5" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0"
+              onClick={() => setSpectatorSound((s) => !s)}
+              title={spectatorSound ? "Mute spectator move sounds" : "Unmute spectator move sounds"}
+              aria-label="Toggle spectator sound"
+            >
+              {spectatorSound ? (
+                <Volume2 className="w-3.5 h-3.5" />
+              ) : (
+                <VolumeX className="w-3.5 h-3.5 text-muted-foreground" />
+              )}
+            </Button>
+          </div>
+        </div>
+
+        <div
+          className={cn(
+            "grid gap-5 items-start",
+            isTheater ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]",
+          )}
+        >
+          {/* Left: Top Player -> Eval Bar + Board -> Bottom Player */}
+          <div
+            className={cn(
+              "space-y-2.5 w-full mx-auto",
+              isTheater
+                ? "max-w-none"
+                : settings.immersive3D
+                  ? "max-w-[calc(min(90vh,1100px)*var(--board-scale,1))]"
+                  : "max-w-[calc(min(68vh,600px)*var(--board-scale,1))]",
+            )}
+          >
+            <SpectatorPlayerCard
+              bot={topBot}
+              fallbackId={topId}
+              colorLabel={topColor}
+              score={scoreForBot(topId)}
+              isTurn={isLive && activeTurn === (topColor === "White" ? "w" : "b")}
+            />
+
+            <div className="flex gap-2.5 items-stretch">
+              <div className="flex items-stretch">
+                <EvaluationBar evalData={evalData} loading={evalLoading} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <Board
+                  game={boardGame}
+                  flipped={flipped}
+                  disabled
+                  lastMove={lastMove}
+                  onAttemptMove={() => false}
+                  activeSide={boardGame.turn()}
+                  isTheater={isTheater}
+                  onToggleTheater={() => setIsTheater((t) => !t)}
+                />
+              </div>
+            </div>
+
+            <SpectatorPlayerCard
+              bot={bottomBot}
+              fallbackId={bottomId}
+              colorLabel={bottomColor}
+              score={scoreForBot(bottomId)}
+              isTurn={isLive && activeTurn === (bottomColor === "White" ? "w" : "b")}
+            />
+
+            {/* Replay & Live Controls */}
+            {totalMoves > 0 && (
+              <div className="flex items-center justify-center gap-1.5 pt-1">
+                <Button size="sm" variant="secondary" onClick={() => setReplayMoveIndex(0)}>
+                  <ChevronFirst className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setReplayMoveIndex((i) => Math.max(0, (i ?? totalMoves) - 1))}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <span className="text-xs font-mono px-2 min-w-[70px] text-center">
+                  {replayMoveIndex ?? totalMoves} / {totalMoves}
+                </span>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() =>
+                    setReplayMoveIndex((i) =>
+                      i === null ? totalMoves : Math.min(totalMoves, i + 1),
+                    )
+                  }
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => setReplayMoveIndex(null)}>
+                  <ChevronLast className="w-4 h-4" />
+                </Button>
+                {replayMoveIndex !== null && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-xs text-amber-400"
+                    onClick={() => setReplayMoveIndex(null)}
+                  >
+                    Live
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Right: 2-Column Move Notation + Stage Schedule */}
+          <div className="space-y-4">
+            <div className="rounded-xl border border-border bg-background/50 overflow-hidden flex flex-col h-[280px]">
+              <div className="px-3 py-2.5 border-b border-border text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                <span>Move Notation</span>
+                <span className="font-mono text-[11px]">{totalMoves} plies</span>
+              </div>
+              <div ref={moveTableRef} className="flex-1 overflow-y-auto scroll-thin">
+                {moveRows.length === 0 ? (
+                  <div className="text-xs text-muted-foreground px-3 py-8 text-center">
+                    No moves played yet.
+                  </div>
+                ) : (
+                  <table className="w-full text-xs font-mono">
+                    <tbody>
+                      {moveRows.map((r) => {
+                        const curLimit = replayMoveIndex ?? totalMoves;
+                        return (
+                          <tr key={r.n} className="odd:bg-secondary/25">
+                            <td className="px-2.5 py-1.5 text-muted-foreground w-9">{r.n}.</td>
+                            <td className="px-1.5 py-1">
+                              <button
+                                type="button"
+                                onClick={() => setReplayMoveIndex(r.wIdx)}
+                                className={cn(
+                                  "px-1.5 py-0.5 rounded hover:bg-secondary transition-colors",
+                                  curLimit === r.wIdx && "bg-amber-500/20 text-amber-400 font-bold",
+                                )}
+                              >
+                                {r.w}
+                              </button>
+                            </td>
+                            <td className="px-1.5 py-1">
+                              {r.b ? (
+                                <button
+                                  type="button"
+                                  onClick={() => r.bIdx && setReplayMoveIndex(r.bIdx)}
+                                  className={cn(
+                                    "px-1.5 py-0.5 rounded hover:bg-secondary transition-colors",
+                                    curLimit === r.bIdx &&
+                                      "bg-amber-500/20 text-amber-400 font-bold",
+                                  )}
+                                >
+                                  {r.b}
+                                </button>
+                              ) : null}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border bg-background/50 overflow-hidden">
+              <div className="px-3 py-2.5 border-b border-border text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                {cycle?.stage === "match" || cycle?.stage === "completed"
+                  ? "Championship Match Games"
+                  : "Stage Schedule"}
+              </div>
+              <div className="max-h-[260px] overflow-y-auto divide-y divide-border/50">
+                {stageGames.map((g) => {
+                  const active = featuredGame?.id === g.id;
+                  const wName = botMap.get(g.whiteBotId)?.name ?? g.whiteBotId;
+                  const bName = botMap.get(g.blackBotId)?.name ?? g.blackBotId;
+                  return (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedGameId(g.id);
+                        setReplayMoveIndex(null);
+                      }}
+                      className={cn(
+                        "w-full text-left px-3 py-2 text-xs flex items-center justify-between gap-2 hover:bg-secondary/40 transition-colors",
+                        active && "bg-amber-500/10 text-amber-400 font-semibold",
+                      )}
+                    >
+                      <div className="truncate">
+                        <span className="font-mono text-muted-foreground mr-2">
+                          G{g.gameNumber}
+                        </span>
+                        {wName} vs {bName}
+                      </div>
+                      <span className="font-mono shrink-0 text-[11px]">
+                        {g.status === "completed" ? (
+                          g.result
+                        ) : g.status === "live" ? (
+                          <span className="text-rose-400 font-bold">LIVE</span>
+                        ) : (
+                          "—"
+                        )}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="max-w-6xl mx-auto p-3 sm:p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-3 sm:p-6 space-y-6">
       {/* REIGNING CHAMPION HERO */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1a1d21] via-[#121417] to-[#1a1d21] border border-amber-500/30 p-6 sm:p-8 shadow-2xl">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-6 relative z-10">
@@ -223,90 +665,14 @@ export function ChampionshipHub() {
         </button>
       </div>
 
-      {/* TAB CONTENT: LIVE MATCH */}
+      {/* TAB CONTENT: LIVE BROADCAST */}
       {activeTab === "live" && (
-        <Card className="p-6 bg-card border-border space-y-6">
-          {!cycle || (cycle.stage !== "match" && cycle.stage !== "completed") ? (
-            <div className="space-y-6">
-              <div className="text-center py-6 space-y-2 text-muted-foreground">
-                <Trophy className="w-10 h-10 mx-auto text-muted-foreground/60 mb-2" />
-                <div className="font-bold text-foreground">No Title Match Currently Active</div>
-                <p className="text-xs max-w-md mx-auto">
-                  The Candidates tournament must conclude before the 14-game World Championship
-                  Match begins.
-                  {cycle ? ` Currently tracking ${cycle.stage} stage games below.` : ""}
-                </p>
-              </div>
-              {featuredGame && (
-                <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6 items-start border-t border-border pt-6">
-                  <div className="w-full mx-auto">
-                    <Board
-                      game={boardGame}
-                      flipped={false}
-                      disabled
-                      lastMove={lastMove}
-                      onAttemptMove={() => false}
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-mono uppercase text-amber-500 font-bold">
-                        Featured {cycle?.stage} Game #{featuredGame.gameNumber}
-                      </span>
-                      <Badge variant="outline" className="text-[10px] uppercase">
-                        {featuredGame.status}
-                      </Badge>
-                    </div>
-                    <div className="text-sm font-bold">
-                      {botMap.get(featuredGame.whiteBotId)?.name ?? featuredGame.whiteBotId} vs{" "}
-                      {botMap.get(featuredGame.blackBotId)?.name ?? featuredGame.blackBotId}
-                    </div>
-                    {totalMoves > 0 && (
-                      <div className="flex items-center gap-1.5">
-                        <Button size="sm" variant="secondary" onClick={() => setReplayMoveIndex(0)}>
-                          <ChevronFirst className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() =>
-                            setReplayMoveIndex((i) => Math.max(0, (i ?? totalMoves) - 1))
-                          }
-                        >
-                          <ChevronLeft className="w-4 h-4" />
-                        </Button>
-                        <span className="text-xs font-mono px-2">
-                          {replayMoveIndex ?? totalMoves}/{totalMoves}
-                        </span>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() =>
-                            setReplayMoveIndex((i) =>
-                              i === null ? totalMoves : Math.min(totalMoves, i + 1),
-                            )
-                          }
-                        >
-                          <ChevronRight className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => setReplayMoveIndex(null)}
-                        >
-                          <ChevronLast className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {/* Match Header Score */}
-              <div className="flex flex-col sm:flex-row items-center justify-around gap-6 p-6 rounded-xl bg-secondary/30 border border-border">
-                <div className="text-center space-y-1.5">
+        <Card className="p-4 sm:p-6 bg-card border-border space-y-6">
+          {cycle && (cycle.stage === "match" || cycle.stage === "completed") ? (
+            <>
+              {/* Title Match Header Scoreboard */}
+              <div className="flex flex-col sm:flex-row items-center justify-around gap-6 p-5 rounded-xl bg-secondary/30 border border-border">
+                <div className="text-center space-y-1">
                   <div className="text-xs uppercase font-mono text-amber-500 font-bold">
                     Reigning Champion
                   </div>
@@ -326,7 +692,7 @@ export function ChampionshipHub() {
                     First to {cycle.match.targetScore} wins
                   </div>
                 </div>
-                <div className="text-center space-y-1.5">
+                <div className="text-center space-y-1">
                   <div className="text-xs uppercase font-mono text-sky-400 font-bold">
                     Candidates Challenger
                   </div>
@@ -338,116 +704,18 @@ export function ChampionshipHub() {
                   </div>
                 </div>
               </div>
-
-              {/* Spectator Board & Schedule */}
-              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6 items-start">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-xs px-1">
-                    <span className="font-semibold">
-                      {featuredGame
-                        ? `Game ${featuredGame.gameNumber}: ${
-                            botMap.get(featuredGame.whiteBotId)?.name ?? featuredGame.whiteBotId
-                          } (White) vs ${
-                            botMap.get(featuredGame.blackBotId)?.name ?? featuredGame.blackBotId
-                          } (Black)`
-                        : "Championship Board"}
-                    </span>
-                    {featuredGame?.result && featuredGame.status === "completed" && (
-                      <Badge variant="secondary" className="font-mono">
-                        {featuredGame.result}
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="w-full mx-auto">
-                    <Board
-                      game={boardGame}
-                      flipped={false}
-                      disabled
-                      lastMove={lastMove}
-                      onAttemptMove={() => false}
-                    />
-                  </div>
-                  {totalMoves > 0 && (
-                    <div className="flex items-center justify-center gap-1.5">
-                      <Button size="sm" variant="secondary" onClick={() => setReplayMoveIndex(0)}>
-                        <ChevronFirst className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() =>
-                          setReplayMoveIndex((i) => Math.max(0, (i ?? totalMoves) - 1))
-                        }
-                      >
-                        <ChevronLeft className="w-4 h-4" />
-                      </Button>
-                      <span className="text-xs font-mono px-2 min-w-[64px] text-center">
-                        {replayMoveIndex ?? totalMoves} / {totalMoves}
-                      </span>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() =>
-                          setReplayMoveIndex((i) =>
-                            i === null ? totalMoves : Math.min(totalMoves, i + 1),
-                          )
-                        }
-                      >
-                        <ChevronRight className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => setReplayMoveIndex(null)}
-                      >
-                        <ChevronLast className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                <div className="rounded-xl border border-border bg-background/50 overflow-hidden">
-                  <div className="px-3 py-2.5 border-b border-border text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Match Games
-                  </div>
-                  <div className="max-h-[420px] overflow-y-auto divide-y divide-border/50">
-                    {cycle.match.games.map((g) => {
-                      const active = featuredGame?.id === g.id;
-                      const wName = botMap.get(g.whiteBotId)?.name ?? g.whiteBotId;
-                      const bName = botMap.get(g.blackBotId)?.name ?? g.blackBotId;
-                      return (
-                        <button
-                          key={g.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedGameId(g.id);
-                            setReplayMoveIndex(null);
-                          }}
-                          className={cn(
-                            "w-full text-left px-3 py-2 text-xs flex items-center justify-between gap-2 hover:bg-secondary/40 transition-colors",
-                            active && "bg-amber-500/10 text-amber-400 font-semibold",
-                          )}
-                        >
-                          <div className="truncate">
-                            <span className="font-mono text-muted-foreground mr-2">
-                              G{g.gameNumber}
-                            </span>
-                            {wName} vs {bName}
-                          </div>
-                          <span className="font-mono shrink-0 text-[11px]">
-                            {g.status === "completed"
-                              ? g.result
-                              : g.status === "live"
-                                ? "LIVE"
-                                : "—"}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
+              {renderBroadcastArena(
+                `Game #${featuredGame?.gameNumber ?? currentMatchGameNumber}`,
+                "World Championship Title Match",
+              )}
+            </>
+          ) : (
+            renderBroadcastArena(
+              featuredGame ? `Featured ${cycle?.stage ?? ""} Game #${featuredGame.gameNumber}` : "",
+              cycle
+                ? `${cycle.stage.toUpperCase()} Stage Broadcast`
+                : "Awaiting Championship Cycle",
+            )
           )}
         </Card>
       )}

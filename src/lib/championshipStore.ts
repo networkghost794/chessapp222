@@ -2,6 +2,7 @@ import { Chess } from "chess.js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { chooseBotMove, loadBots, type BotConfig } from "@/lib/botStore";
+import { playMoveResultSound } from "./sounds";
 
 export type StageType = "qualification" | "candidates" | "match" | "completed";
 export type QualFormat = "round_robin" | "double_round_robin" | "swiss" | "knockout";
@@ -448,15 +449,30 @@ export function calculateMatchScore(
   return { championScore, challengerScore };
 }
 
+export type ChampionshipSpeed = "normal" | "fast" | "blitz" | "turbo";
+
+export const CHAMPIONSHIP_SPEEDS: Record<ChampionshipSpeed, { label: string; delayMs: number }> = {
+  normal: { label: "Normal (1.0s)", delayMs: 1000 },
+  fast: { label: "Fast (0.5s)", delayMs: 500 },
+  blitz: { label: "Blitz (0.25s)", delayMs: 250 },
+  turbo: { label: "Turbo / Sim", delayMs: 40 },
+};
+
 /** Play an automated bot-vs-bot game for a ScheduledGame using the bot engine */
 export async function playChampionshipBotGame(
   whiteBot: BotConfig | null,
   blackBot: BotConfig | null,
   options?: {
     moveDelayMs?: number;
+    getDelayMs?: () => number;
     maxPlies?: number;
     signal?: AbortSignal;
-    onMove?: (moveHistory: string[], fen: string) => void;
+    playSound?: boolean;
+    onMove?: (
+      moveHistory: string[],
+      fen: string,
+      lastMove: { from: string; to: string } | null,
+    ) => void;
   },
 ): Promise<{
   result: "1-0" | "0-1" | "1/2-1/2";
@@ -466,21 +482,31 @@ export async function playChampionshipBotGame(
   const chess = new Chess();
   const moveHistory: string[] = [];
   const maxPlies = options?.maxPlies ?? 220;
-  const delayMs = options?.moveDelayMs ?? 120;
+  const playAudio = options?.playSound ?? true;
 
   while (!chess.isGameOver() && moveHistory.length < maxPlies) {
     if (options?.signal?.aborted) break;
+
     const activeBot = chess.turn() === "w" ? whiteBot : blackBot;
     const picked = await chooseBotMove(chess, activeBot);
     if (!picked) break;
+    if (options?.signal?.aborted) break;
+
     const m = chess.move({
       from: picked.move.from,
       to: picked.move.to,
       promotion: picked.move.promotion as "q" | "r" | "b" | "n" | undefined,
     });
     if (!m) break;
+
+    const delayMs = options?.getDelayMs?.() ?? options?.moveDelayMs ?? 1000;
+    if (playAudio && delayMs >= 150) {
+      playMoveResultSound(m);
+    }
+
     moveHistory.push(m.san);
-    options?.onMove?.([...moveHistory], chess.fen());
+    options?.onMove?.([...moveHistory], chess.fen(), { from: m.from, to: m.to });
+
     if (delayMs > 0) {
       await new Promise((r) => setTimeout(r, delayMs));
     }

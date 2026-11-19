@@ -1,0 +1,926 @@
+# ♟️ BOTBOARD: PRIVATE BOT PLAYER MODE IMPLEMENTATION
+
+You are an expert full-stack TypeScript & React engineer. Implement the **Private Bot Player Mode** inside BotBoard's Owner Studio (`/studio`).
+
+This mode allows the app owner to personally pilot any bot as their player identity against any opposing bot, with an independent private Glicko-2 rating ecosystem, persistent profiles, private leaderboard, and a Chess.com-style animated post-game rating celebration.
+
+---
+
+### File 1: Create `src/lib/privateBotPlayerStore.ts`
+Manages private bot profiles, Glicko-2 calculations, game records, and backend persistence.
+
+```typescript
+import { supabase } from "@/integrations/supabase/client";
+import { glicko2, type GlickoResult } from "./glicko2";
+import type { BotConfig } from "./botStore";
+
+export interface PrivateGameRecord {
+  id: string;
+  timestamp: number;
+  botId: string;
+  opponentBotId: string;
+  opponentName: string;
+  opponentAvatar?: string | null;
+  color: "w" | "b";
+  result: "win" | "loss" | "draw";
+  oldRating: number;
+  newRating: number;
+  delta: number;
+  movesCount: number;
+  pgn: string;
+}
+
+export interface PrivateBotProfile {
+  botId: string;
+  name: string;
+  avatar: string;
+  publicRating: number;
+  currentRating: number;
+  peakRating: number;
+  rd: number;
+  volatility: number;
+  gamesPlayed: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  history: PrivateGameRecord[];
+}
+
+const SETTING_KEY = "private_bot_player_profiles";
+const LOCAL_STORAGE_KEY = "botboard_private_bot_player_profiles";
+
+export async function fetchPrivateBotProfiles(allBots: BotConfig[]): Promise<Record<string, PrivateBotProfile>> {
+  let savedProfiles: Record<string, PrivateBotProfile> = {};
+
+  try {
+    const { data } = await supabase
+      .from("app_settings")
+      .select("value")
+      .eq("key", SETTING_KEY)
+      .maybeSingle();
+
+    if (data?.value && typeof data.value === "object") {
+      savedProfiles = data.value as Record<string, PrivateBotProfile>;
+    } else if (typeof window !== "undefined") {
+      const cached = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (cached) savedProfiles = JSON.parse(cached);
+    }
+  } catch (err) {
+    if (typeof window !== "undefined") {
+      const cached = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (cached) savedProfiles = JSON.parse(cached);
+    }
+  }
+
+  // Initialize profiles for any newly created bots
+  const merged: Record<string, PrivateBotProfile> = { ...savedProfiles };
+  for (const b of allBots) {
+    if (!merged[b.id]) {
+      merged[b.id] = {
+        botId: b.id,
+        name: b.name,
+        avatar: b.avatar || "",
+        publicRating: b.rating,
+        currentRating: b.rating,
+        peakRating: b.rating,
+        rd: 200,
+        volatility: 0.06,
+        gamesPlayed: 0,
+        wins: 0,
+        losses: 0,
+        draws: 0,
+        history: [],
+      };
+    } else {
+      // Sync display metadata without wiping private stats
+      merged[b.id].name = b.name;
+      merged[b.id].avatar = b.avatar || "";
+      merged[b.id].publicRating = b.rating;
+    }
+  }
+
+  return merged;
+}
+
+export async function savePrivateBotProfiles(profiles: Record<string, PrivateBotProfile>): Promise<void> {
+  if (typeof window !== "undefined") {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(profiles));
+  }
+  try {
+    await supabase.from("app_settings").upsert({
+      key: SETTING_KEY,
+      value: profiles as unknown as Record<string, unknown>,
+    });
+  } catch (err) {
+    console.error("[privateBotPlayerStore] Save error:", err);
+  }
+}
+
+export function recordPrivateGame(
+  profiles: Record<string, PrivateBotProfile>,
+  userBotId: string,
+  oppBotId: string,
+  userColor: "w" | "b",
+  result: "win" | "loss" | "draw",
+  movesCount: number,
+  pgn: string
+): {
+  updatedProfiles: Record<string, PrivateBotProfile>;
+  userOldRating: number;
+  userNewRating: number;
+  userDelta: number;
+  oppOldRating: number;
+  oppNewRating: number;
+  oppDelta: number;
+} {
+  const userProfile = profiles[userBotId];
+  const oppProfile = profiles[oppBotId];
+  if (!userProfile || !oppProfile) {
+    return {
+      updatedProfiles: profiles,
+      userOldRating: 1500,
+      userNewRating: 1500,
+      userDelta: 0,
+      oppOldRating: 1500,
+      oppNewRating: 1500,
+      oppDelta: 0,
+    };
+  }
+
+  const scoreUser = result === "win" ? 1 : result === "loss" ? 0 : 0.5;
+  const scoreOpp = 1 - scoreUser;
+
+  // Glicko-2 updates
+  const newUserGlicko = glicko2(
+    [{ oppRating: oppProfile.currentRating, oppRd: oppProfile.rd, score: scoreUser }],
+    { rating: userProfile.currentRating, rd: userProfile.rd, volatility: userProfile.volatility }
+  );
+
+  const newOppGlicko = glicko2(
+    [{ oppRating: userProfile.currentRating, oppRd: userProfile.rd, score: scoreOpp }],
+    { rating: oppProfile.currentRating, rd: oppProfile.rd, volatility: oppProfile.volatility }
+  );
+
+  const userDelta = newUserGlicko.rating - userProfile.currentRating;
+  const oppDelta = newOppGlicko.rating - oppProfile.currentRating;
+
+  const updated: Record<string, PrivateBotProfile> = {
+    ...profiles,
+    [userBotId]: {
+      ...userProfile,
+      currentRating: newUserGlicko.rating,
+      peakRating: Math.max(userProfile.peakRating, newUserGlicko.rating),
+      rd: newUserGlicko.rd,
+      volatility: newUserGlicko.volatility,
+      gamesPlayed: userProfile.gamesPlayed + 1,
+      wins: userProfile.wins + (result === "win" ? 1 : 0),
+      losses: userProfile.losses + (result === "loss" ? 1 : 0),
+      draws: userProfile.draws + (result === "draw" ? 1 : 0),
+      history: [
+        {
+          id: Math.random().toString(36).substring(2, 9),
+          timestamp: Date.now(),
+          botId: userBotId,
+          opponentBotId: oppBotId,
+          opponentName: oppProfile.name,
+          opponentAvatar: oppProfile.avatar,
+          color: userColor,
+          result,
+          oldRating: userProfile.currentRating,
+          newRating: newUserGlicko.rating,
+          delta: userDelta,
+          movesCount,
+          pgn,
+        },
+        ...userProfile.history.slice(0, 49),
+      ],
+    },
+    [oppBotId]: {
+      ...oppProfile,
+      currentRating: newOppGlicko.rating,
+      peakRating: Math.max(oppProfile.peakRating, newOppGlicko.rating),
+      rd: newOppGlicko.rd,
+      volatility: newOppGlicko.volatility,
+      gamesPlayed: oppProfile.gamesPlayed + 1,
+      wins: oppProfile.wins + (result === "loss" ? 1 : 0),
+      losses: oppProfile.losses + (result === "win" ? 1 : 0),
+      draws: oppProfile.draws + (result === "draw" ? 1 : 0),
+      history: [
+        {
+          id: Math.random().toString(36).substring(2, 9),
+          timestamp: Date.now(),
+          botId: oppBotId,
+          opponentBotId: userBotId,
+          opponentName: userProfile.name,
+          opponentAvatar: userProfile.avatar,
+          color: userColor === "w" ? "b" : "w",
+          result: result === "win" ? "loss" : result === "loss" ? "win" : "draw",
+          oldRating: oppProfile.currentRating,
+          newRating: newOppGlicko.rating,
+          delta: oppDelta,
+          movesCount,
+          pgn,
+        },
+        ...oppProfile.history.slice(0, 49),
+      ],
+    },
+  };
+
+  savePrivateBotProfiles(updated);
+
+  return {
+    updatedProfiles: updated,
+    userOldRating: userProfile.currentRating,
+    userNewRating: newUserGlicko.rating,
+    userDelta,
+    oppOldRating: oppProfile.currentRating,
+    oppNewRating: newOppGlicko.rating,
+    oppDelta,
+  };
+}
+
+
+
+
+File 2: Create src/components/chess/PrivateRatingModal.tsx
+
+
+
+The animated Chess.com post-game modal featuring the counting number and colored delta badge from your screenshot reference (1132 +11).
+
+
+
+import React, { useEffect, useState } from "react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Trophy, ArrowUpRight, ArrowDownRight, Minus, RotateCcw, UserPlus, Award } from "lucide-react";
+import type { PrivateBotProfile } from "@/lib/privateBotPlayerStore";
+
+export function PrivateRatingModal({
+  open,
+  onClose,
+  result,
+  userProfile,
+  oldRating,
+  newRating,
+  delta,
+  opponentName,
+  opponentAvatar,
+  opponentOldRating,
+  opponentDelta,
+  onRematch,
+  onNewMatch,
+}: {
+  open: boolean;
+  onClose: () => void;
+  result: "win" | "loss" | "draw";
+  userProfile: PrivateBotProfile;
+  oldRating: number;
+  newRating: number;
+  delta: number;
+  opponentName: string;
+  opponentAvatar?: string | null;
+  opponentOldRating: number;
+  opponentDelta: number;
+  onRematch: () => void;
+  onNewMatch: () => void;
+}) {
+  const [displayRating, setDisplayRating] = useState(oldRating);
+  const isWin = result === "win";
+  const isLoss = result === "loss";
+
+  useEffect(() => {
+    if (!open) return;
+    setDisplayRating(oldRating);
+
+    // Smooth counting interpolation over 1.2s
+    const startTime = performance.now();
+    const duration = 1200;
+
+    const frame = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1, elapsed / duration);
+      // Ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = Math.round(oldRating + (newRating - oldRating) * eased);
+      setDisplayRating(current);
+
+      if (progress < 1) {
+        requestAnimationFrame(frame);
+      }
+    };
+
+    const timer = setTimeout(() => {
+      requestAnimationFrame(frame);
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [open, oldRating, newRating]);
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md bg-[#121417] border border-[#262a30] text-foreground p-0 overflow-hidden shadow-2xl rounded-2xl">
+        {/* Banner */}
+        <div className={`p-6 text-center border-b border-[#262a30] ${
+          isWin ? "bg-emerald-950/30" : isLoss ? "bg-red-950/20" : "bg-neutral-900"
+        }`}>
+          <div className="w-16 h-16 rounded-full mx-auto mb-3 border-2 border-warning/40 overflow-hidden bg-card shadow-lg flex items-center justify-center">
+            {userProfile.avatar ? (
+              <img src={userProfile.avatar} alt={userProfile.name} className="w-full h-full object-cover" />
+            ) : (
+              <Trophy className="w-8 h-8 text-warning" />
+            )}
+          </div>
+          <h2 className="text-xl font-black tracking-tight text-white">{userProfile.name}</h2>
+          <div className="text-xs font-semibold tracking-wider uppercase mt-1">
+            {isWin && <span className="text-emerald-400">VICTORY</span>}
+            {isLoss && <span className="text-red-400">DEFEAT</span>}
+            {!isWin && !isLoss && <span className="text-zinc-400">DRAW</span>}
+            <span className="text-zinc-500 font-normal"> vs {opponentName}</span>
+          </div>
+        </div>
+
+        {/* Animated Rating Centerpiece (matches reference image) */}
+        <div className="p-6 space-y-6">
+          <div className="bg-[#181b1f] border border-[#2a2e35] rounded-xl p-5 text-center">
+            <div className="text-xs uppercase tracking-widest text-zinc-400 font-semibold mb-2">
+              Private Glicko-2 Rating
+            </div>
+            <div className="flex items-center justify-center gap-3">
+              <span className="text-4xl sm:text-5xl font-black text-white tracking-tight tabular-nums font-mono">
+                {displayRating}
+              </span>
+              <span
+                className={`text-xl sm:text-2xl font-bold font-mono px-2 py-0.5 rounded-md ${
+                  delta > 0
+                    ? "text-emerald-400 bg-emerald-500/10"
+                    : delta < 0
+                    ? "text-red-400 bg-red-500/10"
+                    : "text-zinc-400 bg-zinc-800"
+                }`}
+              >
+                {delta > 0 ? `+${delta}` : delta}
+              </span>
+            </div>
+
+            {newRating >= userProfile.peakRating && newRating > oldRating && (
+              <div className="mt-2.5 inline-flex items-center gap-1.5 text-xs text-warning bg-warning/10 px-2.5 py-1 rounded-full border border-warning/30 font-semibold animate-pulse">
+                <Award className="w-3.5 h-3.5" /> All-Time Peak Rating!
+              </div>
+            )}
+          </div>
+
+          {/* Opponent Rating Summary */}
+          <div className="flex items-center justify-between p-3.5 bg-[#181b1f]/60 rounded-lg border border-[#22252a] text-xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-full bg-zinc-800 overflow-hidden">
+                {opponentAvatar ? (
+                  <img src={opponentAvatar} alt={opponentName} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full grid place-items-center text-[10px]">🤖</div>
+                )}
+              </div>
+              <span className="font-semibold text-zinc-300">{opponentName}</span>
+            </div>
+            <div className="font-mono text-zinc-400">
+              {opponentOldRating + opponentDelta}{" "}
+              <span className={opponentDelta > 0 ? "text-emerald-400" : opponentDelta < 0 ? "text-red-400" : "text-zinc-500"}>
+                ({opponentDelta > 0 ? `+${opponentDelta}` : opponentDelta})
+              </span>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="grid grid-cols-2 gap-2.5 pt-2">
+            <Button
+              onClick={onRematch}
+              className="bg-warning text-black hover:bg-warning/90 font-bold h-11"
+            >
+              <RotateCcw className="w-4 h-4 mr-1.5" /> Rematch
+            </Button>
+            <Button
+              onClick={onNewMatch}
+              variant="outline"
+              className="border-[#2a2e35] bg-[#1a1d21] text-zinc-200 hover:bg-[#22252b] h-11"
+            >
+              <UserPlus className="w-4 h-4 mr-1.5" /> Change Bot
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
+
+
+
+File 3: Create src/components/chess/PrivateBotPlayerArena.tsx
+
+
+
+The full UI including Bot Selection, Setup, Live Manual Match with opponent engine execution, Profiles drawer, and Leaderboard.
+
+
+
+import React, { useState, useEffect, useRef } from "react";
+import { Chess, type Color, type Square } from "chess.js";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Play, RotateCcw, Trophy, User, Swords, Shield, LineChart, Award } from "lucide-react";
+import { Board } from "./Board";
+import { fetchBots, chooseBotMove, type BotConfig } from "@/lib/botStore";
+import {
+  fetchPrivateBotProfiles,
+  recordPrivateGame,
+  type PrivateBotProfile,
+} from "@/lib/privateBotPlayerStore";
+import { PrivateRatingModal } from "./PrivateRatingModal";
+import { playMoveResultSound } from "@/lib/sounds";
+
+export function PrivateBotPlayerArena() {
+  const [bots, setBots] = useState<BotConfig[]>([]);
+  const [profiles, setProfiles] = useState<Record<string, PrivateBotProfile>>({});
+  const [loading, setLoading] = useState(true);
+
+  const [activeTab, setActiveTab] = useState<"select" | "play" | "leaderboard" | "profile">("select");
+  const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
+  const [opponentBotId, setOpponentBotId] = useState<string | null>(null);
+  const [playerColor, setPlayerColor] = useState<Color>("w");
+
+  // Game state
+  const [game, setGame] = useState(() => new Chess());
+  const [history, setHistory] = useState<string[]>([]);
+  const [lastMove, setLastMove] = useState<{ from: Square; to: Square } | null>(null);
+  const [engineThinking, setEngineThinking] = useState(false);
+
+  // Result modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [matchResult, setMatchResult] = useState<{
+    result: "win" | "loss" | "draw";
+    userOldRating: number;
+    userNewRating: number;
+    userDelta: number;
+    oppOldRating: number;
+    oppDelta: number;
+  } | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      const botList = await fetchBots();
+      setBots(botList);
+      const profs = await fetchPrivateBotProfiles(botList);
+      setProfiles(profs);
+      if (botList.length > 0) {
+        setSelectedBotId(botList[0].id);
+        if (botList.length > 1) setOpponentBotId(botList[1].id);
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  const selectedBot = bots.find((b) => b.id === selectedBotId);
+  const opponentBot = bots.find((b) => b.id === opponentBotId);
+  const selectedProfile = selectedBotId ? profiles[selectedBotId] : null;
+
+  const startMatch = () => {
+    if (!selectedBot || !opponentBot) return;
+    const newG = new Chess();
+    setGame(newG);
+    setHistory([]);
+    setLastMove(null);
+    setModalOpen(false);
+    setActiveTab("play");
+
+    // If human is Black, trigger engine's first move as White
+    if (playerColor === "b") {
+      triggerOpponentMove(newG, opponentBot);
+    }
+  };
+
+  const triggerOpponentMove = async (g: Chess, opp: BotConfig) => {
+    setEngineThinking(true);
+    try {
+      const picked = await chooseBotMove(g, opp);
+      if (picked) {
+        const moveRes = g.move({
+          from: picked.move.from,
+          to: picked.move.to,
+          promotion: picked.move.promotion as any,
+        });
+        if (moveRes) {
+          playMoveResultSound(moveRes);
+          setHistory([...g.history()]);
+          setLastMove({ from: moveRes.from, to: moveRes.to });
+          setGame(new Chess(g.fen()));
+          checkGameOver(g);
+        }
+      }
+    } finally {
+      setEngineThinking(false);
+    }
+  };
+
+  const handleHumanMove = (from: Square, to: Square): boolean => {
+    if (game.isGameOver() || engineThinking) return false;
+    const isHumanTurn = game.turn() === playerColor;
+    if (!isHumanTurn) return false;
+
+    try {
+      const moveRes = game.move({ from, to, promotion: "q" });
+      if (!moveRes) return false;
+
+      playMoveResultSound(moveRes);
+      setHistory([...game.history()]);
+      setLastMove({ from: moveRes.from, to: moveRes.to });
+      setGame(new Chess(game.fen()));
+
+      if (checkGameOver(game)) return true;
+
+      // Opponent turn
+      if (opponentBot) {
+        setTimeout(() => triggerOpponentMove(game, opponentBot), 350);
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const checkGameOver = (g: Chess): boolean => {
+    if (!g.isGameOver()) return false;
+    let res: "win" | "loss" | "draw" = "draw";
+    if (g.isCheckmate()) {
+      const winner = g.turn() === "w" ? "b" : "w";
+      res = winner === playerColor ? "win" : "loss";
+    }
+
+    if (selectedBotId && opponentBotId) {
+      const resultData = recordPrivateGame(
+        profiles,
+        selectedBotId,
+        opponentBotId,
+        playerColor,
+        res,
+        g.history().length,
+        g.pgn()
+      );
+      setProfiles(resultData.updatedProfiles);
+      setMatchResult({
+        result: res,
+        userOldRating: resultData.userOldRating,
+        userNewRating: resultData.userNewRating,
+        userDelta: resultData.userDelta,
+        oppOldRating: resultData.oppOldRating,
+        oppDelta: resultData.oppDelta,
+      });
+      setModalOpen(true);
+    }
+    return true;
+  };
+
+  if (loading) {
+    return <div className="p-12 text-center text-zinc-400 font-mono text-sm">Loading Private Bot Arena…</div>;
+  }
+
+  return (
+    <div className="max-w-[1300px] mx-auto space-y-6 pb-12">
+      {/* Top Mode Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl bg-[#16181c] border border-[#262a30]">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-warning/20 border border-warning/40 grid place-items-center text-warning font-bold">
+            ♟
+          </div>
+          <div>
+            <h1 className="text-base font-bold text-white flex items-center gap-2">
+              Private Bot Player Mode
+              <Badge className="bg-warning/20 text-warning border-warning/30 text-[10px]">OWNER EXCLUSIVE</Badge>
+            </h1>
+            <p className="text-xs text-zinc-400">Play rated games piloting your bots with isolated Glicko-2 ratings.</p>
+          </div>
+        </div>
+
+        {/* View Navigation */}
+        <div className="flex items-center gap-1.5 bg-[#121417] p-1 rounded-lg border border-[#262a30]">
+          <Button
+            size="sm"
+            variant={activeTab === "select" ? "secondary" : "ghost"}
+            onClick={() => setActiveTab("select")}
+            className="text-xs h-7"
+          >
+            Play / Setup
+          </Button>
+          <Button
+            size="sm"
+            variant={activeTab === "leaderboard" ? "secondary" : "ghost"}
+            onClick={() => setActiveTab("leaderboard")}
+            className="text-xs h-7"
+          >
+            <Trophy className="w-3.5 h-3.5 mr-1 text-warning" /> Leaderboard
+          </Button>
+          {selectedBot && (
+            <Button
+              size="sm"
+              variant={activeTab === "profile" ? "secondary" : "ghost"}
+              onClick={() => setActiveTab("profile")}
+              className="text-xs h-7"
+            >
+              <User className="w-3.5 h-3.5 mr-1" /> Bot Profile
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Main Mode Content */}
+      {activeTab === "select" && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left 2 Cols: Bot Roster Selection */}
+          <div className="lg:col-span-2 space-y-4">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+              1. Select Bot Identity to Pilot
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {bots.map((b) => {
+                const prof = profiles[b.id];
+                const isSelected = b.id === selectedBotId;
+                return (
+                  <div
+                    key={b.id}
+                    onClick={() => setSelectedBotId(b.id)}
+                    className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                      isSelected
+                        ? "bg-warning/10 border-warning shadow-md ring-1 ring-warning/50"
+                        : "bg-[#181b20] border-[#262a30] hover:border-zinc-500"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-lg bg-zinc-800 border border-zinc-700 overflow-hidden flex-shrink-0">
+                        {b.avatar ? (
+                          <img src={b.avatar} alt={b.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full grid place-items-center">🤖</div>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-bold text-sm text-white truncate">{b.name}</div>
+                        <div className="text-[11px] font-mono text-warning font-semibold">
+                          Private: {prof?.currentRating ?? b.rating}
+                        </div>
+                        <div className="text-[10px] text-zinc-400">
+                          {prof?.wins ?? 0}W - {prof?.losses ?? 0}L - {prof?.draws ?? 0}D
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Right Col: Match Configuration */}
+          <div className="space-y-4">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-400">2. Match Setup</h2>
+            <Card className="bg-[#181b20] border-[#262a30] p-5 space-y-4">
+              {/* Identity Display */}
+              <div>
+                <label className="text-[11px] text-zinc-400 font-semibold block mb-1.5">You are piloting</label>
+                <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-[#121417] border border-[#22252a]">
+                  <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-800">
+                    <img src={selectedProfile?.avatar} alt="" className="w-full h-full object-cover" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-white">{selectedProfile?.name}</div>
+                    <div className="text-[10px] font-mono text-warning">
+                      Rating: {selectedProfile?.currentRating} (Peak {selectedProfile?.peakRating})
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Opponent Selection */}
+              <div>
+                <label className="text-[11px] text-zinc-400 font-semibold block mb-1.5">Choose Opponent Engine</label>
+                <Select value={opponentBotId ?? ""} onValueChange={(v) => setOpponentBotId(v)}>
+                  <SelectTrigger className="bg-[#121417] border-[#2a2e35] text-xs h-9">
+                    <SelectValue placeholder="Select opponent" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#181b20] border-[#2a2e35] text-xs max-h-60">
+                    {bots
+                      .filter((b) => b.id !== selectedBotId)
+                      .map((b) => (
+                        <SelectItem key={b.id} value={b.id}>
+                          {b.name} (Public: {b.rating} | Private: {profiles[b.id]?.currentRating ?? b.rating})
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Color Choice */}
+              <div>
+                <label className="text-[11px] text-zinc-400 font-semibold block mb-1.5">Playing Color</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={playerColor === "w" ? "default" : "outline"}
+                    onClick={() => setPlayerColor("w")}
+                    className={playerColor === "w" ? "bg-white text-black font-bold" : "border-[#2a2e35] text-zinc-400"}
+                  >
+                    ⚪ White (1st)
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={playerColor === "b" ? "default" : "outline"}
+                    onClick={() => setPlayerColor("b")}
+                    className={playerColor === "b" ? "bg-zinc-800 text-white font-bold" : "border-[#2a2e35] text-zinc-400"}
+                  >
+                    ⚫ Black (2nd)
+                  </Button>
+                </div>
+              </div>
+
+              <Button
+                onClick={startMatch}
+                className="w-full bg-warning text-black hover:bg-warning/90 font-bold h-10 mt-2"
+              >
+                <Swords className="w-4 h-4 mr-2" /> Start Rated Match
+              </Button>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {/* Active Game View */}
+      {activeTab === "play" && selectedBot && opponentBot && (
+        <div className="max-w-[750px] mx-auto space-y-4">
+          {/* Opponent Card (Top) */}
+          <div className="flex items-center justify-between p-3 bg-[#181b20] border border-[#262a30] rounded-xl">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-zinc-800 overflow-hidden">
+                <img src={opponentBot.avatar} alt="" className="w-full h-full object-cover" />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-white">{opponentBot.name}</div>
+                <div className="text-xs text-zinc-400 font-mono">
+                  Private: {profiles[opponentBot.id]?.currentRating ?? opponentBot.rating}
+                </div>
+              </div>
+            </div>
+            {engineThinking && (
+              <Badge variant="outline" className="border-warning/50 text-warning animate-pulse text-xs">
+                Thinking…
+              </Badge>
+            )}
+          </div>
+
+          {/* Chessboard */}
+          <div className="flex justify-center">
+            <Board
+              game={game}
+              flipped={playerColor === "b"}
+              lastMove={lastMove}
+              onMove={handleHumanMove}
+            />
+          </div>
+
+          {/* Player Card (Bottom - Piloting selected bot) */}
+          <div className="flex items-center justify-between p-3 bg-[#181b20] border border-warning/30 rounded-xl">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full border-2 border-warning/60 overflow-hidden bg-card">
+                <img src={selectedBot.avatar} alt="" className="w-full h-full object-cover" />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-white flex items-center gap-2">
+                  {selectedBot.name}
+                  <span className="text-[10px] text-warning bg-warning/10 px-1.5 py-0.5 rounded font-mono">YOU</span>
+                </div>
+                <div className="text-xs text-warning font-mono">
+                  Private: {selectedProfile?.currentRating}
+                </div>
+              </div>
+            </div>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setActiveTab("select")}
+              className="text-xs border-[#2a2e35] text-zinc-400"
+            >
+              Exit Match
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Leaderboard View */}
+      {activeTab === "leaderboard" && (
+        <Card className="bg-[#181b20] border-[#262a30] p-6 space-y-4">
+          <h2 className="text-base font-bold text-white flex items-center gap-2">
+            <Trophy className="w-4 h-4 text-warning" /> Private Glicko-2 Leaderboard
+          </h2>
+          <div className="divide-y divide-[#262a30]">
+            {Object.values(profiles)
+              .sort((a, b) => b.currentRating - a.currentRating)
+              .map((p, idx) => (
+                <div key={p.botId} className="py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono font-bold text-sm text-zinc-500 w-6">#{idx + 1}</span>
+                    <div className="w-9 h-9 rounded-full bg-zinc-800 overflow-hidden">
+                      <img src={p.avatar} alt="" className="w-full h-full object-cover" />
+                    </div>
+                    <div>
+                      <div className="font-bold text-sm text-white">{p.name}</div>
+                      <div className="text-[11px] text-zinc-400">
+                        {p.gamesPlayed} games ({p.wins}W - {p.losses}L - {p.draws}D)
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-mono font-bold text-base text-warning">{p.currentRating}</div>
+                    <div className="text-[10px] text-zinc-500">Peak {p.peakRating} · RD {p.rd}</div>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Post-Game Animated Modal */}
+      {modalOpen && matchResult && selectedProfile && opponentBot && (
+        <PrivateRatingModal
+          open={modalOpen}
+          onClose={() => setModalOpen(false)}
+          result={matchResult.result}
+          userProfile={selectedProfile}
+          oldRating={matchResult.userOldRating}
+          newRating={matchResult.userNewRating}
+          delta={matchResult.userDelta}
+          opponentName={opponentBot.name}
+          opponentAvatar={opponentBot.avatar}
+          opponentOldRating={matchResult.oppOldRating}
+          opponentDelta={matchResult.oppDelta}
+          onRematch={startMatch}
+          onNewMatch={() => {
+            setModalOpen(false);
+            setActiveTab("select");
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+
+
+
+
+File 4: Wire Tab into src/routes/studio.tsx
+
+
+
+
+Import PrivateBotPlayerArena:
+
+import { PrivateBotPlayerArena } from "@/components/chess/PrivateBotPlayerArena";
+
+
+
+
+
+Add "player" to the tab state union:
+
+const [tab, setTab] = useState<
+  "workshop" | "builder" | "player" | "openings" | "verify" | "updates" | "customize" | "championship"
+>("workshop");
+
+
+
+
+
+Add the tab button to the header nav array:
+
+["player", "Bot Player Mode"],
+
+
+
+
+
+Render the component in the tab switch:
+
+{tab === "player" && (
+  <TabErrorBoundary name="Bot Player Mode">
+    <PrivateBotPlayerArena />
+  </TabErrorBoundary>
+)}
+
+
+
+
+
+
