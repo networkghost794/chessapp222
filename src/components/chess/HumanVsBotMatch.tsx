@@ -19,6 +19,8 @@ import { BoardScaleControl, BoardViewToggle, TheaterToggleButton } from "./Board
 import { getTimeControlFromSettings, useSettings } from "@/lib/settings";
 import { useChessClock } from "@/lib/useChessClock";
 import { MatchClockBadge } from "./MatchClockBadge";
+import { useAuth } from "@/lib/useAuth";
+import { recordFinishedGame } from "@/lib/gameHistory";
 
 export type PlayerProfileLite = {
   name: string;
@@ -50,6 +52,7 @@ export function HumanVsBotMatch({
   perspectiveRating?: number;
   showEval?: boolean;
 }) {
+  const { profile } = useAuth();
   const gameRef = useRef(new Chess());
   const game = gameRef.current;
 
@@ -292,8 +295,39 @@ export function HumanVsBotMatch({
     else if (game.isInsufficientMaterial()) reason = "Insufficient material";
     else if (game.isDrawByFiftyMoves?.()) reason = "Fifty-move rule";
     else if (game.isDraw()) reason = "Draw";
-    onFinished({ winner, reason, history: [...history] });
-  }, [history.length, resigned, clock.timedOutSide, game, playerColor, onFinished, history]);
+    const pgnText = game.pgn();
+    const fenText = game.fen();
+    if (profile) {
+      const userOutcome: "win" | "loss" | "draw" =
+        winner === "draw"
+          ? "draw"
+          : (winner === "white" && playerColor === "w") ||
+              (winner === "black" && playerColor === "b")
+            ? "win"
+            : "loss";
+      recordFinishedGame({
+        profile,
+        bot,
+        playerColor,
+        userOutcome,
+        moves: Math.max(1, Math.ceil(history.length / 2)),
+        pgn: pgnText,
+        finalFen: fenText,
+        terminationReason: reason,
+      });
+    }
+    onFinished({ winner, reason, history: [...history], pgn: pgnText, finalFen: fenText });
+  }, [
+    history.length,
+    resigned,
+    clock.timedOutSide,
+    game,
+    playerColor,
+    onFinished,
+    history,
+    bot,
+    profile,
+  ]);
 
   // Perspective indicators: recompute whenever it becomes the player's turn.
   useEffect(() => {

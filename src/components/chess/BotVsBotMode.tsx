@@ -512,6 +512,8 @@ export type MatchResult = {
   winner: "white" | "black" | "draw";
   reason: string;
   history: string[];
+  pgn?: string;
+  finalFen?: string;
 };
 
 export function BotVsBotMatch({

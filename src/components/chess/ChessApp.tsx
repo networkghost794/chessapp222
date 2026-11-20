@@ -710,6 +710,9 @@ export function ChessApp() {
           playerColor,
           userOutcome: userField === "wins" ? "win" : userField === "losses" ? "loss" : "draw",
           moves: Math.max(1, Math.ceil(history.length / 2)),
+          pgn: game.pgn(),
+          finalFen: game.fen(),
+          terminationReason: reason || undefined,
         });
       }
     }
