@@ -1,0 +1,1567 @@
+Build a high-performance Hybrid Chess Analysis Board with a two-tier client-side engine (0% server compute), dynamic board arrows, live eval bar, and custom Game Details modal matching Chess.com layout.
+
+### Specifications & Requirements:
+1. Two-Tier Client-Side Engine Architecture (Zero Server Load):
+   - Engine Mode A (Built-in Web Worker): Out-of-the-box browser WebAssembly Stockfish (Stockfish 18/19 Lite) running inside a client Web Worker.
+   - Engine Mode B (Local Desktop WebSocket): Direct WebSocket bridge (default `ws://localhost:8080`) that connects to a native desktop `stockfish.exe` for power users running 13 threads and 4 GB Hash at depths 40–100+.
+   - Engine Settings Modal (Gear Icon): Toggle between Browser and Local WebSocket, configure Threads (1–16+), Hash (16–4096+ MB), MultiPV (1–5 candidate lines), and Infinite Analysis toggle.
+
+2. Interactive Board & Visual Feedback (Matching user screenshots):
+   - Left Eval Bar: Real-time numeric evaluation (+0.29, -M3), smooth height transition, and mate indicator.
+   - Dynamic SVG Board Arrows: Rendered directly on top of the chessboard. Draws a prominent cyan/blue arrow for the #1 best move, and distinct colored arrows for MultiPV lines #2 and #3.
+   - Player Cards: Top (Black) and Bottom (White) cards showing avatar, title badge (GM/IM/etc.), player name, country flag, and rating.
+   - Move Controls & Action Bar: `|<`, `<`, `>`, `>|` move navigation, `+ New`, `Save (PGN/FEN)`, `Flip Board`, and disabled `Review` button ("no game review yet").
+
+3. Right Analysis Sidebar:
+   - Header Tabs: "Analysis" | "Games" | "Explore".
+   - Status Header: "Analysis" toggle switch, live depth/engine tag (`depth=25 | Stockfish 19 Lite ⚙`), and pause/resume button.
+   - MultiPV Candidate Move Cards: Eval chips (`+0.29`, `+0.27`, `+0.24`) with continuation lines. Clicking any candidate move previews or plays it.
+   - Opening Recognition: Detects ECO and opening line (e.g., "Starting Position", "Queen's Gambit").
+   - Game Title: Shows "White - Black *" with a pencil edit button that opens the Game Details modal.
+
+4. Game Details Modal (Matching image-29.png and image-30.png):
+   - White & Black player inputs with search icon and rating field.
+   - Expandable `+` button on each player that opens:
+     - Avatar picture with camera "Add" icon and "Avatar URL" input.
+     - Title dropdown (`GM`, `WGM`, `IM`, `WIM`, `FM`, `WFM`, `CM`, `WCM`, `NM`, None).
+     - Country dropdown with flag emojis.
+   - Game Metadata: Result (`*`, `1-0`, `0-1`, `1/2-1/2`), Event, Time Control, Termination, Location, Round, ECO, Date.
+   - Cancel and Save buttons.
+
+Create or update the following files:
+1. `src/lib/analysisEngine.ts` (Unified dual-engine controller for Web Worker & Local WebSocket).
+2. `src/components/chess/GameDetailsModal.tsx` (Game Details modal matching image-29 and image-30).
+3. `src/components/chess/AnalysisBoard.tsx` (Full interactive analysis layout matching image-28).
+4. `src/components/chess/GameModesHub.tsx` (Add "Analysis Board" card to launch the new mode).
+5. Provide the local `stockfish_bridge.py` script for connecting native desktop Stockfish.
+
+
+
+
+File 1: src/lib/analysisEngine.ts
+
+
+
+(Unified engine coordinator that runs either the in-browser WASM worker or connects to your local desktop Stockfish via WebSocket)
+
+
+
+import { MODERN_ENGINE_URL } from "./stockfishEngine";
+
+export type EngineSource = "browser" | "local_ws";
+
+export interface EngineSettings {
+  source: EngineSource;
+  wsUrl: string; // e.g. "ws://localhost:8080"
+  threads: number;
+  hashMb: number;
+  multiPv: number;
+  infinite: boolean;
+}
+
+export const DEFAULT_ENGINE_SETTINGS: EngineSettings = {
+  source: "browser",
+  wsUrl: "ws://localhost:8080",
+  threads: 4,
+  hashMb: 256,
+  multiPv: 3,
+  infinite: true,
+};
+
+const SETTINGS_KEY = "hybrid_analysis_engine_settings_v1";
+
+export function loadEngineSettings(): EngineSettings {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (raw) return { ...DEFAULT_ENGINE_SETTINGS, ...JSON.parse(raw) };
+  } catch {}
+  return DEFAULT_ENGINE_SETTINGS;
+}
+
+export function saveEngineSettings(s: EngineSettings) {
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+  } catch {}
+}
+
+export interface PvLine {
+  multipv: number;
+  depth: number;
+  scoreCp: number | null;
+  scoreMate: number | null;
+  nodes: number;
+  nps: number;
+  pv: string[]; // UCI moves, e.g. ["d2d4", "d7d5", "c2c4"]
+  pvSan?: string[];
+}
+
+export interface EngineAnalysisState {
+  isAnalyzing: boolean;
+  engineName: string;
+  source: EngineSource;
+  wsConnected: boolean;
+  depth: number;
+  nps: number;
+  nodes: number;
+  lines: PvLine[];
+}
+
+export type AnalysisCallback = (state: EngineAnalysisState) => void;
+
+class HybridAnalysisEngine {
+  private worker: Worker | null = null;
+  private ws: WebSocket | null = null;
+  private settings: EngineSettings = loadEngineSettings();
+  private callbacks = new Set<AnalysisCallback>();
+  private currentFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+  private state: EngineAnalysisState = {
+    isAnalyzing: false,
+    engineName: "Stockfish 19 Lite",
+    source: "browser",
+    wsConnected: false,
+    depth: 0,
+    nps: 0,
+    nodes: 0,
+    lines: [],
+  };
+
+  constructor() {
+    this.init();
+  }
+
+  public getSettings(): EngineSettings {
+    return { ...this.settings };
+  }
+
+  public updateSettings(newSettings: Partial<EngineSettings>) {
+    const prevSource = this.settings.source;
+    const prevWsUrl = this.settings.wsUrl;
+    this.settings = { ...this.settings, ...newSettings };
+    saveEngineSettings(this.settings);
+
+    if (newSettings.source && newSettings.source !== prevSource) {
+      this.init();
+      return;
+    }
+
+    if (this.settings.source === "local_ws" && newSettings.wsUrl && newSettings.wsUrl !== prevWsUrl) {
+      this.initLocalWs();
+      return;
+    }
+
+    this.applyEngineOptions();
+    if (this.state.isAnalyzing) {
+      this.restartAnalysis();
+    }
+  }
+
+  public subscribe(cb: AnalysisCallback) {
+    this.callbacks.add(cb);
+    cb(this.state);
+    return () => this.callbacks.delete(cb);
+  }
+
+  private notify() {
+    this.callbacks.forEach((fn) => fn({ ...this.state }));
+  }
+
+  public init() {
+    this.stop();
+    this.cleanup();
+
+    this.state.source = this.settings.source;
+    if (this.settings.source === "local_ws") {
+      this.initLocalWs();
+    } else {
+      this.initBrowserWorker();
+    }
+  }
+
+  private cleanup() {
+    if (this.worker) {
+      this.worker.terminate();
+      this.worker = null;
+    }
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+    this.state.wsConnected = false;
+  }
+
+  private initBrowserWorker() {
+    this.state.engineName = "Stockfish 19 Lite (WASM)";
+    this.state.wsConnected = false;
+    this.notify();
+
+    try {
+      this.worker = new Worker(MODERN_ENGINE_URL);
+      this.worker.onmessage = (e) => this.handleUciOutput(String(e.data));
+      this.worker.onerror = () => {
+        // Fallback to legacy CDN worker if local wasm is blocked
+        console.warn("[AnalysisEngine] WASM failed, falling back to legacy worker");
+        const stub = `importScripts("https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js");`;
+        const fb = new Worker(URL.createObjectURL(new Blob([stub], { type: "text/javascript" })));
+        fb.onmessage = (e) => this.handleUciOutput(String(e.data));
+        this.worker = fb;
+        this.send("uci");
+      };
+      this.send("uci");
+    } catch {
+      this.state.engineName = "Engine Offline";
+      this.notify();
+    }
+  }
+
+  private initLocalWs() {
+    this.state.engineName = "Connecting Desktop Engine...";
+    this.state.wsConnected = false;
+    this.notify();
+
+    try {
+      const socket = new WebSocket(this.settings.wsUrl);
+      socket.onopen = () => {
+        this.state.wsConnected = true;
+        this.state.engineName = "Native Stockfish 19 (Desktop)";
+        this.notify();
+        this.send("uci");
+      };
+      socket.onmessage = (e) => this.handleUciOutput(String(e.data));
+      socket.onclose = () => {
+        this.state.wsConnected = false;
+        this.state.engineName = "Desktop Disconnected";
+        this.notify();
+      };
+      socket.onerror = () => {
+        this.state.wsConnected = false;
+        this.state.engineName = "Desktop Engine Unreachable";
+        this.notify();
+      };
+      this.ws = socket;
+    } catch {
+      this.state.wsConnected = false;
+      this.state.engineName = "Desktop Engine Error";
+      this.notify();
+    }
+  }
+
+  private send(cmd: string) {
+    if (this.settings.source === "local_ws") {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(cmd + "\n");
+      }
+    } else {
+      if (this.worker) {
+        this.worker.postMessage(cmd);
+      }
+    }
+  }
+
+  private applyEngineOptions() {
+    this.send(`setoption name MultiPV value ${this.settings.multiPv}`);
+    if (this.settings.source === "local_ws") {
+      this.send(`setoption name Threads value ${this.settings.threads}`);
+      this.send(`setoption name Hash value ${this.settings.hashMb}`);
+    } else {
+      this.send(`setoption name Hash value ${Math.min(256, this.settings.hashMb)}`);
+    }
+    this.send("isready");
+  }
+
+  public evaluatePosition(fen: string) {
+    this.currentFen = fen;
+    this.state.lines = [];
+    this.state.depth = 0;
+    this.state.nodes = 0;
+    this.state.nps = 0;
+    this.notify();
+
+    this.send("stop");
+    this.applyEngineOptions();
+    this.send(`position fen ${fen}`);
+    if (this.settings.infinite) {
+      this.send("go infinite");
+    } else {
+      this.send("go depth 30");
+    }
+    this.state.isAnalyzing = true;
+    this.notify();
+  }
+
+  public restartAnalysis() {
+    this.evaluatePosition(this.currentFen);
+  }
+
+  public stop() {
+    this.send("stop");
+    this.state.isAnalyzing = false;
+    this.notify();
+  }
+
+  public toggleAnalysis() {
+    if (this.state.isAnalyzing) {
+      this.stop();
+    } else {
+      this.evaluatePosition(this.currentFen);
+    }
+  }
+
+  private handleUciOutput(line: string) {
+    if (line.startsWith("id name ")) {
+      const name = line.replace("id name ", "").trim();
+      this.state.engineName = name;
+      this.notify();
+      return;
+    }
+
+    if (line === "uciok") {
+      this.applyEngineOptions();
+      return;
+    }
+
+    if (line.startsWith("info ") && line.includes(" depth ") && line.includes(" score ")) {
+      this.parseInfoLine(line);
+    }
+  }
+
+  private parseInfoLine(line: string) {
+    const tokens = line.split(/\s+/);
+    let multipv = 1;
+    let depth = this.state.depth;
+    let nodes = this.state.nodes;
+    let nps = this.state.nps;
+    let scoreCp: number | null = null;
+    let scoreMate: number | null = null;
+    let pvIdx = -1;
+
+    for (let i = 0; i < tokens.length; i++) {
+      const t = tokens[i];
+      if (t === "multipv" && tokens[i + 1]) multipv = parseInt(tokens[i + 1], 10);
+      else if (t === "depth" && tokens[i + 1]) depth = parseInt(tokens[i + 1], 10);
+      else if (t === "nodes" && tokens[i + 1]) nodes = parseInt(tokens[i + 1], 10);
+      else if (t === "nps" && tokens[i + 1]) nps = parseInt(tokens[i + 1], 10);
+      else if (t === "score") {
+        const type = tokens[i + 1];
+        const val = parseInt(tokens[i + 2], 10);
+        if (type === "cp") scoreCp = val;
+        else if (type === "mate") scoreMate = val;
+      } else if (t === "pv") {
+        pvIdx = i + 1;
+        break;
+      }
+    }
+
+    if (pvIdx !== -1) {
+      const pv = tokens.slice(pvIdx);
+      this.state.depth = Math.max(this.state.depth, depth);
+      this.state.nodes = nodes;
+      this.state.nps = nps;
+
+      const existingIndex = this.state.lines.findIndex((l) => l.multipv === multipv);
+      const newLine: PvLine = {
+        multipv,
+        depth,
+        scoreCp,
+        scoreMate,
+        nodes,
+        nps,
+        pv,
+      };
+
+      if (existingIndex >= 0) {
+        this.state.lines[existingIndex] = newLine;
+      } else {
+        this.state.lines.push(newLine);
+      }
+      this.state.lines.sort((a, b) => a.multipv - b.multipv);
+      this.notify();
+    }
+  }
+}
+
+export const analysisEngine = new HybridAnalysisEngine();
+
+
+
+
+
+File 2: src/components/chess/GameDetailsModal.tsx
+
+
+
+(Matches image-29.png and image-30.png with collapsible player cards, photo upload, title, country selector, and match metadata)
+
+
+
+import React, { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Camera, Plus, Minus, Search } from "lucide-react";
+
+export interface PlayerDetails {
+  name: string;
+  rating: string;
+  title: string;
+  country: string;
+  avatarUrl: string;
+}
+
+export interface GameDetailsData {
+  white: PlayerDetails;
+  black: PlayerDetails;
+  result: string;
+  event: string;
+  timeControl: string;
+  termination: string;
+  location: string;
+  round: string;
+  eco: string;
+  date: string;
+}
+
+export const DEFAULT_GAME_DETAILS: GameDetailsData = {
+  white: { name: "", rating: "", title: "", country: "", avatarUrl: "" },
+  black: { name: "", rating: "", title: "", country: "", avatarUrl: "" },
+  result: "*",
+  event: "Live Chess",
+  timeControl: "10 min",
+  termination: "Normal",
+  location: "BotBoard",
+  round: "1",
+  eco: "A00",
+  date: new Date().toISOString().split("T")[0],
+};
+
+const CHESS_TITLES = ["-- Title --", "GM", "WGM", "IM", "WIM", "FM", "WFM", "CM", "WCM", "NM"];
+
+const COUNTRIES = [
+  { code: "", label: "-- Country --" },
+  { code: "US", label: "🇺🇸 United States" },
+  { code: "CA", label: "🇨🇦 Canada" },
+  { code: "NO", label: "🇳🇴 Norway" },
+  { code: "IN", label: "🇮🇳 India" },
+  { code: "RU", label: "🇷🇺 FIDE / Russia" },
+  { code: "FR", label: "🇫🇷 France" },
+  { code: "DE", label: "🇩🇪 Germany" },
+  { code: "ES", label: "🇪🇸 Spain" },
+  { code: "GB", label: "🇬🇧 United Kingdom" },
+  { code: "CN", label: "🇨🇳 China" },
+  { code: "BR", label: "🇧🇷 Brazil" },
+  { code: "PL", label: "🇵🇱 Poland" },
+  { code: "UA", label: "🇺🇦 Ukraine" },
+  { code: "AM", label: "🇦🇲 Armenia" },
+  { code: "NL", label: "🇳🇱 Netherlands" },
+];
+
+export function GameDetailsModal({
+  open,
+  onOpenChange,
+  initialData,
+  onSave,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  initialData: GameDetailsData;
+  onSave: (data: GameDetailsData) => void;
+}) {
+  const [data, setData] = useState<GameDetailsData>(initialData);
+  const [whiteExpanded, setWhiteExpanded] = useState(false);
+  const [blackExpanded, setBlackExpanded] = useState(false);
+
+  const handleSave = () => {
+    onSave(data);
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md bg-[#272522] text-neutral-100 border-neutral-700 p-6 rounded-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-xl font-bold tracking-tight text-white">Game Details</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 text-sm mt-2">
+          {/* White Player Card */}
+          <div className="space-y-2">
+            <span className="font-semibold text-neutral-300">White</span>
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-neutral-500" />
+                <Input
+                  placeholder="White Player"
+                  value={data.white.name}
+                  onChange={(e) => setData({ ...data, white: { ...data.white, name: e.target.value } })}
+                  className="pl-9 bg-[#1f1e1b] border-neutral-700 text-white placeholder-neutral-500"
+                />
+              </div>
+              <Input
+                placeholder="Rating"
+                value={data.white.rating}
+                onChange={(e) => setData({ ...data, white: { ...data.white, rating: e.target.value } })}
+                className="w-24 bg-[#1f1e1b] border-neutral-700 text-white placeholder-neutral-500"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => setWhiteExpanded(!whiteExpanded)}
+                className="bg-[#1f1e1b] border-neutral-700 text-neutral-300 hover:text-white"
+              >
+                {whiteExpanded ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              </Button>
+            </div>
+
+            {/* Collapsible White Extra Details (Image 30) */}
+            {whiteExpanded && (
+              <div className="p-3 bg-[#1e1d1a] rounded border border-neutral-800 flex gap-4 items-start">
+                <div className="w-20 h-24 bg-neutral-800 rounded flex flex-col items-center justify-center relative overflow-hidden border border-neutral-700 shrink-0">
+                  {data.white.avatarUrl ? (
+                    <img src={data.white.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-neutral-700 flex items-center justify-center text-neutral-400">
+                      ♟
+                    </div>
+                  )}
+                  <label className="absolute bottom-0 inset-x-0 bg-neutral-900/80 hover:bg-neutral-900 text-[11px] py-1 flex items-center justify-center gap-1 cursor-pointer text-neutral-300">
+                    <Camera className="h-3 w-3 text-sky-400" />
+                    <span>Add</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = () =>
+                            setData({ ...data, white: { ...data.white, avatarUrl: String(reader.result) } });
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+
+                <div className="flex-1 space-y-2">
+                  <select
+                    value={data.white.title}
+                    onChange={(e) => setData({ ...data, white: { ...data.white, title: e.target.value } })}
+                    className="w-full bg-[#161512] border border-neutral-700 rounded px-2 py-1.5 text-xs text-neutral-200"
+                  >
+                    {CHESS_TITLES.map((t) => (
+                      <option key={t} value={t === "-- Title --" ? "" : t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={data.white.country}
+                    onChange={(e) => setData({ ...data, white: { ...data.white, country: e.target.value } })}
+                    className="w-full bg-[#161512] border border-neutral-700 rounded px-2 py-1.5 text-xs text-neutral-200"
+                  >
+                    {COUNTRIES.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  <Input
+                    placeholder="Avatar URL"
+                    value={data.white.avatarUrl}
+                    onChange={(e) => setData({ ...data, white: { ...data.white, avatarUrl: e.target.value } })}
+                    className="h-7 text-xs bg-[#161512] border-neutral-700 text-white placeholder-neutral-500"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Black Player Card */}
+          <div className="space-y-2">
+            <span className="font-semibold text-neutral-300">Black</span>
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-neutral-500" />
+                <Input
+                  placeholder="Black Player"
+                  value={data.black.name}
+                  onChange={(e) => setData({ ...data, black: { ...data.black, name: e.target.value } })}
+                  className="pl-9 bg-[#1f1e1b] border-neutral-700 text-white placeholder-neutral-500"
+                />
+              </div>
+              <Input
+                placeholder="Rating"
+                value={data.black.rating}
+                onChange={(e) => setData({ ...data, black: { ...data.black, rating: e.target.value } })}
+                className="w-24 bg-[#1f1e1b] border-neutral-700 text-white placeholder-neutral-500"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => setBlackExpanded(!blackExpanded)}
+                className="bg-[#1f1e1b] border-neutral-700 text-neutral-300 hover:text-white"
+              >
+                {blackExpanded ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              </Button>
+            </div>
+
+            {/* Collapsible Black Extra Details */}
+            {blackExpanded && (
+              <div className="p-3 bg-[#1e1d1a] rounded border border-neutral-800 flex gap-4 items-start">
+                <div className="w-20 h-24 bg-neutral-800 rounded flex flex-col items-center justify-center relative overflow-hidden border border-neutral-700 shrink-0">
+                  {data.black.avatarUrl ? (
+                    <img src={data.black.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-neutral-700 flex items-center justify-center text-neutral-400">
+                      ♟
+                    </div>
+                  )}
+                  <label className="absolute bottom-0 inset-x-0 bg-neutral-900/80 hover:bg-neutral-900 text-[11px] py-1 flex items-center justify-center gap-1 cursor-pointer text-neutral-300">
+                    <Camera className="h-3 w-3 text-sky-400" />
+                    <span>Add</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = () =>
+                            setData({ ...data, black: { ...data.black, avatarUrl: String(reader.result) } });
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+
+                <div className="flex-1 space-y-2">
+                  <select
+                    value={data.black.title}
+                    onChange={(e) => setData({ ...data, black: { ...data.black, title: e.target.value } })}
+                    className="w-full bg-[#161512] border border-neutral-700 rounded px-2 py-1.5 text-xs text-neutral-200"
+                  >
+                    {CHESS_TITLES.map((t) => (
+                      <option key={t} value={t === "-- Title --" ? "" : t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={data.black.country}
+                    onChange={(e) => setData({ ...data, black: { ...data.black, country: e.target.value } })}
+                    className="w-full bg-[#161512] border border-neutral-700 rounded px-2 py-1.5 text-xs text-neutral-200"
+                  >
+                    {COUNTRIES.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  <Input
+                    placeholder="Avatar URL"
+                    value={data.black.avatarUrl}
+                    onChange={(e) => setData({ ...data, black: { ...data.black, avatarUrl: e.target.value } })}
+                    className="h-7 text-xs bg-[#161512] border-neutral-700 text-white placeholder-neutral-500"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Game Outcome / Result */}
+          <div>
+            <select
+              value={data.result}
+              onChange={(e) => setData({ ...data, result: e.target.value })}
+              className="w-full bg-[#1f1e1b] border border-neutral-700 rounded px-3 py-2 text-neutral-200"
+            >
+              <option value="*">No Result (*)</option>
+              <option value="1-0">1-0 (White Wins)</option>
+              <option value="0-1">0-1 (Black Wins)</option>
+              <option value="1/2-1/2">1/2-1/2 (Draw)</option>
+            </select>
+          </div>
+
+          {/* Metadata Inputs */}
+          <div className="space-y-2">
+            <Input
+              placeholder="Event"
+              value={data.event}
+              onChange={(e) => setData({ ...data, event: e.target.value })}
+              className="bg-[#1f1e1b] border-neutral-700 text-white placeholder-neutral-500"
+            />
+            <Input
+              placeholder="Time Control"
+              value={data.timeControl}
+              onChange={(e) => setData({ ...data, timeControl: e.target.value })}
+              className="bg-[#1f1e1b] border-neutral-700 text-white placeholder-neutral-500"
+            />
+            <Input
+              placeholder="Termination"
+              value={data.termination}
+              onChange={(e) => setData({ ...data, termination: e.target.value })}
+              className="bg-[#1f1e1b] border-neutral-700 text-white placeholder-neutral-500"
+            />
+            <Input
+              placeholder="Location"
+              value={data.location}
+              onChange={(e) => setData({ ...data, location: e.target.value })}
+              className="bg-[#1f1e1b] border-neutral-700 text-white placeholder-neutral-500"
+            />
+          </div>
+
+          {/* Round, ECO, Date */}
+          <div className="grid grid-cols-3 gap-2">
+            <Input
+              placeholder="Round"
+              value={data.round}
+              onChange={(e) => setData({ ...data, round: e.target.value })}
+              className="bg-[#1f1e1b] border-neutral-700 text-white placeholder-neutral-500"
+            />
+            <Input
+              placeholder="ECO"
+              value={data.eco}
+              onChange={(e) => setData({ ...data, eco: e.target.value })}
+              className="bg-[#1f1e1b] border-neutral-700 text-white placeholder-neutral-500"
+            />
+            <Input
+              type="date"
+              value={data.date}
+              onChange={(e) => setData({ ...data, date: e.target.value })}
+              className="bg-[#1f1e1b] border-neutral-700 text-white text-xs"
+            />
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex gap-3 justify-end mt-6">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            className="text-neutral-400 hover:text-white"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={handleSave}
+            className="bg-[#81b64c] hover:bg-[#6c9a3f] text-white font-bold px-6"
+          >
+            Save
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
+
+
+
+File 3: src/components/chess/AnalysisBoard.tsx
+
+
+
+(Complete analysis layout matching image-28.png: dynamic board arrows, evaluation bar, engine settings drawer, and Chess.com look & feel)
+
+
+
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Chess, type Square } from "chess.js";
+import { Board } from "./Board";
+import { PromotionDialog } from "./PromotionDialog";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  analysisEngine,
+  type EngineSettings,
+  type EngineAnalysisState,
+  type PvLine,
+} from "@/lib/analysisEngine";
+import {
+  GameDetailsModal,
+  DEFAULT_GAME_DETAILS,
+  type GameDetailsData,
+} from "./GameDetailsModal";
+import {
+  RotateCcw,
+  FlipHorizontal2,
+  Settings,
+  Pencil,
+  BookOpen,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Plus,
+  Save,
+  Pause,
+  Play,
+  Share2,
+} from "lucide-react";
+import { playMoveResultSound } from "@/lib/sounds";
+import { OPENINGS } from "@/lib/repertoire";
+
+// Converts square algebraic ("e2", "e4") to board-fraction coordinates (0-8)
+function sqToCoords(sq: string, flipped: boolean): { x: number; y: number } {
+  const file = sq.charCodeAt(0) - 97; // 'a'=0 ... 'h'=7
+  const rank = parseInt(sq[1], 10) - 1; // '1'=0 ... '8'=7
+  const x = (flipped ? 7 - file : file) + 0.5;
+  const y = (flipped ? rank : 7 - rank) + 0.5;
+  return { x, y };
+}
+
+export function AnalysisBoard({ onBack }: { onBack?: () => void }) {
+  const [fenHistory, setFenHistory] = useState<string[]>([
+    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+  ]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const [sanMoves, setSanMoves] = useState<string[]>([]);
+  const [flipped, setFlipped] = useState(false);
+  const [promotion, setPromotion] = useState<{ from: Square; to: Square } | null>(null);
+
+  // Engine state
+  const [engineState, setEngineState] = useState<EngineAnalysisState>({
+    isAnalyzing: true,
+    engineName: "Stockfish 19 Lite",
+    source: "browser",
+    wsConnected: false,
+    depth: 0,
+    nps: 0,
+    nodes: 0,
+    lines: [],
+  });
+
+  // Settings Modal
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [engineSettings, setEngineSettings] = useState<EngineSettings>(analysisEngine.getSettings());
+
+  // Game Details Modal
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [gameDetails, setGameDetails] = useState<GameDetailsData>(DEFAULT_GAME_DETAILS);
+
+  // Active chess instance
+  const currentFen = fenHistory[historyIndex] ?? fenHistory[0];
+  const game = useMemo(() => new Chess(currentFen), [currentFen]);
+
+  // Subscribe to engine
+  useEffect(() => {
+    return analysisEngine.subscribe((st) => setEngineState(st));
+  }, []);
+
+  // Update engine on position change
+  useEffect(() => {
+    analysisEngine.evaluatePosition(currentFen);
+  }, [currentFen]);
+
+  // Determine current opening name from repertoire
+  const currentOpening = useMemo(() => {
+    if (sanMoves.length === 0) return "Starting Position";
+    const lineStr = sanMoves.slice(0, historyIndex).join(" ");
+    const match = OPENINGS.find((o) => lineStr.startsWith(o.moves.slice(0, 3).join(" ")));
+    return match ? match.name : "Custom Position";
+  }, [sanMoves, historyIndex]);
+
+  // Handle player moves on board
+  const handleAttemptMove = (from: Square, to: Square) => {
+    const legalMoves = game.moves({ verbose: true });
+    const match = legalMoves.find((m) => m.from === from && m.to === to);
+    if (!match) return false;
+
+    if (match.promotion) {
+      setPromotion({ from, to });
+      return true;
+    }
+
+    const testGame = new Chess(currentFen);
+    const m = testGame.move({ from, to });
+    if (!m) return false;
+
+    playMoveResultSound(m);
+    const newFen = testGame.fen();
+    const newFens = [...fenHistory.slice(0, historyIndex + 1), newFen];
+    const newSans = [...sanMoves.slice(0, historyIndex), m.san];
+
+    setFenHistory(newFens);
+    setSanMoves(newSans);
+    setHistoryIndex(newFens.length - 1);
+    return true;
+  };
+
+  const handlePromotionChoice = (piece: "q" | "r" | "b" | "n") => {
+    if (!promotion) return;
+    const testGame = new Chess(currentFen);
+    const m = testGame.move({ from: promotion.from, to: promotion.to, promotion: piece });
+    if (m) {
+      playMoveResultSound(m);
+      const newFen = testGame.fen();
+      const newFens = [...fenHistory.slice(0, historyIndex + 1), newFen];
+      const newSans = [...sanMoves.slice(0, historyIndex), m.san];
+      setFenHistory(newFens);
+      setSanMoves(newSans);
+      setHistoryIndex(newFens.length - 1);
+    }
+    setPromotion(null);
+  };
+
+  // Eval Bar calculation
+  const topScore = engineState.lines[0];
+  const evalValue = useMemo(() => {
+    if (!topScore) return { label: "+0.0", pct: 50 };
+    const turn = currentFen.split(" ")[1];
+    let cp = topScore.scoreCp;
+    let mate = topScore.scoreMate;
+
+    if (turn === "b") {
+      if (cp != null) cp = -cp;
+      if (mate != null) mate = -mate;
+    }
+
+    if (mate != null) {
+      const label = `M${Math.abs(mate)}`;
+      const pct = mate > 0 ? 100 : 0;
+      return { label, pct };
+    }
+
+    const pawns = (cp ?? 0) / 100;
+    const pct = Math.max(3, Math.min(97, 50 + 50 * (2 / (1 + Math.exp(-0.3 * pawns)) - 1)));
+    const sign = pawns >= 0 ? "+" : "";
+    return { label: `${sign}${pawns.toFixed(2)}`, pct };
+  }, [topScore, currentFen]);
+
+  // Convert engine PV moves (e.g. "d2d4") into SAN continuation lines
+  const formatPvMoves = (pv: string[]): string => {
+    try {
+      const sim = new Chess(currentFen);
+      const list: string[] = [];
+      let moveNum = parseInt(currentFen.split(" ")[5] || "1", 10);
+      let isWhite = currentFen.split(" ")[1] === "w";
+
+      for (let i = 0; i < Math.min(10, pv.length); i++) {
+        const uci = pv[i];
+        if (!uci || uci.length < 4) break;
+        const from = uci.slice(0, 2) as Square;
+        const to = uci.slice(2, 4) as Square;
+        const promo = uci[4] as "q" | "r" | "b" | "n" | undefined;
+        const res = sim.move({ from, to, promotion: promo });
+        if (!res) break;
+
+        if (isWhite) {
+          list.push(`${moveNum}. ${res.san}`);
+        } else {
+          if (i === 0) list.push(`${moveNum}... ${res.san}`);
+          else list.push(`${res.san}`);
+          moveNum++;
+        }
+        isWhite = !isWhite;
+      }
+      return list.join(" ");
+    } catch {
+      return pv.slice(0, 8).join(" ");
+    }
+  };
+
+  // Primary best move arrow
+  const primaryUci = topScore?.pv?.[0];
+  const primaryArrow = useMemo(() => {
+    if (!primaryUci || primaryUci.length < 4) return null;
+    const from = primaryUci.slice(0, 2);
+    const to = primaryUci.slice(2, 4);
+    return {
+      from: sqToCoords(from, flipped),
+      to: sqToCoords(to, flipped),
+    };
+  }, [primaryUci, flipped]);
+
+  return (
+    <div className="flex flex-col lg:flex-row h-full w-full bg-[#1b1917] text-neutral-100 select-none overflow-hidden">
+      {/* ─── LEFT: BOARD + EVAL BAR + PLAYERS ─── */}
+      <div className="flex-1 flex flex-col items-center justify-center p-3 lg:p-6 overflow-hidden">
+        <div className="w-full max-w-[620px] flex flex-col gap-2">
+          {/* Top Player (Black) */}
+          <div className="flex items-center justify-between text-xs text-neutral-300 px-1">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded bg-neutral-800 border border-neutral-700 overflow-hidden flex items-center justify-center">
+                {gameDetails.black.avatarUrl ? (
+                  <img src={gameDetails.black.avatarUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-neutral-500 font-bold">♟</span>
+                )}
+              </div>
+              <div className="flex flex-col">
+                <span className="font-semibold text-white flex items-center gap-1.5">
+                  {gameDetails.black.country && <span>{gameDetails.black.country}</span>}
+                  {gameDetails.black.title && (
+                    <span className="bg-amber-600 text-[10px] font-bold px-1 rounded text-white">
+                      {gameDetails.black.title}
+                    </span>
+                  )}
+                  {gameDetails.black.name || "Black Player"}
+                </span>
+                <span className="text-neutral-400 text-[11px]">
+                  {gameDetails.black.rating ? `(${gameDetails.black.rating})` : ""}
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => setDetailsOpen(true)}
+              className="text-neutral-400 hover:text-white p-1 rounded"
+              title="Edit Game Details"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Board + Eval Bar Container */}
+          <div className="flex gap-2 items-stretch w-full aspect-square relative">
+            {/* Vertical Evaluation Bar */}
+            <div className="w-7 bg-neutral-900 border border-neutral-700 rounded overflow-hidden flex flex-col relative justify-end">
+              <div
+                className="w-full bg-white transition-all duration-300 ease-out"
+                style={{ height: `${evalValue.pct}%` }}
+              />
+              <span className="absolute bottom-1 inset-x-0 text-center text-[10px] font-mono font-bold text-neutral-900 z-10 pointer-events-none">
+                {evalValue.pct >= 50 ? evalValue.label : ""}
+              </span>
+              <span className="absolute top-1 inset-x-0 text-center text-[10px] font-mono font-bold text-white z-10 pointer-events-none">
+                {evalValue.pct < 50 ? evalValue.label : ""}
+              </span>
+            </div>
+
+            {/* Chessboard with Arrow SVG Overlay */}
+            <div className="flex-1 relative aspect-square">
+              <Board
+                game={game}
+                flipped={flipped}
+                disabled={false}
+                lastMove={null}
+                onAttemptMove={handleAttemptMove}
+              />
+
+              {/* Dynamic Best-Move SVG Arrows */}
+              {primaryArrow && (
+                <svg
+                  viewBox="0 0 8 8"
+                  className="absolute inset-0 w-full h-full pointer-events-none z-20"
+                >
+                  <defs>
+                    <marker
+                      id="arrow-cyan"
+                      viewBox="0 0 10 10"
+                      refX="6"
+                      refY="5"
+                      markerWidth="6"
+                      markerHeight="6"
+                      orient="auto-start-reverse"
+                    >
+                      <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8" />
+                    </marker>
+                  </defs>
+                  <line
+                    x1={primaryArrow.from.x}
+                    y1={primaryArrow.from.y}
+                    x2={primaryArrow.to.x}
+                    y2={primaryArrow.to.y}
+                    stroke="#38bdf8"
+                    strokeWidth="0.18"
+                    strokeLinecap="round"
+                    opacity="0.85"
+                    markerEnd="url(#arrow-cyan)"
+                  />
+                </svg>
+              )}
+            </div>
+          </div>
+
+          {/* Bottom Player (White) */}
+          <div className="flex items-center justify-between text-xs text-neutral-300 px-1">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded bg-neutral-800 border border-neutral-700 overflow-hidden flex items-center justify-center">
+                {gameDetails.white.avatarUrl ? (
+                  <img src={gameDetails.white.avatarUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-neutral-500 font-bold">♙</span>
+                )}
+              </div>
+              <div className="flex flex-col">
+                <span className="font-semibold text-white flex items-center gap-1.5">
+                  {gameDetails.white.country && <span>{gameDetails.white.country}</span>}
+                  {gameDetails.white.title && (
+                    <span className="bg-amber-600 text-[10px] font-bold px-1 rounded text-white">
+                      {gameDetails.white.title}
+                    </span>
+                  )}
+                  {gameDetails.white.name || "White Player"}
+                </span>
+                <span className="text-neutral-400 text-[11px]">
+                  {gameDetails.white.rating ? `(${gameDetails.white.rating})` : ""}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── RIGHT: SIDEBAR (ANALYSIS, MULTIPV, GAME CONTROLS) ─── */}
+      <div className="w-full lg:w-[420px] bg-[#211f1c] border-l border-neutral-800 flex flex-col justify-between">
+        <div className="flex flex-col flex-1 overflow-hidden">
+          {/* Header Navigation Tabs */}
+          <div className="flex items-center border-b border-neutral-800 bg-[#1b1917] px-4 py-3">
+            <span className="text-sm font-bold text-white flex items-center gap-2">
+              <BookOpen className="h-4 w-4 text-sky-400" />
+              Analysis
+            </span>
+          </div>
+
+          {/* Engine Header Info Bar (Image 28) */}
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-neutral-800/80 bg-[#272522]">
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={engineState.isAnalyzing}
+                onCheckedChange={() => analysisEngine.toggleAnalysis()}
+              />
+              <span className="text-xs font-semibold text-neutral-300">Analysis</span>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs text-neutral-400">
+              <span>
+                depth={engineState.depth} | {engineState.engineName}
+              </span>
+              <button
+                onClick={() => setSettingsOpen(true)}
+                className="text-neutral-400 hover:text-white p-1 rounded hover:bg-neutral-800"
+                title="Engine Settings"
+              >
+                <Settings className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* MultiPV Candidate Lines List */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
+            {engineState.lines.map((line) => {
+              const cp = line.scoreCp;
+              const mate = line.scoreMate;
+              let scoreStr = "+0.00";
+              if (mate != null) scoreStr = `M${Math.abs(mate)}`;
+              else if (cp != null) {
+                const turn = currentFen.split(" ")[1];
+                const adj = turn === "b" ? -cp : cp;
+                scoreStr = `${adj >= 0 ? "+" : ""}${(adj / 100).toFixed(2)}`;
+              }
+
+              return (
+                <div
+                  key={line.multipv}
+                  className="flex items-center gap-2.5 p-2 rounded bg-[#2a2824] hover:bg-[#34322d] border border-neutral-800 text-xs transition"
+                >
+                  <span className="font-mono font-bold px-1.5 py-0.5 rounded bg-neutral-900 text-sky-300 min-w-[50px] text-center shrink-0">
+                    {scoreStr}
+                  </span>
+                  <span className="text-neutral-300 font-mono truncate">
+                    {formatPvMoves(line.pv)}
+                  </span>
+                </div>
+              );
+            })}
+
+            {/* Opening Title */}
+            <div className="mt-4 p-3 bg-[#1e1c19] rounded border border-neutral-800/80">
+              <div className="text-xs text-neutral-400 flex items-center gap-1.5 font-medium">
+                <BookOpen className="h-3.5 w-3.5 text-neutral-400" />
+                {currentOpening}
+              </div>
+              <div
+                onClick={() => setDetailsOpen(true)}
+                className="text-xs font-semibold text-neutral-200 mt-1 cursor-pointer hover:text-white flex items-center gap-1.5"
+              >
+                <span>
+                  {gameDetails.white.name || "White"} - {gameDetails.black.name || "Black"}{" "}
+                  {gameDetails.result}
+                </span>
+                <Pencil className="h-3 w-3 text-neutral-500" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Control Bar */}
+        <div className="p-3 border-t border-neutral-800 bg-[#1e1c19] space-y-2.5">
+          {/* Navigation Controls: |< < > >| */}
+          <div className="grid grid-cols-4 gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={historyIndex <= 0}
+              onClick={() => setHistoryIndex(0)}
+              className="bg-[#2a2824] border-neutral-700 text-neutral-300 hover:text-white"
+            >
+              <ChevronsLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={historyIndex <= 0}
+              onClick={() => setHistoryIndex((i) => Math.max(0, i - 1))}
+              className="bg-[#2a2824] border-neutral-700 text-neutral-300 hover:text-white"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={historyIndex >= fenHistory.length - 1}
+              onClick={() => setHistoryIndex((i) => Math.min(fenHistory.length - 1, i + 1))}
+              className="bg-[#2a2824] border-neutral-700 text-neutral-300 hover:text-white"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={historyIndex >= fenHistory.length - 1}
+              onClick={() => setHistoryIndex(fenHistory.length - 1)}
+              className="bg-[#2a2824] border-neutral-700 text-neutral-300 hover:text-white"
+            >
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {/* Action Row */}
+          <div className="grid grid-cols-4 gap-1.5 text-xs">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setFenHistory(["rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"]);
+                setSanMoves([]);
+                setHistoryIndex(0);
+              }}
+              className="text-neutral-400 hover:text-white"
+            >
+              <Plus className="h-3.5 w-3.5 mr-1" /> New
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setFlipped(!flipped)}
+              className="text-neutral-400 hover:text-white"
+            >
+              <FlipHorizontal2 className="h-3.5 w-3.5 mr-1" /> Flip
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                navigator.clipboard.writeText(currentFen);
+                alert("FEN copied to clipboard!");
+              }}
+              className="text-neutral-400 hover:text-white"
+            >
+              <Save className="h-3.5 w-3.5 mr-1" /> FEN
+            </Button>
+
+            {/* Review button: disabled per user instruction ("no game review yet") */}
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled
+              className="text-neutral-600 cursor-not-allowed"
+              title="Game Review (Coming Soon)"
+            >
+              Review
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Promotion Dialog */}
+      {promotion && (
+        <PromotionDialog
+          color={game.turn()}
+          onSelect={handlePromotionChoice}
+          onCancel={() => setPromotion(null)}
+        />
+      )}
+
+      {/* Game Details Modal */}
+      <GameDetailsModal
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        initialData={gameDetails}
+        onSave={(data) => setGameDetails(data)}
+      />
+
+      {/* Engine Settings Modal */}
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="max-w-md bg-[#272522] text-neutral-100 border-neutral-700 p-6 rounded-lg">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-white">Engine Settings</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-5 text-xs text-neutral-300 mt-2">
+            {/* Engine Source */}
+            <div className="space-y-1.5">
+              <span className="font-semibold text-white">Engine Source</span>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant={engineSettings.source === "browser" ? "default" : "outline"}
+                  onClick={() => {
+                    const next = { ...engineSettings, source: "browser" as const };
+                    setEngineSettings(next);
+                    analysisEngine.updateSettings(next);
+                  }}
+                  className={
+                    engineSettings.source === "browser"
+                      ? "bg-sky-600 hover:bg-sky-700 text-white"
+                      : "bg-[#1e1d1a] border-neutral-700 text-neutral-300"
+                  }
+                >
+                  Browser WASM
+                </Button>
+                <Button
+                  type="button"
+                  variant={engineSettings.source === "local_ws" ? "default" : "outline"}
+                  onClick={() => {
+                    const next = { ...engineSettings, source: "local_ws" as const };
+                    setEngineSettings(next);
+                    analysisEngine.updateSettings(next);
+                  }}
+                  className={
+                    engineSettings.source === "local_ws"
+                      ? "bg-sky-600 hover:bg-sky-700 text-white"
+                      : "bg-[#1e1d1a] border-neutral-700 text-neutral-300"
+                  }
+                >
+                  Local Desktop (WS)
+                </Button>
+              </div>
+            </div>
+
+            {/* Local WebSocket URL */}
+            {engineSettings.source === "local_ws" && (
+              <div className="space-y-1.5 p-3 rounded bg-[#1e1c19] border border-neutral-800">
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold text-white">WebSocket URL</span>
+                  <span
+                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                      engineState.wsConnected ? "bg-emerald-950 text-emerald-400" : "bg-rose-950 text-rose-400"
+                    }`}
+                  >
+                    {engineState.wsConnected ? "Connected" : "Disconnected"}
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  value={engineSettings.wsUrl}
+                  onChange={(e) => {
+                    const next = { ...engineSettings, wsUrl: e.target.value };
+                    setEngineSettings(next);
+                    analysisEngine.updateSettings(next);
+                  }}
+                  placeholder="ws://localhost:8080"
+                  className="w-full bg-[#161512] border border-neutral-700 rounded px-2.5 py-1.5 text-xs text-white"
+                />
+                <p className="text-[11px] text-neutral-400">
+                  Run <code>python stockfish_bridge.py</code> on your PC to connect your native Stockfish.
+                </p>
+              </div>
+            )}
+
+            {/* MultiPV Lines */}
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span>MultiPV Lines (Candidate Moves)</span>
+                <span className="font-bold text-white">{engineSettings.multiPv}</span>
+              </div>
+              <Slider
+                value={[engineSettings.multiPv]}
+                min={1}
+                max={5}
+                step={1}
+                onValueChange={([val]) => {
+                  const next = { ...engineSettings, multiPv: val };
+                  setEngineSettings(next);
+                  analysisEngine.updateSettings(next);
+                }}
+              />
+            </div>
+
+            {/* Threads (Local Desktop) */}
+            {engineSettings.source === "local_ws" && (
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span>CPU Threads</span>
+                  <span className="font-bold text-white">{engineSettings.threads}</span>
+                </div>
+                <Slider
+                  value={[engineSettings.threads]}
+                  min={1}
+                  max={32}
+                  step={1}
+                  onValueChange={([val]) => {
+                    const next = { ...engineSettings, threads: val };
+                    setEngineSettings(next);
+                    analysisEngine.updateSettings(next);
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Hash Size */}
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span>Hash Size</span>
+                <span className="font-bold text-white">{engineSettings.hashMb} MB</span>
+              </div>
+              <Slider
+                value={[engineSettings.hashMb]}
+                min={16}
+                max={engineSettings.source === "local_ws" ? 4096 : 256}
+                step={16}
+                onValueChange={([val]) => {
+                  const next = { ...engineSettings, hashMb: val };
+                  setEngineSettings(next);
+                  analysisEngine.updateSettings(next);
+                }}
+              />
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+
+
+
+
+File 4: src/components/chess/GameModesHub.tsx
+
+
+
+(Wire the new Analysis Board into the game modes menu so you can launch it with 1 click)
+
+
+
+
+In src/components/chess/GameModesHub.tsx, add an "Analysis Board" entry to the view mode:
+
+
+
+import { AnalysisBoard } from "./AnalysisBoard";
+
+// Add "analysis" to active tab states:
+const [activeTab, setActiveTab] = useState<"menu" | "bot_vs_bot" | "sandbox" | "analysis">("menu");
+
+// Inside the mode selector cards grid:
+<Card
+  onClick={() => setActiveTab("analysis")}
+  className="p-5 cursor-pointer bg-card/60 hover:bg-card/90 border-border/80 transition-all hover:scale-[1.01]"
+>
+  <div className="flex items-center gap-3">
+    <div className="p-3 rounded-lg bg-sky-500/10 text-sky-400">
+      <Sparkles className="h-6 w-6" />
+    </div>
+    <div>
+      <h3 className="font-bold text-base">Analysis Board</h3>
+      <p className="text-xs text-muted-foreground mt-0.5">
+        Stockfish 19 live arrows, eval bar, MultiPV lines, and local desktop engine bridge.
+      </p>
+    </div>
+  </div>
+</Card>
+
+// When activeTab === "analysis":
+if (activeTab === "analysis") {
+  return <AnalysisBoard onBack={() => setActiveTab("menu")} />;
+}
+
+
+
+
+
+File 5: stockfish_bridge.py
+
+
+
+(Save this on your PC to run your 13-thread, 4GB Hash native Stockfish 19 locally)
+
+
+
+"""
+Stockfish Native WebSocket Bridge
+Connects your native Stockfish 19 to the BotBoard web analysis board with 0% server compute!
+
+Requirements:
+  pip install websockets
+
+Usage:
+  python stockfish_bridge.py
+"""
+
+import asyncio
+import subprocess
+import websockets
+
+# Path to your native Stockfish executable on your PC
+STOCKFISH_PATH = r"C:\path\to\stockfish.exe"  # or "/usr/local/bin/stockfish"
+PORT = 8080
+
+async def handle_client(websocket):
+    print(f"[Bridge] Web client connected from {websocket.remote_address}")
+    engine = subprocess.Popen(
+        [STOCKFISH_PATH],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,
+    )
+
+    async def read_engine():
+        loop = asyncio.get_running_loop()
+        while True:
+            line = await loop.run_in_executor(None, engine.stdout.readline)
+            if not line:
+                break
+            await websocket.send(line.strip())
+
+    async def read_websocket():
+        async for message in websocket:
+            engine.stdin.write(message.strip() + "\n")
+            engine.stdin.flush()
+
+    try:
+        await asyncio.gather(read_engine(), read_websocket())
+    except Exception as e:
+        print(f"[Bridge] Connection closed: {e}")
+    finally:
+        engine.terminate()
+
+async def main():
+    print(f"[Bridge] Starting local Stockfish bridge on ws://localhost:{PORT}")
+    async with websockets.serve(handle_client, "localhost", PORT):
+        await asyncio.Future()  # run forever
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
+
