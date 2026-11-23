@@ -18,7 +18,6 @@ import {
   Eye,
   Gauge,
   Grid3x3,
-  Search,
   Swords,
   Trophy,
   User,
@@ -36,7 +35,6 @@ import {
 import { HumanVsBotMatch, type PlayerProfileLite } from "./HumanVsBotMatch";
 import { useUiSettings, visibleTiers } from "@/lib/appSettings";
 import { SandboxBoard } from "./SandboxBoard";
-import { AnalysisBoard } from "./AnalysisBoard";
 import { TitleBadge } from "./ChessApp";
 import { botDisplayIdentity, isImmersiveEnabled } from "@/lib/immersive";
 import { useAuth } from "@/lib/useAuth";
@@ -70,8 +68,7 @@ function pAvatar(p: Participant): string | null {
    Top-level Game Modes hub
    ============================================================ */
 
-type HubView =
-  "home" | "bvb-entry" | "bvb-single" | "bvb-tournament" | "perspective" | "sandbox" | "analysis";
+type HubView = "home" | "bvb-entry" | "bvb-single" | "bvb-tournament" | "perspective" | "sandbox";
 
 export function GameModesHub() {
   const [view, setView] = useState<HubView>("home");
@@ -79,7 +76,6 @@ export function GameModesHub() {
   if (view === "bvb-single") return <BotVsBotMode onBack={() => setView("bvb-entry")} />;
   if (view === "bvb-tournament") return <TournamentMode onBack={() => setView("bvb-entry")} />;
   if (view === "sandbox") return <SandboxBoard onBack={() => setView("home")} />;
-  if (view === "analysis") return <AnalysisBoard onBack={() => setView("home")} />;
   if (view === "bvb-entry")
     return <BotVsBotEntry onBack={() => setView("home")} onPick={setView} />;
 
@@ -109,13 +105,6 @@ export function GameModesHub() {
           icon={<Grid3x3 className="w-6 h-6" />}
           available
           onOpen={() => setView("sandbox")}
-        />
-        <ModeCard
-          title="Analysis Board"
-          desc="Live Stockfish arrows, eval bar, MultiPV lines, and local desktop engine bridge."
-          icon={<Search className="w-6 h-6" />}
-          available
-          onOpen={() => setView("analysis")}
         />
         <ModeCard
           title="More Game Modes"

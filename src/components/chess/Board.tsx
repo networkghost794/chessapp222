@@ -24,8 +24,6 @@ export interface BoardProps {
   bestFrom?: string | null;
   /** Bypass 3D view and always render classic 2D (used for SSR/WebGL fallback and mini previews). */
   force2D?: boolean;
-  /** Stretch to fill parent square container instead of clamping at 640px. */
-  fillContainer?: boolean;
   /** Optional 3D clock & tabletop pass-through props. */
   activeSide?: Color;
   whiteTimeMs?: number | null;
@@ -85,7 +83,6 @@ export function Board2D({
   onAttemptMove,
   indicators,
   bestFrom,
-  fillContainer,
 }: BoardProps) {
   const [settings] = useSettings();
   const animEnabled = settings.animations;
@@ -229,9 +226,7 @@ export function Board2D({
   return (
     <div
       className="aspect-square w-full mx-auto select-none"
-      style={
-        fillContainer ? undefined : { maxWidth: "calc(min(80vh, 640px) * var(--board-scale, 1))" }
-      }
+      style={{ maxWidth: "calc(min(80vh, 640px) * var(--board-scale, 1))" }}
     >
       <div
         ref={boardRef}
